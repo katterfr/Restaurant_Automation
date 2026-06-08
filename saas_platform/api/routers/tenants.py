@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from datetime import datetime
 from db.database import get_db
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
@@ -17,7 +18,7 @@ class TenantOut(BaseModel):
     slug: str
     plan: str
     status: str
-    created_at: str
+    created_at: datetime
 
 
 _PLAN_PRICES = {"starter": 49, "pro": 99, "business": 149, "enterprise": 249}
