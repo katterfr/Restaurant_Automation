@@ -18,7 +18,7 @@ COPY . .
 RUN mkdir -p /app/data /app/reports
 
 # Expose FastAPI port
-EXPOSE 8000
+EXPOSE ${PORT:-8000}
 
-# Run with uvicorn
-CMD ["uvicorn", "orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Shell form so $PORT is expanded from Railway's injected environment variable
+CMD uvicorn orchestrator.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
