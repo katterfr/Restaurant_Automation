@@ -4,6 +4,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, Tenant, Plan, Subscription } from '@/lib/api'
 
+const PORTAL_URL = typeof window !== 'undefined'
+  ? `${window.location.origin}/portal/login`
+  : '/portal/login'
+
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const tenantId = parseInt(id)
@@ -14,6 +18,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [plans, setPlans] = useState<Record<string, Plan>>({})
   const [loading, setLoading] = useState(true)
   const [upgrading, setUpgrading] = useState(false)
+  const [ownerForm, setOwnerForm] = useState({ email: '', password: '' })
+  const [ownerSaving, setOwnerSaving] = useState(false)
+  const [ownerMsg, setOwnerMsg] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -38,6 +45,21 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       alert(e instanceof Error ? e.message : 'Upgrade failed')
     } finally {
       setUpgrading(false)
+    }
+  }
+
+  async function createOwner(e: React.FormEvent) {
+    e.preventDefault()
+    setOwnerSaving(true)
+    setOwnerMsg('')
+    try {
+      await api.portal.createOwner(tenantId, ownerForm.email, ownerForm.password)
+      setOwnerMsg(`✓ Owner account created. Portal: ${PORTAL_URL}`)
+      setOwnerForm({ email: '', password: '' })
+    } catch (err: unknown) {
+      setOwnerMsg(err instanceof Error ? err.message : 'Failed to create owner')
+    } finally {
+      setOwnerSaving(false)
     }
   }
 
@@ -76,6 +98,46 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             <dd className="font-medium text-gray-900">{new Date(tenant.created_at).toLocaleDateString()}</dd>
           </div>
         </dl>
+      </div>
+
+      {/* Owner account card */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Owner Portal Access</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Create login credentials for the restaurant owner. They log in at{' '}
+          <a href="/portal/login" target="_blank" className="text-blue-600 hover:underline">/portal/login</a>.
+        </p>
+        <form onSubmit={createOwner} className="flex gap-3 flex-wrap">
+          <input
+            type="email"
+            placeholder="owner@restaurant.com"
+            value={ownerForm.email}
+            onChange={e => setOwnerForm(p => ({ ...p, email: e.target.value }))}
+            required
+            className="flex-1 min-w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <input
+            type="password"
+            placeholder="Password (min 8 chars)"
+            value={ownerForm.password}
+            onChange={e => setOwnerForm(p => ({ ...p, password: e.target.value }))}
+            required
+            minLength={8}
+            className="flex-1 min-w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button
+            type="submit"
+            disabled={ownerSaving}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0"
+          >
+            {ownerSaving ? 'Creating…' : 'Create Account'}
+          </button>
+        </form>
+        {ownerMsg && (
+          <p className={`mt-3 text-sm px-3 py-2 rounded-lg border ${ownerMsg.startsWith('✓') ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-600 bg-red-50 border-red-200'}`}>
+            {ownerMsg}
+          </p>
+        )}
       </div>
 
       {/* Plans card */}

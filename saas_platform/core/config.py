@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     admin_email: str = "admin@example.com"
     admin_password: str = "changeme"
+    api_admin_secret: Optional[str] = None
 
 
 settings = Settings()

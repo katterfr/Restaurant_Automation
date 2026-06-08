@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     business_open_time: str = "11:00"   # HH:MM 24h
     business_close_time: str = "22:00"  # HH:MM 24h
 
+    # ── SaaS Platform integration ────────────────────────────────────────
+    saas_api_url: Optional[str] = None        # e.g. https://api-production-731b.up.railway.app
+    saas_tenant_id: Optional[int] = None      # The tenant ID this restaurant maps to
+    saas_api_key: Optional[str] = None        # API_ADMIN_SECRET from saas_platform
+
     # ── Derived ─────────────────────────────────────────────────────────
     @property
     def tz(self) -> zoneinfo.ZoneInfo:

@@ -109,6 +109,29 @@ def register_handlers() -> None:
         ), 2)
         await record_sale(order_id=order_id, revenue=total, cogs=cogs, channel=channel)
 
+        # Forward order to SaaS platform for tenant portal visibility
+        if settings.saas_api_url and settings.saas_tenant_id and settings.saas_api_key:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    await client.post(
+                        f"{settings.saas_api_url}/orders/ingest",
+                        json={
+                            "tenant_id":    settings.saas_tenant_id,
+                            "order_source": channel,
+                            "order_id":     order_id,
+                            "items":        payload.get("items", []),
+                            "total":        total,
+                            "order_type":   payload.get("order_type", "pickup"),
+                            "customer_name": payload.get("customer_name"),
+                            "address":      payload.get("address"),
+                        },
+                        headers={"X-Api-Key": settings.saas_api_key},
+                    )
+                log.info("ORDER forwarded to SaaS platform | #%s", order_id)
+            except Exception as e:
+                log.warning("Failed to forward order to SaaS platform: %s", e)
+
         await bus.publish(Events.ORDER_CONFIRMED, {
             "order_id":      order_id,
             "channel":       channel,

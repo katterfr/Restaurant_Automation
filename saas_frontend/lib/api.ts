@@ -5,6 +5,31 @@ function getToken(): string | null {
   return localStorage.getItem('token')
 }
 
+export interface Order {
+  id: number
+  tenant_id: number
+  order_source: string
+  external_order_id: string | null
+  status: string
+  items: string | null
+  total: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface PortalDashboard {
+  tenant: { id: number; name: string; plan: string; status: string }
+  stats: {
+    today_orders: number
+    today_revenue: number
+    total_orders: number
+    total_revenue: number
+    menu_items: number
+    menu_active: number
+  }
+  recent_orders: Order[]
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
   const res = await fetch(`${API_URL}${path}`, {
@@ -99,5 +124,15 @@ export const api = {
       request<MenuItem>(`/menu/${tenantId}/${itemId}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (tenantId: number, itemId: number) =>
       request<void>(`/menu/${tenantId}/${itemId}`, { method: 'DELETE' }),
+  },
+  portal: {
+    dashboard: () => request<PortalDashboard>('/portal/dashboard'),
+    orders: (limit = 50) => request<Order[]>(`/portal/orders?limit=${limit}`),
+    menu: () => request<MenuItem[]>('/portal/menu'),
+    createOwner: (tenantId: number, email: string, password: string) =>
+      request(`/portal/tenants/${tenantId}/users`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }),
   },
 }
