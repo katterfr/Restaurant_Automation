@@ -37,5 +37,16 @@ class Settings(BaseSettings):
     admin_password: str = "changeme"
     api_admin_secret: Optional[str] = None
 
+    # Social ads platforms
+    meta_app_id: Optional[str] = None
+    meta_app_secret: Optional[str] = None
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    google_developer_token: Optional[str] = None
+    tiktok_app_id: Optional[str] = None
+    tiktok_app_secret: Optional[str] = None
+    frontend_url: str = "http://localhost:3000"
+    saas_api_url: str = "http://localhost:8001"
+
 
 settings = Settings()

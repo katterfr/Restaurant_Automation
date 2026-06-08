@@ -70,6 +70,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
             <Link href={`/portal/${slug}/dashboard`} className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <Link href={`/portal/${slug}/orders`} className="hover:text-gray-900 transition-colors">Orders</Link>
             <Link href={`/portal/${slug}/menu`} className="hover:text-gray-900 transition-colors">Menu</Link>
+            <Link href={`/portal/${slug}/ads`} className="hover:text-gray-900 transition-colors">Ads</Link>
           </nav>
           <button onClick={logout} className="text-sm text-gray-400 hover:text-gray-700 transition-colors">
             Sign out

@@ -108,6 +108,41 @@ async def init_db():
                 updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
             );
 
+            CREATE TABLE IF NOT EXISTS platform_connections (
+                id           SERIAL PRIMARY KEY,
+                tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                platform     VARCHAR(50) NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                ad_account_id VARCHAR(255) DEFAULT '',
+                page_id      VARCHAR(255) DEFAULT '',
+                connected_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(tenant_id, platform)
+            );
+
+            CREATE TABLE IF NOT EXISTS ad_campaigns (
+                id                  SERIAL PRIMARY KEY,
+                tenant_id           INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                platform            VARCHAR(50) NOT NULL,
+                status              VARCHAR(50) NOT NULL DEFAULT 'draft',
+                headline            VARCHAR(255) NOT NULL,
+                body                TEXT NOT NULL,
+                image_url           TEXT,
+                destination_url     TEXT,
+                cta                 VARCHAR(50) DEFAULT 'LEARN_MORE',
+                budget_daily        REAL DEFAULT 10,
+                location            TEXT,
+                radius_miles        INTEGER DEFAULT 10,
+                start_date          TEXT,
+                end_date            TEXT,
+                platform_campaign_id TEXT,
+                impressions         INTEGER DEFAULT 0,
+                clicks              INTEGER DEFAULT 0,
+                spend               REAL DEFAULT 0,
+                error_message       TEXT,
+                created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS tenant_orders (
                 id                SERIAL PRIMARY KEY,
                 tenant_id         INTEGER NOT NULL REFERENCES tenants(id),

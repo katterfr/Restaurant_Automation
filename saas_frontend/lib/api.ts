@@ -87,6 +87,35 @@ export interface TenantStats {
   plans: Record<string, number>
 }
 
+export interface AdCampaign {
+  id: number
+  tenant_id: number
+  platform: string
+  status: string
+  headline: string
+  body: string
+  image_url: string | null
+  destination_url: string | null
+  cta: string
+  budget_daily: number
+  location: string | null
+  radius_miles: number
+  start_date: string | null
+  end_date: string | null
+  impressions: number
+  clicks: number
+  spend: number
+  error_message: string | null
+  created_at: string
+}
+
+export interface PlatformStatus {
+  configured: boolean
+  connected: boolean
+  ad_account_id: string | null
+  connected_at: string | null
+}
+
 export interface MenuItem {
   id: number
   tenant_id: number
@@ -125,6 +154,28 @@ export const api = {
       request<MenuItem>(`/menu/${tenantId}/${itemId}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (tenantId: number, itemId: number) =>
       request<void>(`/menu/${tenantId}/${itemId}`, { method: 'DELETE' }),
+  },
+  ads: {
+    status: () => request<Record<string, PlatformStatus>>('/ads/status'),
+    campaigns: () => request<AdCampaign[]>('/ads/campaigns'),
+    create: (data: {
+      platforms: string[]
+      headline: string
+      body: string
+      image_url?: string
+      destination_url?: string
+      cta?: string
+      budget_daily?: number
+      location?: string
+      radius_miles?: number
+      start_date?: string
+      end_date?: string
+    }) => request<Array<{ platform: string; status: string; id: number; error?: string }>>('/ads/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    cancel: (id: number) => request<void>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
+    connectUrl: (platform: string) => request<{ oauth_url: string }>(`/ads/connect/${platform}/url`),
   },
   portal: {
     dashboard: () => request<PortalDashboard>('/portal/dashboard'),
