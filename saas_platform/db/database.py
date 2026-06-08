@@ -215,6 +215,17 @@ async def init_db():
                 UNIQUE(tenant_id)
             );
 
+            CREATE TABLE IF NOT EXISTS tenant_customization (
+                id           SERIAL PRIMARY KEY,
+                tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                accent_color VARCHAR(7)  NOT NULL DEFAULT '#16a34a',
+                logo_url     TEXT        NOT NULL DEFAULT '',
+                banner_url   TEXT        NOT NULL DEFAULT '',
+                welcome_msg  TEXT        NOT NULL DEFAULT '',
+                updated_at   TIMESTAMP   NOT NULL DEFAULT NOW(),
+                UNIQUE(tenant_id)
+            );
+
             CREATE TABLE IF NOT EXISTS tenant_orders (
                 id                SERIAL PRIMARY KEY,
                 tenant_id         INTEGER NOT NULL REFERENCES tenants(id),

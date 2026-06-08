@@ -176,6 +176,13 @@ export interface MenuItem {
   created_at: string
 }
 
+export interface TenantCustomization {
+  accent_color: string
+  logo_url: string
+  banner_url: string
+  welcome_msg: string
+}
+
 export interface BusinessListing {
   tenant_id: number
   name: string
@@ -264,6 +271,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
+    customization: () => request<TenantCustomization>('/portal/customization'),
+    saveCustomization: (data: Partial<TenantCustomization>) =>
+      request<TenantCustomization>('/portal/customization', { method: 'PUT', body: JSON.stringify(data) }),
   },
   social: {
     posts: () => request<SocialPost[]>('/social/posts'),

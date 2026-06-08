@@ -180,3 +180,60 @@ async def create_owner_user(
         body.email, hash_password(body.password), tenant_id,
     )
     return dict(row)
+
+
+# ─── Portal Customization ─────────────────────────────────────────────────────
+
+class CustomizationBody(BaseModel):
+    accent_color: Optional[str] = None
+    logo_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    welcome_msg: Optional[str] = None
+
+
+@router.get("/customization")
+async def get_customization(current_user=Depends(_require_owner), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    row = await db.fetchrow("SELECT * FROM tenant_customization WHERE tenant_id=$1", tid)
+    if not row:
+        return {"accent_color": "#16a34a", "logo_url": "", "banner_url": "", "welcome_msg": ""}
+    return dict(row)
+
+
+@router.put("/customization")
+async def save_customization(body: CustomizationBody, current_user=Depends(_require_owner), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    existing = await db.fetchrow("SELECT id FROM tenant_customization WHERE tenant_id=$1", tid)
+    if existing:
+        sets = []
+        vals = []
+        if body.accent_color is not None:
+            sets.append(f"accent_color=${len(vals)+2}")
+            vals.append(body.accent_color)
+        if body.logo_url is not None:
+            sets.append(f"logo_url=${len(vals)+2}")
+            vals.append(body.logo_url)
+        if body.banner_url is not None:
+            sets.append(f"banner_url=${len(vals)+2}")
+            vals.append(body.banner_url)
+        if body.welcome_msg is not None:
+            sets.append(f"welcome_msg=${len(vals)+2}")
+            vals.append(body.welcome_msg)
+        if sets:
+            sets.append(f"updated_at=NOW()")
+            await db.execute(
+                f"UPDATE tenant_customization SET {', '.join(sets)} WHERE tenant_id=$1",
+                tid, *vals,
+            )
+    else:
+        await db.execute(
+            """INSERT INTO tenant_customization (tenant_id, accent_color, logo_url, banner_url, welcome_msg)
+               VALUES ($1, $2, $3, $4, $5)""",
+            tid,
+            body.accent_color or "#16a34a",
+            body.logo_url or "",
+            body.banner_url or "",
+            body.welcome_msg or "",
+        )
+    row = await db.fetchrow("SELECT * FROM tenant_customization WHERE tenant_id=$1", tid)
+    return dict(row)

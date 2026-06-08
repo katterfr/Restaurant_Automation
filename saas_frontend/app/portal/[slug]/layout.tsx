@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
 import { isLoggedIn, clearToken } from '@/lib/auth'
-import { api } from '@/lib/api'
-import { TenantContext, TenantPublic } from './tenant-context'
+import { api, TenantCustomization as ApiCustomization } from '@/lib/api'
+import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization } from './tenant-context'
 import Link from 'next/link'
 
 const ALL_NAV = [
@@ -17,6 +17,21 @@ const ALL_NAV = [
   { label: 'Listings',    href: 'business',   feature: 'business_listings' },
 ]
 
+const COLOR_PRESETS = [
+  { label: 'Green',  value: '#16a34a' },
+  { label: 'Blue',   value: '#2563eb' },
+  { label: 'Orange', value: '#ea580c' },
+  { label: 'Purple', value: '#7c3aed' },
+  { label: 'Red',    value: '#dc2626' },
+]
+
+const DEFAULT_CUSTOMIZATION: TenantCustomization = {
+  accent_color: '#16a34a',
+  logo_url: '',
+  banner_url: '',
+  welcome_msg: '',
+}
+
 export default function SlugPortalLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ slug: string }>()
   const slug = params?.slug ?? ''
@@ -26,6 +41,11 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   const [features, setFeatures] = useState<string[]>([])
   const [notFound, setNotFound] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [customization, setCustomization] = useState<TenantCustomization>(DEFAULT_CUSTOMIZATION)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [draftCustom, setDraftCustom] = useState<TenantCustomization>(DEFAULT_CUSTOMIZATION)
+  const [saving, setSaving] = useState(false)
+  const drawerRef = useRef<HTMLDivElement>(null)
 
   const isLoginPage = pathname.endsWith('/login')
 
@@ -37,6 +57,10 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   useEffect(() => {
     if (isLoginPage || !isLoggedIn()) return
     api.portal.features().then(setFeatures).catch(() => {})
+    api.portal.customization().then((c: ApiCustomization) => {
+      setCustomization(c)
+      setDraftCustom(c)
+    }).catch(() => {})
   }, [isLoginPage, slug])
 
   useEffect(() => {
@@ -44,9 +68,34 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
     if (!isLoggedIn()) router.replace(`/portal/${slug}/login`)
   }, [isLoginPage, router, slug])
 
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        setDrawerOpen(false)
+      }
+    }
+    if (drawerOpen) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [drawerOpen])
+
   function logout() {
     clearToken()
     router.push(`/portal/${slug}/login`)
+  }
+
+  function openDrawer() {
+    setDraftCustom(customization)
+    setDrawerOpen(true)
+  }
+
+  async function saveCustomization() {
+    setSaving(true)
+    try {
+      const saved = await api.portal.saveCustomization(draftCustom)
+      setCustomization(saved)
+      setDrawerOpen(false)
+    } catch { /* ignore */ }
+    finally { setSaving(false) }
   }
 
   if (notFound) {
@@ -67,81 +116,217 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
   const initial = tenant?.name?.[0]?.toUpperCase() ?? '…'
   const visibleNav = ALL_NAV.filter(n => !n.feature || features.includes(n.feature))
+  const accent = customization.accent_color || '#16a34a'
 
   return (
     <TenantContext.Provider value={tenant}>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
-              {initial}
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-gray-900 leading-tight">
-                {tenant?.name ?? '…'}
-              </p>
-              <p className="text-xs text-gray-400">Owner Portal</p>
+      <CustomizationContext.Provider value={customization}>
+        <div className="min-h-screen bg-gray-50 flex flex-col" style={{ '--accent': accent } as React.CSSProperties}>
+          <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+            <div className="flex items-center gap-3">
+              {customization.logo_url ? (
+                <img
+                  src={customization.logo_url}
+                  alt={tenant?.name ?? ''}
+                  className="w-8 h-8 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <span
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
+                  style={{ backgroundColor: accent }}
+                >
+                  {initial}
+                </span>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-gray-900 leading-tight">
+                  {tenant?.name ?? '…'}
+                </p>
+                <p className="text-xs text-gray-400">Owner Portal</p>
+              </div>
             </div>
-          </div>
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {visibleNav.map(n => {
-              const active = pathname.includes(`/${n.href}`)
-              return (
+            {/* Desktop nav */}
+            <nav className="hidden md:flex items-center gap-1">
+              {visibleNav.map(n => {
+                const active = pathname.includes(`/${n.href}`)
+                return (
+                  <Link
+                    key={n.href}
+                    href={`/portal/${slug}/${n.href}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      active ? 'font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                    style={active ? { backgroundColor: `${accent}18`, color: accent } : {}}
+                  >
+                    {n.label}
+                  </Link>
+                )
+              })}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openDrawer}
+                className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+                title="Customize portal"
+              >
+                <span>🎨</span>
+                <span>Customize</span>
+              </button>
+              <button
+                onClick={logout}
+                className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                Sign out
+              </button>
+              {/* Mobile hamburger */}
+              <button
+                onClick={() => setMobileOpen(o => !o)}
+                className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+              >
+                <span className="block w-5 h-0.5 bg-current mb-1" />
+                <span className="block w-5 h-0.5 bg-current mb-1" />
+                <span className="block w-5 h-0.5 bg-current" />
+              </button>
+            </div>
+          </header>
+
+          {/* Mobile menu */}
+          {mobileOpen && (
+            <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 space-y-1">
+              {visibleNav.map(n => (
                 <Link
                   key={n.href}
                   href={`/portal/${slug}/${n.href}`}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    active ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100"
                 >
                   {n.label}
                 </Link>
-              )
-            })}
-          </nav>
+              ))}
+              <button onClick={openDrawer} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
+                🎨 Customize
+              </button>
+              <button onClick={logout} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-100">
+                Sign out
+              </button>
+            </div>
+          )}
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={logout}
-              className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
-            >
-              Sign out
-            </button>
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMobileOpen(o => !o)}
-              className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
-            >
-              <span className="block w-5 h-0.5 bg-current mb-1" />
-              <span className="block w-5 h-0.5 bg-current mb-1" />
-              <span className="block w-5 h-0.5 bg-current" />
-            </button>
-          </div>
-        </header>
+          <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">{children}</main>
+        </div>
 
-        {/* Mobile menu */}
-        {mobileOpen && (
-          <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 space-y-1">
-            {visibleNav.map(n => (
-              <Link
-                key={n.href}
-                href={`/portal/${slug}/${n.href}`}
-                onClick={() => setMobileOpen(false)}
-                className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100"
-              >
-                {n.label}
-              </Link>
-            ))}
-            <button onClick={logout} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-100">
-              Sign out
-            </button>
+        {/* Customization overlay */}
+        {drawerOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerOpen(false)} />
+            <div ref={drawerRef} className="relative bg-white w-80 h-full shadow-2xl flex flex-col overflow-y-auto">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-gray-900">Customize Portal</h2>
+                <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+              </div>
+
+              <div className="flex-1 px-5 py-5 space-y-6">
+                {/* Accent color */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Accent Color</p>
+                  <div className="flex gap-2 flex-wrap mb-3">
+                    {COLOR_PRESETS.map(c => (
+                      <button
+                        key={c.value}
+                        onClick={() => setDraftCustom(d => ({ ...d, accent_color: c.value }))}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${draftCustom.accent_color === c.value ? 'border-gray-900 scale-110' : 'border-transparent hover:scale-105'}`}
+                        style={{ backgroundColor: c.value }}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={draftCustom.accent_color}
+                      onChange={e => setDraftCustom(d => ({ ...d, accent_color: e.target.value }))}
+                      className="w-8 h-8 rounded cursor-pointer border border-gray-200"
+                    />
+                    <span className="text-xs text-gray-500 font-mono">{draftCustom.accent_color}</span>
+                    <span className="text-xs text-gray-400">Custom color</span>
+                  </div>
+                </div>
+
+                {/* Welcome message */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                    Welcome Message
+                  </label>
+                  <input
+                    type="text"
+                    value={draftCustom.welcome_msg}
+                    onChange={e => setDraftCustom(d => ({ ...d, welcome_msg: e.target.value }))}
+                    placeholder="Welcome back! Ready for a great day?"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    maxLength={120}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Shown at the top of your dashboard</p>
+                </div>
+
+                {/* Logo URL */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                    Logo URL
+                  </label>
+                  <input
+                    type="url"
+                    value={draftCustom.logo_url}
+                    onChange={e => setDraftCustom(d => ({ ...d, logo_url: e.target.value }))}
+                    placeholder="https://yoursite.com/logo.png"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {draftCustom.logo_url && (
+                    <img src={draftCustom.logo_url} alt="Logo preview" className="mt-2 h-10 w-10 rounded-lg object-cover border border-gray-200" />
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Replaces the initials icon in the header</p>
+                </div>
+
+                {/* Banner URL */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
+                    Banner Image URL
+                  </label>
+                  <input
+                    type="url"
+                    value={draftCustom.banner_url}
+                    onChange={e => setDraftCustom(d => ({ ...d, banner_url: e.target.value }))}
+                    placeholder="https://yoursite.com/banner.jpg"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {draftCustom.banner_url && (
+                    <img src={draftCustom.banner_url} alt="Banner preview" className="mt-2 w-full h-20 rounded-lg object-cover border border-gray-200" />
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Full-width hero shown on your dashboard</p>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+                <button
+                  onClick={saveCustomization}
+                  disabled={saving}
+                  className="flex-1 text-white py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: draftCustom.accent_color }}
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
-
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">{children}</main>
-      </div>
+      </CustomizationContext.Provider>
     </TenantContext.Provider>
   )
 }

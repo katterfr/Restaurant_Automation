@@ -8,5 +8,20 @@ export interface TenantPublic {
   status: string
 }
 
+export interface TenantCustomization {
+  accent_color: string
+  logo_url: string
+  banner_url: string
+  welcome_msg: string
+}
+
 export const TenantContext = createContext<TenantPublic | null>(null)
 export function useTenant() { return useContext(TenantContext) }
+
+export const CustomizationContext = createContext<TenantCustomization>({
+  accent_color: '#16a34a',
+  logo_url: '',
+  banner_url: '',
+  welcome_msg: '',
+})
+export function useCustomization() { return useContext(CustomizationContext) }
