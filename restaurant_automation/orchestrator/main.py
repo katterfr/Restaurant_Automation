@@ -81,15 +81,15 @@ async def health():
 
 @app.get("/config")
 async def get_config(request: Request):
-    base = str(request.base_url).rstrip("/")
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return {
-        "restaurant_name":  settings.restaurant_name,
-        "timezone":         settings.restaurant_timezone,
-        "open_time":        settings.business_open_time,
-        "close_time":       settings.business_close_time,
-        "twilio_phone":     settings.twilio_phone_number or "not configured",
-        "webhook_incoming": f"{base}/phone/incoming",
-        "webhook_gather":   f"{base}/phone/gather",
+        "restaurant_name":   settings.restaurant_name,
+        "timezone":          settings.restaurant_timezone,
+        "open_time":         settings.business_open_time,
+        "close_time":        settings.business_close_time,
+        "twilio_phone":      settings.twilio_phone_number or "not configured",
+        "webhook_incoming":  f"{base}/phone/incoming",
+        "webhook_gather":    f"{base}/phone/gather",
         "webhook_voicemail": f"{base}/phone/voicemail",
     }
 
