@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import { api, Tenant, Plan, Subscription } from '@/lib/api'
 
 const ALL_FEATURES: Record<string, string> = {
-  ads:            'Social Media Advertising',
-  social_posts:   'Social Media Posts',
-  accounting:     'Accounting & Bookkeeping',
-  menu_management:'Menu Management',
-  delivery:       'Delivery Integrations',
+  ads:               'Social Media Advertising',
+  social_posts:      'Social Media Posts',
+  accounting:        'Accounting & Bookkeeping',
+  menu_management:   'Menu Management',
+  delivery:          'Delivery Integrations',
+  business_listings: 'Google & Apple Maps Listings',
 }
 
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {

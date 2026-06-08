@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { api, AdCampaign, PlatformStatus } from '@/lib/api'
 
 const PLATFORM_META = {
-  meta:   { label: 'Meta',    icon: 'f', color: 'bg-blue-600',    desc: 'Facebook + Instagram' },
-  google: { label: 'Google',  icon: 'G', color: 'bg-red-500',     desc: 'Search + Display Ads' },
-  tiktok: { label: 'TikTok',  icon: '♪', color: 'bg-black',       desc: 'TikTok In-Feed Ads' },
+  meta:      { label: 'Meta',      icon: 'f',  color: 'bg-blue-600',    desc: 'Facebook + Instagram Ads' },
+  google:    { label: 'Google',    icon: 'G',  color: 'bg-red-500',     desc: 'Search, Display & YouTube' },
+  tiktok:    { label: 'TikTok',    icon: '▶',  color: 'bg-neutral-900', desc: 'In-Feed Video Ads' },
+  snapchat:  { label: 'Snapchat',  icon: '👻', color: 'bg-yellow-400',  desc: 'Story & Snap Ads' },
+  pinterest: { label: 'Pinterest', icon: 'P',  color: 'bg-red-600',     desc: 'Promoted Pins' },
 }
 
 function statusBadge(status: string) {

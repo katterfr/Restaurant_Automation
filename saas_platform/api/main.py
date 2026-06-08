@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from db.database import init_db, close_db
-from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery
+from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,6 +50,7 @@ app.include_router(features.router)
 app.include_router(social.router)
 app.include_router(accounting.router)
 app.include_router(delivery.router)
+app.include_router(business.router)
 
 
 @app.get("/health")

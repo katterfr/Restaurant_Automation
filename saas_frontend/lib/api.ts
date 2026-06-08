@@ -176,6 +176,29 @@ export interface MenuItem {
   created_at: string
 }
 
+export interface BusinessListing {
+  tenant_id: number
+  name: string
+  description: string
+  phone: string
+  website: string
+  address_line1: string
+  city: string
+  state: string
+  zip: string
+  category: string
+  logo_url: string
+  hours: string
+  google_status: string
+  google_location_id: string | null
+  apple_status: string
+}
+
+export interface BusinessStatus {
+  google: { configured: boolean; connected: boolean; account_id: string | null; location_id: string | null; google_status: string; connected_at: string | null }
+  apple:  { configured: boolean; submitted: boolean; apple_status: string; portal_url: string }
+}
+
 export const api = {
   tenants: {
     list: () => request<Tenant[]>('/tenants/'),
@@ -263,6 +286,16 @@ export const api = {
     connect: (provider: string, data: { api_key: string; store_id?: string }) =>
       request(`/delivery/connect/${provider}`, { method: 'POST', body: JSON.stringify(data) }),
     disconnect: (provider: string) => request<void>(`/delivery/connect/${provider}`, { method: 'DELETE' }),
+  },
+  business: {
+    status: () => request<BusinessStatus>('/business/status'),
+    info: () => request<BusinessListing>('/business/info'),
+    saveInfo: (data: Partial<BusinessListing>) => request<{ ok: boolean }>('/business/info', { method: 'PUT', body: JSON.stringify(data) }),
+    googleConnectUrl: () => request<{ oauth_url: string }>('/business/google/connect-url'),
+    googleLocations: () => request<{ locations: unknown[]; account_id: string }>('/business/google/locations'),
+    googleSync: () => request<{ ok: boolean; location: unknown }>('/business/google/sync', { method: 'POST' }),
+    googleDisconnect: () => request<{ ok: boolean }>('/business/google/disconnect', { method: 'DELETE' }),
+    appleSubmit: () => request<{ status: string; message: string; portal_url: string }>('/business/apple/submit', { method: 'POST' }),
   },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),

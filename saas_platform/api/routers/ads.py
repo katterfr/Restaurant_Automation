@@ -13,12 +13,20 @@ from core.config import settings
 from integrations import meta as meta_api
 from integrations import google_ads as google_api
 from integrations import tiktok as tiktok_api
+from integrations import snapchat as snapchat_api
+from integrations import pinterest as pinterest_api
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
-PLATFORMS = {"meta": meta_api, "google": google_api, "tiktok": tiktok_api}
+PLATFORMS = {
+    "meta":      meta_api,
+    "google":    google_api,
+    "tiktok":    tiktok_api,
+    "snapchat":  snapchat_api,
+    "pinterest": pinterest_api,
+}
 
 
 def _require_owner(current_user=Depends(get_current_user)):
@@ -126,6 +134,20 @@ async def oauth_callback(
         advertiser_ids = token_data.get("advertiser_ids", [])
         if advertiser_ids:
             ad_account_id = str(advertiser_ids[0])
+    elif platform == "snapchat":
+        try:
+            accounts = await snapchat_api.get_ad_accounts(access_token)
+            if accounts:
+                ad_account_id = accounts[0]["id"]
+        except Exception as e:
+            log.warning("Could not fetch Snapchat ad accounts: %s", e)
+    elif platform == "pinterest":
+        try:
+            accounts = await pinterest_api.get_ad_accounts(access_token)
+            if accounts:
+                ad_account_id = accounts[0]["id"]
+        except Exception as e:
+            log.warning("Could not fetch Pinterest ad accounts: %s", e)
 
     await db.execute(
         """INSERT INTO platform_connections (tenant_id, platform, access_token, refresh_token, ad_account_id)

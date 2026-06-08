@@ -190,6 +190,31 @@ async def init_db():
                 created_at          TIMESTAMP NOT NULL DEFAULT NOW()
             );
 
+            CREATE TABLE IF NOT EXISTS business_listings (
+                id                SERIAL PRIMARY KEY,
+                tenant_id         INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                name              TEXT NOT NULL DEFAULT '',
+                description       TEXT NOT NULL DEFAULT '',
+                phone             TEXT NOT NULL DEFAULT '',
+                website           TEXT NOT NULL DEFAULT '',
+                address_line1     TEXT NOT NULL DEFAULT '',
+                city              TEXT NOT NULL DEFAULT '',
+                state             TEXT NOT NULL DEFAULT '',
+                zip               TEXT NOT NULL DEFAULT '',
+                country           TEXT NOT NULL DEFAULT 'US',
+                hours             TEXT NOT NULL DEFAULT '{}',
+                category          TEXT NOT NULL DEFAULT 'restaurant',
+                logo_url          TEXT NOT NULL DEFAULT '',
+                google_account_id TEXT,
+                google_location_id TEXT,
+                google_status     TEXT NOT NULL DEFAULT 'not_connected',
+                apple_place_id    TEXT,
+                apple_status      TEXT NOT NULL DEFAULT 'not_submitted',
+                created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(tenant_id)
+            );
+
             CREATE TABLE IF NOT EXISTS tenant_orders (
                 id                SERIAL PRIMARY KEY,
                 tenant_id         INTEGER NOT NULL REFERENCES tenants(id),

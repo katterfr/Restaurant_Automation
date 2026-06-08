@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     google_developer_token: Optional[str] = None
     tiktok_app_id: Optional[str] = None
     tiktok_app_secret: Optional[str] = None
+    snapchat_client_id: Optional[str] = None
+    snapchat_client_secret: Optional[str] = None
+    pinterest_app_id: Optional[str] = None
+    pinterest_app_secret: Optional[str] = None
+    # Apple Maps / Business Connect
+    apple_team_id: Optional[str] = None
+    apple_maps_key_id: Optional[str] = None
+    apple_maps_private_key: Optional[str] = None
     frontend_url: str = "http://localhost:3000"
     saas_api_url: str = "http://localhost:8001"
 

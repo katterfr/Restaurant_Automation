@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { api, PlatformStatus } from '@/lib/api'
 
 const PLATFORMS = [
-  { key: 'meta',   label: 'Meta',   icon: 'f', color: 'bg-blue-600',  sub: 'Facebook + Instagram' },
-  { key: 'google', label: 'Google', icon: 'G', color: 'bg-red-500',   sub: 'Search + Display' },
-  { key: 'tiktok', label: 'TikTok', icon: '♪', color: 'bg-black',     sub: 'In-Feed Video/Image' },
+  { key: 'meta',      label: 'Meta',      icon: 'f',  color: 'bg-blue-600',    sub: 'Facebook + Instagram' },
+  { key: 'google',    label: 'Google',    icon: 'G',  color: 'bg-red-500',     sub: 'Search, Display & YouTube' },
+  { key: 'tiktok',    label: 'TikTok',    icon: '▶',  color: 'bg-neutral-900', sub: 'In-Feed Video Ads' },
+  { key: 'snapchat',  label: 'Snapchat',  icon: '👻', color: 'bg-yellow-400',  sub: 'Story & Snap Ads' },
+  { key: 'pinterest', label: 'Pinterest', icon: 'P',  color: 'bg-red-600',     sub: 'Promoted Pins' },
 ]
 
 const CTA_OPTIONS = [

@@ -5,11 +5,12 @@ from api.routers.auth import get_current_user
 router = APIRouter(prefix="/features", tags=["features"])
 
 ALL_FEATURES: dict[str, str] = {
-    "ads":              "Social Media Advertising",
-    "social_posts":     "Social Media Posts",
-    "accounting":       "Accounting & Bookkeeping",
-    "menu_management":  "Menu Management",
-    "delivery":         "Delivery Integrations",
+    "ads":               "Social Media Advertising",
+    "social_posts":      "Social Media Posts",
+    "accounting":        "Accounting & Bookkeeping",
+    "menu_management":   "Menu Management",
+    "delivery":          "Delivery Integrations",
+    "business_listings": "Google & Apple Maps Listings",
 }
 
 

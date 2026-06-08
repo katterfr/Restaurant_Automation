@@ -14,6 +14,7 @@ const ALL_NAV = [
   { label: 'Social',      href: 'social',     feature: 'social_posts' },
   { label: 'Accounting',  href: 'accounting', feature: 'accounting' },
   { label: 'Delivery',    href: 'delivery',   feature: 'delivery' },
+  { label: 'Listings',    href: 'business',   feature: 'business_listings' },
 ]
 
 export default function SlugPortalLayout({ children }: { children: React.ReactNode }) {
