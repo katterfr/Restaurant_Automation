@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_port: int = 8001
     secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 1440
 
     database_url: str = "sqlite+aiosqlite:///./saas.db"
 
