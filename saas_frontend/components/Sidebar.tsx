@@ -21,7 +21,7 @@ export default function Sidebar() {
   return (
     <aside className="w-60 bg-gray-900 text-white flex flex-col min-h-screen shrink-0">
       <div className="px-6 py-5 border-b border-gray-800">
-        <p className="text-sm font-bold tracking-wide">Restaurant SaaS</p>
+        <p className="text-sm font-bold tracking-wide">Careful-Server</p>
         <p className="text-xs text-gray-400 mt-0.5">Admin Portal</p>
       </div>
 
