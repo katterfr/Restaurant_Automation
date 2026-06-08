@@ -55,10 +55,29 @@ export interface Subscription {
   plan_details: Plan
 }
 
+export interface TenantStats {
+  total: number
+  active: number
+  mrr: number
+  plans: Record<string, number>
+}
+
+export interface MenuItem {
+  id: number
+  tenant_id: number
+  name: string
+  category: string
+  price: number
+  description: string | null
+  available: boolean
+  created_at: string
+}
+
 export const api = {
   tenants: {
     list: () => request<Tenant[]>('/tenants/'),
     get: (id: number) => request<Tenant>(`/tenants/${id}`),
+    stats: () => request<TenantStats>('/tenants/stats'),
     create: (data: { name: string; slug: string; plan: string }) =>
       request<Tenant>('/tenants/', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/tenants/${id}`, { method: 'DELETE' }),
@@ -71,5 +90,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ plan }),
       }),
+  },
+  menu: {
+    list: (tenantId: number) => request<MenuItem[]>(`/menu/${tenantId}`),
+    add: (tenantId: number, data: { name: string; category: string; price: number; description?: string }) =>
+      request<MenuItem>(`/menu/${tenantId}`, { method: 'POST', body: JSON.stringify(data) }),
+    update: (tenantId: number, itemId: number, data: Partial<MenuItem>) =>
+      request<MenuItem>(`/menu/${tenantId}/${itemId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (tenantId: number, itemId: number) =>
+      request<void>(`/menu/${tenantId}/${itemId}`, { method: 'DELETE' }),
   },
 }

@@ -4,8 +4,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { clearToken } from '@/lib/auth'
 
 const nav = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Settings', href: '/settings' },
+  { label: 'Dashboard',   href: '/dashboard',    icon: '▦' },
+  { label: 'Phone Agent', href: '/phone-agent',  icon: '☎' },
+  { label: 'Settings',    href: '/settings',     icon: '⚙' },
 ]
 
 export default function Sidebar() {
@@ -29,12 +30,13 @@ export default function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
               pathname.startsWith(item.href)
                 ? 'bg-blue-600 text-white'
                 : 'text-gray-400 hover:bg-gray-800 hover:text-white'
             }`}
           >
+            <span className="text-base leading-none">{item.icon}</span>
             {item.label}
           </Link>
         ))}

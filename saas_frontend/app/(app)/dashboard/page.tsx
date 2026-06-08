@@ -1,22 +1,34 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { api, Tenant } from '@/lib/api'
+import { api, Tenant, TenantStats } from '@/lib/api'
 
 const planBadge: Record<string, string> = {
-  starter: 'bg-blue-100 text-blue-700',
-  pro: 'bg-purple-100 text-purple-700',
+  starter:    'bg-blue-100 text-blue-700',
+  pro:        'bg-purple-100 text-purple-700',
+  business:   'bg-orange-100 text-orange-700',
   enterprise: 'bg-amber-100 text-amber-700',
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+  )
 }
 
 export default function DashboardPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
+  const [stats, setStats] = useState<TenantStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.tenants.list()
-      .then(setTenants)
+    Promise.all([api.tenants.list(), api.tenants.stats()])
+      .then(([t, s]) => { setTenants(t); setStats(s) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -26,22 +38,41 @@ export default function DashboardPage() {
     try {
       await api.tenants.delete(id)
       setTenants(prev => prev.filter(t => t.id !== id))
+      setStats(prev => prev ? { ...prev, total: prev.total - 1, active: prev.active - 1 } : prev)
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
-  const active = tenants.filter(t => t.status === 'active').length
+  const topPlans = stats
+    ? Object.entries(stats.plans).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    : []
 
   return (
     <div className="p-8">
+      {/* Stats row */}
+      {stats && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          <StatCard label="Total Tenants"  value={String(stats.total)} />
+          <StatCard label="Active"         value={String(stats.active)} sub={`${stats.total - stats.active} inactive`} />
+          <StatCard label="Monthly Revenue" value={`$${stats.mrr.toLocaleString()}`} sub="MRR estimate" />
+          <StatCard
+            label="Top Plan"
+            value={topPlans[0]?.[0] ?? '—'}
+            sub={topPlans.map(([p, n]) => `${p}: ${n}`).join(' · ')}
+          />
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tenants</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {tenants.length} total · {active} active
-          </p>
+          {!loading && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              {tenants.length} total · {tenants.filter(t => t.status === 'active').length} active
+            </p>
+          )}
         </div>
         <Link
           href="/tenants/new"
@@ -82,6 +113,9 @@ export default function DashboardPage() {
               <div className="flex gap-3">
                 <Link href={`/tenants/${tenant.id}`} className="text-blue-600 hover:underline">
                   Manage →
+                </Link>
+                <Link href={`/menu/${tenant.id}`} className="text-gray-500 hover:text-gray-700">
+                  Menu
                 </Link>
                 <button
                   onClick={() => deleteTenant(tenant.id, tenant.name)}

@@ -20,6 +20,21 @@ class TenantOut(BaseModel):
     created_at: str
 
 
+_PLAN_PRICES = {"starter": 49, "pro": 99, "business": 149, "enterprise": 249}
+
+
+@router.get("/stats")
+async def get_stats(db=Depends(get_db)):
+    rows = await db.fetch("SELECT plan, status FROM tenants")
+    total = len(rows)
+    active = sum(1 for r in rows if r["status"] == "active")
+    mrr = sum(_PLAN_PRICES.get(r["plan"], 0) for r in rows if r["status"] == "active")
+    plan_counts: dict = {}
+    for r in rows:
+        plan_counts[r["plan"]] = plan_counts.get(r["plan"], 0) + 1
+    return {"total": total, "active": active, "mrr": mrr, "plans": plan_counts}
+
+
 @router.get("/", response_model=list[TenantOut])
 async def list_tenants(db=Depends(get_db)):
     rows = await db.fetch("SELECT * FROM tenants ORDER BY created_at DESC")

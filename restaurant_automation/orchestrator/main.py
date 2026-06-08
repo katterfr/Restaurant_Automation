@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from orchestrator.config import settings
@@ -77,6 +77,21 @@ app.include_router(accounting_router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "restaurant": settings.restaurant_name}
+
+
+@app.get("/config")
+async def get_config(request: Request):
+    base = str(request.base_url).rstrip("/")
+    return {
+        "restaurant_name":  settings.restaurant_name,
+        "timezone":         settings.restaurant_timezone,
+        "open_time":        settings.business_open_time,
+        "close_time":       settings.business_close_time,
+        "twilio_phone":     settings.twilio_phone_number or "not configured",
+        "webhook_incoming": f"{base}/phone/incoming",
+        "webhook_gather":   f"{base}/phone/gather",
+        "webhook_voicemail": f"{base}/phone/voicemail",
+    }
 
 
 @app.get("/")

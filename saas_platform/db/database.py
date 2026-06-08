@@ -96,6 +96,18 @@ async def init_db():
                 UNIQUE(tenant_id, sku)
             );
 
+            CREATE TABLE IF NOT EXISTS menu_items (
+                id          SERIAL PRIMARY KEY,
+                tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                name        TEXT NOT NULL,
+                category    TEXT NOT NULL DEFAULT 'other',
+                price       REAL NOT NULL DEFAULT 0,
+                description TEXT,
+                available   BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS tenant_orders (
                 id                SERIAL PRIMARY KEY,
                 tenant_id         INTEGER NOT NULL REFERENCES tenants(id),
