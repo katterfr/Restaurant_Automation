@@ -62,7 +62,7 @@ async def tenant_dashboard(current_user=Depends(_require_owner), db=Depends(get_
 
     return {
         "tenant": {
-            "id": tenant["id"], "name": tenant["name"],
+            "id": tenant["id"], "name": tenant["name"], "slug": tenant["slug"],
             "plan": tenant["plan"], "status": tenant["status"],
         },
         "stats": {

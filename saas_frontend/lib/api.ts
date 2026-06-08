@@ -18,7 +18,7 @@ export interface Order {
 }
 
 export interface PortalDashboard {
-  tenant: { id: number; name: string; plan: string; status: string }
+  tenant: { id: number; name: string; slug: string; plan: string; status: string }
   stats: {
     today_orders: number
     today_revenue: number

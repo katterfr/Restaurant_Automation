@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { login } from '@/lib/api'
+import { login, api } from '@/lib/api'
 import { saveToken, getRole } from '@/lib/auth'
 
 export default function PortalLoginPage() {
@@ -19,7 +19,18 @@ export default function PortalLoginPage() {
       const { access_token } = await login(email, password)
       saveToken(access_token)
       const role = getRole()
-      router.push(role === 'admin' ? '/dashboard' : '/portal/dashboard')
+      if (role === 'admin') {
+        router.push('/dashboard')
+        return
+      }
+      // Get the tenant slug and redirect to the per-restaurant portal
+      const dash = await api.portal.dashboard()
+      const slug = dash.tenant.slug
+      if (slug) {
+        router.push(`/portal/${slug}/dashboard`)
+      } else {
+        router.push('/portal/dashboard')
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
