@@ -4,6 +4,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, Tenant, Plan, Subscription } from '@/lib/api'
 
+const ALL_FEATURES: Record<string, string> = {
+  ads:            'Social Media Advertising',
+  social_posts:   'Social Media Posts',
+  accounting:     'Accounting & Bookkeeping',
+  menu_management:'Menu Management',
+  delivery:       'Delivery Integrations',
+}
+
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const tenantId = parseInt(id)
@@ -17,17 +25,29 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [ownerForm, setOwnerForm] = useState({ email: '', password: '' })
   const [ownerSaving, setOwnerSaving] = useState(false)
   const [ownerMsg, setOwnerMsg] = useState('')
+  const [features, setFeatures] = useState<Record<string, boolean>>({})
+  const [togglingFeature, setTogglingFeature] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
       api.tenants.get(tenantId),
       api.billing.subscription(tenantId),
       api.billing.plans(),
+      api.adminFeatures.get(tenantId),
     ])
-      .then(([t, s, p]) => { setTenant(t); setSubscription(s); setPlans(p) })
+      .then(([t, s, p, f]) => { setTenant(t); setSubscription(s); setPlans(p); setFeatures(f) })
       .catch(() => router.replace('/dashboard'))
       .finally(() => setLoading(false))
   }, [tenantId, router])
+
+  async function toggleFeature(feature: string) {
+    setTogglingFeature(feature)
+    try {
+      const res = await api.adminFeatures.toggle(tenantId, feature)
+      setFeatures(prev => ({ ...prev, [feature]: res.enabled }))
+    } catch { /* ignore */ }
+    finally { setTogglingFeature(null) }
+  }
 
   async function upgradePlan(plan: string) {
     if (!confirm(`Switch to ${plan} plan?`)) return
@@ -135,6 +155,34 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             {ownerMsg}
           </p>
         )}
+      </div>
+
+      {/* Feature flags card */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Feature Access</h2>
+        <p className="text-xs text-gray-400 mb-4">Enable or disable features for this restaurant's owner portal.</p>
+        <div className="space-y-3">
+          {Object.entries(ALL_FEATURES).map(([key, label]) => {
+            const enabled = !!features[key]
+            const toggling = togglingFeature === key
+            return (
+              <div key={key} className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{label}</p>
+                  <p className="text-xs text-gray-400 capitalize">{key.replace('_', ' ')}</p>
+                </div>
+                <button
+                  onClick={() => toggleFeature(key)}
+                  disabled={toggling}
+                  className={`w-12 h-6 rounded-full transition-colors relative disabled:opacity-50 ${enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                  title={enabled ? 'Disable' : 'Enable'}
+                >
+                  <span className={`block w-5 h-5 rounded-full bg-white shadow absolute top-0.5 transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* Plans card */}

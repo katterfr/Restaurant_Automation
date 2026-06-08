@@ -108,6 +108,53 @@ async def init_db():
                 updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
             );
 
+            CREATE TABLE IF NOT EXISTS tenant_features (
+                id         SERIAL PRIMARY KEY,
+                tenant_id  INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                feature    VARCHAR(100) NOT NULL,
+                enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+                enabled_at TIMESTAMP,
+                UNIQUE(tenant_id, feature)
+            );
+
+            CREATE TABLE IF NOT EXISTS social_posts (
+                id               SERIAL PRIMARY KEY,
+                tenant_id        INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                platforms        TEXT NOT NULL DEFAULT '[]',
+                content          TEXT NOT NULL,
+                image_url        TEXT,
+                link_url         TEXT,
+                scheduled_at     TIMESTAMP,
+                status           VARCHAR(50) NOT NULL DEFAULT 'draft',
+                platform_results TEXT NOT NULL DEFAULT '{}',
+                error_message    TEXT,
+                created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS accounting_entries (
+                id           SERIAL PRIMARY KEY,
+                tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                type         VARCHAR(20) NOT NULL,
+                category     VARCHAR(100) NOT NULL,
+                amount       REAL NOT NULL,
+                description  TEXT,
+                date         DATE NOT NULL DEFAULT CURRENT_DATE,
+                source       VARCHAR(50) NOT NULL DEFAULT 'manual',
+                reference_id INTEGER,
+                created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS delivery_connections (
+                id           SERIAL PRIMARY KEY,
+                tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider     VARCHAR(50) NOT NULL,
+                status       VARCHAR(50) NOT NULL DEFAULT 'pending',
+                api_key      TEXT,
+                store_id     TEXT,
+                connected_at TIMESTAMP,
+                UNIQUE(tenant_id, provider)
+            );
+
             CREATE TABLE IF NOT EXISTS platform_connections (
                 id           SERIAL PRIMARY KEY,
                 tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

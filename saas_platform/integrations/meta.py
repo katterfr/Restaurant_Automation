@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import httpx
 
 GRAPH = "https://graph.facebook.com/v19.0"
@@ -130,3 +131,30 @@ async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict)
         })
         r.raise_for_status()
         return camp_id
+
+
+async def create_page_post(
+    access_token: str,
+    page_id: str,
+    content: str,
+    image_url: Optional[str] = None,
+    link_url: Optional[str] = None,
+) -> str:
+    """Post to a Facebook Page. Returns the post ID."""
+    if not page_id:
+        raise ValueError("page_id is required for posting. Re-connect your Meta account.")
+    async with httpx.AsyncClient(timeout=30) as c:
+        if image_url and not link_url:
+            r = await c.post(f"{GRAPH}/{page_id}/photos", params={"access_token": access_token}, json={
+                "url": image_url,
+                "caption": content,
+                "published": True,
+            })
+        else:
+            body: dict = {"message": content, "access_token": access_token}
+            if link_url:
+                body["link"] = link_url
+            r = await c.post(f"{GRAPH}/{page_id}/feed", json=body)
+        r.raise_for_status()
+        data = r.json()
+        return data.get("post_id") or data.get("id", "")

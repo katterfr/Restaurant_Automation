@@ -121,6 +121,50 @@ export interface PlatformStatus {
   connected_at: string | null
 }
 
+export interface SocialPost {
+  id: number
+  tenant_id: number
+  platforms: string
+  content: string
+  image_url: string | null
+  link_url: string | null
+  status: string
+  platform_results: string
+  error_message: string | null
+  created_at: string
+}
+
+export interface AccountingEntry {
+  id: number
+  tenant_id: number
+  type: string
+  category: string
+  amount: number
+  description: string | null
+  date: string
+  source: string
+  created_at: string
+}
+
+export interface AccountingSummary {
+  month_income: number
+  month_expense: number
+  month_profit: number
+  total_income: number
+  total_expense: number
+  total_profit: number
+  expense_by_category: Record<string, number>
+}
+
+export interface DeliveryProvider {
+  name: string
+  icon: string
+  apply_url: string
+  connected: boolean
+  status: string
+  store_id: string | null
+}
+
 export interface MenuItem {
   id: number
   tenant_id: number
@@ -183,13 +227,47 @@ export const api = {
     connectUrl: (platform: string) => request<{ oauth_url: string }>(`/ads/connect/${platform}/url`),
   },
   portal: {
-    dashboard: () => request<PortalDashboard>('/portal/dashboard'),
+    dashboard: () => request<PortalDashboard & { features: string[] }>('/portal/dashboard'),
     orders: (limit = 50) => request<Order[]>(`/portal/orders?limit=${limit}`),
     menu: () => request<MenuItem[]>('/portal/menu'),
+    features: () => request<string[]>('/portal/features'),
+    addMenuItem: (data: { name: string; category: string; price: number; description?: string; available?: boolean }) =>
+      request<MenuItem>('/portal/menu', { method: 'POST', body: JSON.stringify(data) }),
+    updateMenuItem: (id: number, data: Partial<MenuItem>) =>
+      request<MenuItem>(`/portal/menu/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteMenuItem: (id: number) => request<void>(`/portal/menu/${id}`, { method: 'DELETE' }),
     createOwner: (tenantId: number, email: string, password: string) =>
       request(`/portal/tenants/${tenantId}/users`, {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
+  },
+  social: {
+    posts: () => request<SocialPost[]>('/social/posts'),
+    create: (data: { platforms: string[]; content: string; image_url?: string; link_url?: string }) =>
+      request<{ id: number; status: string; results: Record<string, { status: string; error?: string }> }>('/social/posts', {
+        method: 'POST', body: JSON.stringify(data),
+      }),
+    delete: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
+  },
+  accounting: {
+    summary: () => request<AccountingSummary>('/accounting/summary'),
+    entries: (type?: string) => request<AccountingEntry[]>(`/accounting/entries${type ? `?type=${type}` : ''}`),
+    create: (data: { type: string; category: string; amount: number; description?: string; date?: string }) =>
+      request<AccountingEntry>('/accounting/entries', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/accounting/entries/${id}`, { method: 'DELETE' }),
+    categories: () => request<{ income: string[]; expense: string[] }>('/accounting/categories'),
+  },
+  delivery: {
+    connections: () => request<Record<string, DeliveryProvider>>('/delivery/connections'),
+    connect: (provider: string, data: { api_key: string; store_id?: string }) =>
+      request(`/delivery/connect/${provider}`, { method: 'POST', body: JSON.stringify(data) }),
+    disconnect: (provider: string) => request<void>(`/delivery/connect/${provider}`, { method: 'DELETE' }),
+  },
+  adminFeatures: {
+    get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),
+    toggle: (tenantId: number, feature: string) =>
+      request<{ feature: string; enabled: boolean }>(`/features/${tenantId}/${feature}`, { method: 'POST' }),
+    list: () => request<Record<string, string>>('/features/list'),
   },
 }

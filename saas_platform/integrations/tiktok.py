@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import httpx
 
 OAUTH = "https://www.tiktok.com/v2/auth/authorize/"
@@ -97,3 +98,37 @@ async def deploy_campaign(access_token: str, advertiser_id: str, campaign: dict)
         if d.get("code") != 0:
             raise ValueError(d.get("message", "Ad create failed"))
         return str(camp_id)
+
+
+async def create_post(
+    access_token: str,
+    advertiser_id: str,
+    content: str,
+    image_url: Optional[str] = None,
+) -> str:
+    """Post organic content via TikTok Content Posting API. Returns publish_id."""
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=30) as c:
+        body: dict = {
+            "post_info": {
+                "title": content[:150],
+                "privacy_level": "PUBLIC_TO_EVERYONE",
+                "disable_duet": False,
+                "disable_comment": False,
+                "disable_stitch": False,
+            },
+            "source_info": {
+                "source": "PULL_FROM_URL",
+                "photo_images": [image_url] if image_url else [],
+                "photo_cover_index": 0,
+            },
+            "post_mode": "DIRECT_POST",
+            "media_type": "PHOTO",
+        }
+        r = await c.post("https://open.tiktokapis.com/v2/post/publish/content/init/", headers=headers, json=body)
+        r.raise_for_status()
+        d = r.json()
+        err = d.get("error", {})
+        if err.get("code", "ok") != "ok":
+            raise ValueError(err.get("message", "TikTok post failed"))
+        return d["data"]["publish_id"]
