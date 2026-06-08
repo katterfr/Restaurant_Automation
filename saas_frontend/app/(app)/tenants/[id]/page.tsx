@@ -4,10 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, Tenant, Plan, Subscription } from '@/lib/api'
 
-const PORTAL_URL = typeof window !== 'undefined'
-  ? `${window.location.origin}/portal/login`
-  : '/portal/login'
-
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const tenantId = parseInt(id)
@@ -54,7 +50,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
     setOwnerMsg('')
     try {
       await api.portal.createOwner(tenantId, ownerForm.email, ownerForm.password)
-      setOwnerMsg(`✓ Owner account created. Portal: ${PORTAL_URL}`)
+      const portalUrl = `${window.location.origin}/portal/${tenant?.slug}/login`
+      setOwnerMsg(`✓ Owner account created. Share this link: ${portalUrl}`)
       setOwnerForm({ email: '', password: '' })
     } catch (err: unknown) {
       setOwnerMsg(err instanceof Error ? err.message : 'Failed to create owner')
@@ -104,8 +101,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Owner Portal Access</h2>
         <p className="text-xs text-gray-400 mb-4">
-          Create login credentials for the restaurant owner. They log in at{' '}
-          <a href="/portal/login" target="_blank" className="text-blue-600 hover:underline">/portal/login</a>.
+          Create login credentials for the restaurant owner. Their dedicated portal URL will be{' '}
+          <span className="font-mono text-blue-600">/portal/{tenant.slug}/login</span>
         </p>
         <form onSubmit={createOwner} className="flex gap-3 flex-wrap">
           <input

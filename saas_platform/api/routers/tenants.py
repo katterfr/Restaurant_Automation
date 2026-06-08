@@ -36,6 +36,16 @@ async def get_stats(db=Depends(get_db)):
     return {"total": total, "active": active, "mrr": mrr, "plans": plan_counts}
 
 
+@router.get("/public/{slug}")
+async def get_tenant_public(slug: str, db=Depends(get_db)):
+    row = await db.fetchrow(
+        "SELECT id, name, slug, status FROM tenants WHERE slug = $1", slug
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    return dict(row)
+
+
 @router.get("/", response_model=list[TenantOut])
 async def list_tenants(db=Depends(get_db)):
     rows = await db.fetch("SELECT * FROM tenants ORDER BY created_at DESC")

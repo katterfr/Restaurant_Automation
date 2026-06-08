@@ -102,6 +102,7 @@ export const api = {
   tenants: {
     list: () => request<Tenant[]>('/tenants/'),
     get: (id: number) => request<Tenant>(`/tenants/${id}`),
+    getPublic: (slug: string) => request<{ id: number; name: string; slug: string; status: string }>(`/tenants/public/${slug}`),
     stats: () => request<TenantStats>('/tenants/stats'),
     create: (data: { name: string; slug: string; plan: string }) =>
       request<Tenant>('/tenants/', { method: 'POST', body: JSON.stringify(data) }),
