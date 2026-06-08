@@ -1,0 +1,84 @@
+services:
+  # ── Main FastAPI Application ───────────────────────────────────────────────
+  - type: web
+    name: restaurant-automation
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter              # $7/month — no cold starts (needed for phone agent)
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: PYTHONPATH
+        value: /app
+      - key: RESTAURANT_NAME
+        value: My Restaurant
+      - key: RESTAURANT_TIMEZONE
+        value: America/New_York
+      - key: BUSINESS_OPEN_TIME
+        value: "11:00"
+      - key: BUSINESS_CLOSE_TIME
+        value: "22:00"
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./data/restaurant.db
+      - key: EMAIL_ALERTS_ENABLED
+        value: "true"
+      - key: EMAIL_PROVIDER
+        value: sendgrid
+      - key: LOW_STOCK_ALERT_COOLDOWN_MINUTES
+        value: "60"
+      - key: DOORDASH_BASE_URL
+        value: https://openapi.doordash.com
+      - key: UBEREATS_BASE_URL
+        value: https://api.uber.com
+
+      # ── Secrets — fill these in the Render dashboard ──────────────────────
+      - key: OPENAI_API_KEY
+        sync: false            # Render will prompt you to fill this in dashboard
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: ALERT_EMAIL_FROM
+        sync: false
+      - key: ALERT_EMAIL_TO
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: restaurant-redis
+          type: redis
+          property: connectionString
+      - key: DOORDASH_DEVELOPER_ID
+        sync: false
+      - key: DOORDASH_KEY_ID
+        sync: false
+      - key: DOORDASH_SIGNING_SECRET
+        sync: false
+      - key: UBEREATS_CLIENT_ID
+        sync: false
+      - key: UBEREATS_CLIENT_SECRET
+        sync: false
+      - key: UBEREATS_STORE_ID
+        sync: false
+      - key: WEBSITE_API_URL
+        sync: false
+      - key: WEBSITE_API_KEY
+        sync: false
+
+    disk:
+      name: restaurant-data
+      mountPath: /app/data
+      sizeGB: 5
+    autoDeploy: true
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  - type: redis
+    name: restaurant-redis
+    plan: free
+    region: oregon
+    ipAllowList: []            # Only internal access

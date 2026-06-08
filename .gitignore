@@ -1,0 +1,41 @@
+# Environment & secrets
+.env
+.env.local
+.env.production
+.env.*.local
+.env.railway
+*.env.railway
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+*.db
+*.sqlite3
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+
+# Logs
+*.log
+*.err
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

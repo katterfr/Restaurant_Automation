@@ -1,0 +1,66 @@
+# fly.toml — Fly.io deployment configuration
+# Deploy: fly launch --config deploy/flyio/fly.toml --no-deploy
+#         fly deploy
+
+app = "restaurant-automation"   # Change to your unique app name
+primary_region = "iad"          # iad=Virginia, lax=LA, ord=Chicago, mia=Miami
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT                          = "8000"
+  PYTHONPATH                    = "/app"
+  RESTAURANT_NAME               = "My Restaurant"
+  RESTAURANT_TIMEZONE           = "America/New_York"
+  BUSINESS_OPEN_TIME            = "11:00"
+  BUSINESS_CLOSE_TIME           = "22:00"
+  DATABASE_URL                  = "sqlite+aiosqlite:////data/restaurant.db"
+  EMAIL_ALERTS_ENABLED          = "true"
+  EMAIL_PROVIDER                = "sendgrid"
+  LOW_STOCK_ALERT_COOLDOWN_MINUTES = "60"
+  DOORDASH_BASE_URL             = "https://openapi.doordash.com"
+  UBEREATS_BASE_URL             = "https://api.uber.com"
+
+# Secrets are set via: fly secrets set KEY=value (never stored in toml)
+# Required secrets:
+#   OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+#   SENDGRID_API_KEY, ALERT_EMAIL_FROM, ALERT_EMAIL_TO
+#   REDIS_URL (from Upstash: fly redis create)
+#   DOORDASH_DEVELOPER_ID, DOORDASH_KEY_ID, DOORDASH_SIGNING_SECRET
+#   UBEREATS_CLIENT_ID, UBEREATS_CLIENT_SECRET, UBEREATS_STORE_ID
+#   WEBSITE_API_URL, WEBSITE_API_KEY
+
+[[mounts]]
+  source      = "restaurant_data"
+  destination = "/data"
+
+[[mounts]]
+  source      = "restaurant_reports"
+  destination = "/app/reports"
+
+[http_service]
+  internal_port        = 8000
+  force_https          = true
+  auto_stop_machines   = false   # Keep alive — phone agent must always answer
+  auto_start_machines  = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"
+
+[checks]
+  [checks.health]
+    grace_period = "30s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/health"
+    port         = 8000
+    timeout      = "10s"
+    type         = "http"

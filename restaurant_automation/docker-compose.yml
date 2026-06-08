@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  # ── Main API + Phone Agent + Orchestrator ─────────────────────────────────
+  app:
+    build: .
+    container_name: restaurant_automation
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - DATABASE_URL=sqlite+aiosqlite:///./data/restaurant.db
+      - REDIS_URL=redis://redis:6379
+      - WEBSITE_API_URL=${WEBSITE_API_URL}
+      - WEBSITE_API_KEY=${WEBSITE_API_KEY}
+      - DOORDASH_DEVELOPER_ID=${DOORDASH_DEVELOPER_ID}
+      - DOORDASH_KEY_ID=${DOORDASH_KEY_ID}
+      - DOORDASH_SIGNING_SECRET=${DOORDASH_SIGNING_SECRET}
+      - UBEREATS_CLIENT_ID=${UBEREATS_CLIENT_ID}
+      - UBEREATS_CLIENT_SECRET=${UBEREATS_CLIENT_SECRET}
+      - UBEREATS_STORE_ID=${UBEREATS_STORE_ID}
+      - RESTAURANT_NAME=${RESTAURANT_NAME:-My Restaurant}
+      - RESTAURANT_TIMEZONE=${RESTAURANT_TIMEZONE:-America/New_York}
+      - BUSINESS_OPEN_TIME=${BUSINESS_OPEN_TIME:-11:00}
+      - BUSINESS_CLOSE_TIME=${BUSINESS_CLOSE_TIME:-22:00}
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./menu.json:/app/menu.json
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Redis (event bus + session cache) ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # ── Ngrok (local tunnel for Twilio webhooks in dev) ───────────────────────
+  # Remove in production — use a real domain instead
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: restaurant_ngrok
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http app:8000 --log stdout
+    ports:
+      - "4040:4040"   # Ngrok inspector UI
+    depends_on:
+      - app
+    profiles:
+      - dev   # Only starts with: docker-compose --profile dev up
+
+volumes:
+  redis_data:
