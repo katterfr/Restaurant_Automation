@@ -400,6 +400,14 @@ export const api = {
     smsSessions: () => request<SmsSession[]>('/phone/sms/sessions'),
     smsMessages: (sessionId: number) => request<{ session: SmsSession; messages: SmsMessage[] }>(`/phone/sms/sessions/${sessionId}/messages`),
   },
+  public: {
+    chat: (messages: Array<{ role: string; content: string }>) =>
+      request<{ reply: string }>('/public/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+    contact: (data: { name: string; email: string; restaurant_name?: string; phone?: string; plan_interest?: string; message: string }) =>
+      request<{ ok: boolean }>('/public/contact', { method: 'POST', body: JSON.stringify(data) }),
+    signup: (data: { restaurant_name: string; owner_email: string; owner_password: string; phone?: string; city?: string; plan?: string }) =>
+      request<{ ok: boolean; slug: string; portal_url: string }>('/public/signup', { method: 'POST', body: JSON.stringify(data) }),
+  },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),
     toggle: (tenantId: number, feature: string) =>

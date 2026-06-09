@@ -305,6 +305,17 @@ async def init_db():
                 created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
             );
+
+            CREATE TABLE IF NOT EXISTS contact_submissions (
+                id              SERIAL PRIMARY KEY,
+                name            TEXT NOT NULL,
+                email           TEXT NOT NULL,
+                restaurant_name TEXT,
+                phone           TEXT,
+                plan_interest   TEXT,
+                message         TEXT NOT NULL,
+                created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+            );
         """)
 
         # Migrations for existing deployments

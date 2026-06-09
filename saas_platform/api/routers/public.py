@@ -1,0 +1,133 @@
+from typing import Optional
+import re
+import random
+import string
+import httpx
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from db.database import get_db
+from core.config import settings
+from core.security import hash_password
+
+router = APIRouter(prefix="/public", tags=["public"])
+
+
+# ── Contact form ──────────────────────────────────────────────────────────────
+
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    restaurant_name: Optional[str] = None
+    phone: Optional[str] = None
+    plan_interest: Optional[str] = None
+    message: str
+
+
+@router.post("/contact")
+async def submit_contact(body: ContactForm, db=Depends(get_db)):
+    await db.execute(
+        """INSERT INTO contact_submissions
+               (name, email, restaurant_name, phone, plan_interest, message)
+           VALUES ($1,$2,$3,$4,$5,$6)""",
+        body.name, body.email, body.restaurant_name,
+        body.phone, body.plan_interest, body.message,
+    )
+    return {"ok": True}
+
+
+# ── Visitor chat ──────────────────────────────────────────────────────────────
+
+class VisitorMsg(BaseModel):
+    role: str
+    content: str
+
+
+class VisitorChatReq(BaseModel):
+    messages: list[VisitorMsg]
+
+
+VISITOR_PROMPT = """You are Alex, a friendly and enthusiastic sales assistant for Careful-Server — an AI-powered all-in-one restaurant management platform.
+
+## What Careful-Server Offers
+1. **AI Phone Agent** — AI answers every call 24/7, takes orders, submits them to the dashboard automatically
+2. **Voice ↔ Text Bridge** — Callers can switch to SMS mid-call and vice versa, all handled by AI
+3. **Ad Campaign Manager** — Run ads on Meta, Google, YouTube, TikTok, Snapchat, Pinterest from one place
+4. **Social Media Posting** — Post to Facebook, Instagram, YouTube, TikTok simultaneously with one click
+5. **AI Creative Studio** — Generate professional restaurant ad images & videos with AI (no designer needed)
+6. **Order Management** — All orders (phone, delivery, online) appear in one unified dashboard
+7. **Menu Management** — Digital menu with live availability toggles per item
+8. **Accounting & Bookkeeping** — Revenue and expense tracking, profit reports
+9. **Delivery Integrations** — DoorDash, Uber Eats, and more connected automatically
+10. **Google & Apple Maps** — Manage your Google Business Profile and Apple Maps listing
+11. **Custom Branded Portal** — Each restaurant gets their own portal with custom colors, logo, dark mode
+12. **AI Portal Assistant** — AI chatbot inside the portal that knows real-time business stats
+
+## Pricing
+- **Starter** ($49/mo) — Order management, menu management, basic reporting
+- **Growth** ($149/mo) — Everything in Starter + 6-platform ads, social posting, delivery, listings
+- **Pro** ($299/mo) — Everything in Growth + AI Phone Agent, AI Creative Studio, Accounting
+
+## Your Tone
+Be warm, concise, and excited about the product. Keep replies under 80 words. Use bullet points when listing features.
+If asked about pricing specifics or custom enterprise plans, suggest contacting via the form on the page."""
+
+
+@router.post("/chat")
+async def visitor_chat(body: VisitorChatReq):
+    if not settings.anthropic_api_key:
+        return {"reply": "Hi! I'd love to help. For the fastest response, fill out the contact form and our team will reach out within 24 hours!"}
+
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": settings.anthropic_api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 250,
+                "system": VISITOR_PROMPT,
+                "messages": messages,
+            },
+        )
+        r.raise_for_status()
+        return {"reply": r.json()["content"][0]["text"]}
+
+
+# ── Self-service signup ───────────────────────────────────────────────────────
+
+class SignupData(BaseModel):
+    restaurant_name: str
+    owner_email: str
+    owner_password: str
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    plan: str = "starter"
+
+
+@router.post("/signup")
+async def public_signup(body: SignupData, db=Depends(get_db)):
+    existing = await db.fetchrow("SELECT id FROM users WHERE email=$1", body.owner_email)
+    if existing:
+        raise HTTPException(409, "An account with this email already exists. Please sign in.")
+
+    slug = re.sub(r"[^a-z0-9]+", "-", body.restaurant_name.lower()).strip("-")[:50] or "restaurant"
+    if await db.fetchrow("SELECT id FROM tenants WHERE slug=$1", slug):
+        slug += "-" + "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
+
+    row = await db.fetchrow(
+        "INSERT INTO tenants (name, slug, plan, status) VALUES ($1,$2,$3,'active') RETURNING id, slug",
+        body.restaurant_name, slug, body.plan,
+    )
+    tid = row["id"]
+
+    await db.execute(
+        "INSERT INTO users (email, password_hash, role, tenant_id) VALUES ($1,$2,'owner',$3)",
+        body.owner_email, hash_password(body.owner_password), tid,
+    )
+
+    return {"ok": True, "slug": row["slug"], "portal_url": f"/portal/{row['slug']}/login"}
