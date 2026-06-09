@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import Simulator from './components/simulator'
 
 // ─── scroll-reveal hook ────────────────────────────────────────────────────────
 function useInView(threshold = 0.12) {
@@ -302,10 +303,11 @@ export default function MarketingPage() {
   }
 
   const navLinks = [
-    { label:'Features', href:'#features' },
+    { label:'Features',  href:'#features' },
     { label:'AI Tools',  href:'#ai' },
-    { label:'Pricing',  href:'#pricing' },
-    { label:'Contact',  href:'#contact' },
+    { label:'Try Demo',  href:'#simulator' },
+    { label:'Pricing',   href:'#pricing' },
+    { label:'Contact',   href:'#contact' },
   ]
 
   const inp = 'w-full bg-slate-800/60 border border-slate-700/70 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-green-500 transition-colors'
@@ -622,6 +624,17 @@ export default function MarketingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── SIMULATOR ── */}
+      <section id="simulator" className="py-24 px-4" style={{ background:'rgba(2,6,23,0.95)' }}>
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">Live Interactive Demo</span>
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">Try It For Yourself</h2>
+          </div>
+          <Simulator onSignup={() => setShowSignup(true)} />
         </div>
       </section>
 
