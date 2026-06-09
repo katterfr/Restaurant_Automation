@@ -229,6 +229,20 @@ export interface PhoneStatus {
   recent_calls: PhoneCall[]
 }
 
+export interface CreativeAsset {
+  id: number
+  tenant_id: number
+  type: 'image' | 'video'
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  prompt: string
+  style: string
+  aspect_ratio: string
+  url: string | null
+  thumbnail_url: string | null
+  error_message: string | null
+  created_at: string
+}
+
 export interface TenantCustomization {
   accent_color: string
   logo_url: string
@@ -361,6 +375,15 @@ export const api = {
     googleSync: () => request<{ ok: boolean; location: unknown }>('/business/google/sync', { method: 'POST' }),
     googleDisconnect: () => request<{ ok: boolean }>('/business/google/disconnect', { method: 'DELETE' }),
     appleSubmit: () => request<{ status: string; message: string; portal_url: string }>('/business/apple/submit', { method: 'POST' }),
+  },
+  creative: {
+    library: () => request<{ configured: boolean; assets: CreativeAsset[] }>('/creative/library'),
+    generateImage: (data: { prompt: string; style: string; aspect_ratio: string }) =>
+      request<{ id: number; status: string; url: string }>('/creative/image', { method: 'POST', body: JSON.stringify(data) }),
+    generateVideo: (data: { prompt: string; image_url?: string; duration?: number; aspect_ratio?: string; style?: string }) =>
+      request<{ id: number; status: string; request_id: string }>('/creative/video', { method: 'POST', body: JSON.stringify(data) }),
+    videoStatus: (id: number) => request<{ id: number; status: string; url?: string; error?: string }>(`/creative/video/${id}/status`),
+    delete: (id: number) => request<void>(`/creative/${id}`, { method: 'DELETE' }),
   },
   phone: {
     status: () => request<PhoneStatus>('/phone/status'),

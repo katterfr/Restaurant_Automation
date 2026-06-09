@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     twilio_sms_number: Optional[str] = None
     # Anthropic — SMS AI
     anthropic_api_key: Optional[str] = None
+    # fal.ai — AI image + video generation
+    fal_api_key: Optional[str] = None
 
 
 settings = Settings()

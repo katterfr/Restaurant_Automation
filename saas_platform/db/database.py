@@ -215,6 +215,22 @@ async def init_db():
                 UNIQUE(tenant_id)
             );
 
+            CREATE TABLE IF NOT EXISTS creative_assets (
+                id             SERIAL PRIMARY KEY,
+                tenant_id      INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                type           VARCHAR(10)  NOT NULL,
+                status         VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                prompt         TEXT         NOT NULL,
+                style          VARCHAR(50)  NOT NULL DEFAULT 'vivid',
+                aspect_ratio   VARCHAR(10)  NOT NULL DEFAULT '1:1',
+                url            TEXT,
+                thumbnail_url  TEXT,
+                fal_request_id TEXT,
+                fal_status_url TEXT,
+                error_message  TEXT,
+                created_at     TIMESTAMP    NOT NULL DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS phone_agents (
                 id                   SERIAL PRIMARY KEY,
                 tenant_id            INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

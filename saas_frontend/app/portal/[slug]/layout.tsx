@@ -16,6 +16,7 @@ const ALL_NAV = [
   { label: 'Delivery',    href: 'delivery',   feature: 'delivery' },
   { label: 'Listings',    href: 'business',   feature: 'business_listings' },
   { label: 'Phone Agent', href: 'phone',      feature: 'phone_agent' },
+  { label: 'AI Creative', href: 'creative',   feature: 'ai_creative' },
 ]
 
 const COLOR_PRESETS = [
