@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { api, SocialPost } from '@/lib/api'
 
 const PLATFORM_LABELS: Record<string, { label: string; color: string }> = {
-  meta:   { label: 'Facebook/Instagram', color: 'bg-blue-100 text-blue-700' },
-  tiktok: { label: 'TikTok',             color: 'bg-gray-900 text-white' },
+  meta:    { label: 'Facebook/Instagram', color: 'bg-blue-100 text-blue-700' },
+  youtube: { label: 'YouTube',            color: 'bg-red-100 text-red-700' },
+  tiktok:  { label: 'TikTok',             color: 'bg-gray-900 text-white' },
 }
 
 function statusBadge(s: string) {

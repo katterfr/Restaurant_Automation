@@ -15,6 +15,7 @@ from integrations import google_ads as google_api
 from integrations import tiktok as tiktok_api
 from integrations import snapchat as snapchat_api
 from integrations import pinterest as pinterest_api
+from integrations import youtube as youtube_api
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ PLATFORMS = {
     "tiktok":    tiktok_api,
     "snapchat":  snapchat_api,
     "pinterest": pinterest_api,
+    "youtube":   youtube_api,
 }
 
 
@@ -148,6 +150,13 @@ async def oauth_callback(
                 ad_account_id = accounts[0]["id"]
         except Exception as e:
             log.warning("Could not fetch Pinterest ad accounts: %s", e)
+    elif platform == "youtube":
+        try:
+            customers = await youtube_api.get_channel_id(access_token)
+            if customers:
+                ad_account_id = customers
+        except Exception as e:
+            log.warning("Could not fetch YouTube channel: %s", e)
 
     await db.execute(
         """INSERT INTO platform_connections (tenant_id, platform, access_token, refresh_token, ad_account_id)
@@ -242,6 +251,8 @@ async def create_campaigns(body: CampaignCreate, current_user=Depends(_require_o
                 platform_id = await meta_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
             elif platform == "google":
                 platform_id = await google_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
+            elif platform == "youtube":
+                platform_id = await youtube_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
             else:
                 platform_id = await tiktok_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
 

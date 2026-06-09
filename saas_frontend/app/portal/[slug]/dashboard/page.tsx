@@ -9,15 +9,17 @@ import Link from 'next/link'
 
 const AD_PLATFORMS = [
   { key: 'meta',      label: 'Meta',      icon: 'f',  color: '#1877f2', desc: 'Facebook & Instagram Ads' },
-  { key: 'google',    label: 'Google',    icon: 'G',  color: '#ea4335', desc: 'Search, Display & YouTube' },
-  { key: 'tiktok',    label: 'TikTok',    icon: '▶',  color: '#111',    desc: 'In-Feed Video Ads' },
+  { key: 'google',    label: 'Google',    icon: 'G',  color: '#ea4335', desc: 'Search & Display Ads' },
+  { key: 'youtube',   label: 'YouTube',   icon: '▶',  color: '#ff0000', desc: 'YouTube Video Ads' },
+  { key: 'tiktok',    label: 'TikTok',    icon: '♪',  color: '#111',    desc: 'In-Feed Video Ads' },
   { key: 'snapchat',  label: 'Snapchat',  icon: '👻', color: '#fffc00', fgDark: true, desc: 'Story & Snap Ads' },
   { key: 'pinterest', label: 'Pinterest', icon: 'P',  color: '#e60023', desc: 'Promoted Pins' },
 ] as const
 
 const SOCIAL_PLATFORMS = [
-  { key: 'meta',   label: 'Meta',   icon: 'f', color: '#1877f2', desc: 'Facebook & Instagram posts' },
-  { key: 'tiktok', label: 'TikTok', icon: '▶', color: '#111',   desc: 'TikTok posts' },
+  { key: 'meta',    label: 'Meta',    icon: 'f', color: '#1877f2', desc: 'Facebook & Instagram posts' },
+  { key: 'youtube', label: 'YouTube', icon: '▶', color: '#ff0000', desc: 'Post videos to YouTube' },
+  { key: 'tiktok',  label: 'TikTok',  icon: '♪', color: '#111',   desc: 'TikTok posts' },
 ] as const
 
 // ── Small helpers ──────────────────────────────────────────────────────────────

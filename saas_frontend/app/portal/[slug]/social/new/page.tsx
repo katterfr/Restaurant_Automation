@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { api, PlatformStatus } from '@/lib/api'
 
 const PLATFORMS = [
-  { key: 'meta',   label: 'Facebook & Instagram', desc: 'Posts to your Facebook Page' },
-  { key: 'tiktok', label: 'TikTok',               desc: 'Posts as a TikTok photo/video' },
+  { key: 'meta',    label: 'Facebook & Instagram', desc: 'Posts to your Facebook Page & Instagram' },
+  { key: 'youtube', label: 'YouTube',               desc: 'Uploads video to your YouTube channel (provide video URL in Image URL field)' },
+  { key: 'tiktok',  label: 'TikTok',                desc: 'Posts as a TikTok photo/video' },
 ]
 
 export default function NewPostPage() {

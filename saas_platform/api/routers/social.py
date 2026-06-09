@@ -7,11 +7,12 @@ from db.database import get_db
 from api.routers.auth import get_current_user
 from integrations import meta as meta_api
 from integrations import tiktok as tiktok_api
+from integrations import youtube as youtube_api
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/social", tags=["social"])
 
-SUPPORTED_PLATFORMS = {"meta", "tiktok"}
+SUPPORTED_PLATFORMS = {"meta", "tiktok", "youtube"}
 
 
 def _require_owner(current_user=Depends(get_current_user)):
@@ -81,6 +82,13 @@ async def create_post(body: PostCreate, current_user=Depends(_require_owner), db
                     body.content,
                     body.image_url,
                     body.link_url,
+                )
+            elif platform == "youtube":
+                pid = await youtube_api.create_post(
+                    conn["access_token"],
+                    conn["ad_account_id"] or "",
+                    body.content,
+                    body.image_url,
                 )
             else:  # tiktok
                 pid = await tiktok_api.create_post(
