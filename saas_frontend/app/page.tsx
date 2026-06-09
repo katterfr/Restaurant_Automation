@@ -330,7 +330,6 @@ export default function MarketingPage() {
 
           <div className="hidden md:flex items-center gap-3">
             <Link href="/portal/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2">Restaurant Login</Link>
-            <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2">Admin</Link>
             <button onClick={() => setShowSignup(true)}
               className="text-sm font-semibold text-white px-5 py-2.5 rounded-xl transition-all hover:opacity-90 hover:scale-105 shadow-lg"
               style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)' }}>
@@ -728,7 +727,7 @@ export default function MarketingPage() {
             </div>
             {[
               { heading:'Product', links:[['Features','#features'],['AI Tools','#ai'],['Pricing','#pricing'],['Integrations','#features']] },
-              { heading:'Company',  links:[['Contact','#contact'],['Restaurant Login','/portal/login'],['Admin Login','/login'],['Dashboard','/dashboard']] },
+              { heading:'Company',  links:[['Contact','#contact'],['Restaurant Login','/portal/login'],['Dashboard','/dashboard']] },
               { heading:'Support',  links:[['Documentation','#'],['Status','#'],['Privacy Policy','#'],['Terms of Service','#']] },
             ].map(col => (
               <div key={col.heading}>
