@@ -204,6 +204,25 @@ export interface PhoneCall {
   created_at: string
 }
 
+export interface SmsSession {
+  id: number
+  tenant_id: number
+  customer_phone: string
+  status: string
+  order_id: number | null
+  started_at: string
+  last_message_at: string
+  message_count: number
+}
+
+export interface SmsMessage {
+  id: number
+  session_id: number
+  role: string
+  content: string
+  created_at: string
+}
+
 export interface PhoneStatus {
   configured: boolean
   agent: PhoneAgent | null
@@ -352,6 +371,8 @@ export const api = {
       request<PhoneAgent>('/phone/config', { method: 'PUT', body: JSON.stringify(data) }),
     deactivate: () => request<void>('/phone/deactivate', { method: 'DELETE' }),
     calls: () => request<PhoneCall[]>('/phone/calls'),
+    smsSessions: () => request<SmsSession[]>('/phone/sms/sessions'),
+    smsMessages: (sessionId: number) => request<{ session: SmsSession; messages: SmsMessage[] }>(`/phone/sms/sessions/${sessionId}/messages`),
   },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),

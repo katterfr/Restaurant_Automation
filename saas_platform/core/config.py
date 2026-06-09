@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     # VAPI — AI phone agent
     vapi_api_key: Optional[str] = None
     vapi_webhook_secret: Optional[str] = None
+    # Twilio — SMS ordering
+    twilio_account_sid: Optional[str] = None
+    twilio_auth_token: Optional[str] = None
+    twilio_sms_number: Optional[str] = None
+    # Anthropic — SMS AI
+    anthropic_api_key: Optional[str] = None
 
 
 settings = Settings()

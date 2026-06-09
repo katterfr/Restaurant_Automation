@@ -15,7 +15,7 @@ def _headers() -> dict:
     }
 
 
-def build_system_prompt(tenant_name: str, menu_items: list, special_instructions: str = "") -> str:
+def build_system_prompt(tenant_name: str, menu_items: list, special_instructions: str = "", sms_number: str = "") -> str:
     by_cat: dict = {}
     for item in menu_items:
         if item.get("available", True):
@@ -39,9 +39,14 @@ def build_system_prompt(tenant_name: str, menu_items: list, special_instructions
 
     extra = f"\n\nSPECIAL INSTRUCTIONS:\n{special_instructions}" if special_instructions.strip() else ""
 
+    sms_note = (
+        "\n\nSMS OPTION: If the customer says they'd prefer to text, say 'Sure! Text this number and I'll take your order there.' "
+        "Then use the switch_to_sms tool to notify the customer." if sms_number else ""
+    )
+
     return f"""You are a warm, professional phone order-taking assistant for {tenant_name}.
 Your only job is to take orders accurately, confirm them, and end the call politely.
-{menu_text}{extra}
+{menu_text}{extra}{sms_note}
 
 CALL FLOW:
 1. Greet the caller and ask how you can help (place an order, hear specials, or get info).
@@ -62,7 +67,28 @@ RULES:
 """
 
 
-async def create_assistant(name: str, system_prompt: str, first_message: str, webhook_url: str) -> dict:
+async def create_assistant(name: str, system_prompt: str, first_message: str, webhook_url: str, sms_tool_url: str = "") -> dict:
+    tools = []
+    if sms_tool_url:
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "switch_to_sms",
+                "description": "Send the customer an SMS so they can continue ordering by text instead of voice. Call this when the customer says they prefer to text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "The SMS text to send to the customer",
+                        }
+                    },
+                    "required": ["message"],
+                },
+            },
+            "server": {"url": sms_tool_url},
+        })
+
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{VAPI_API}/assistant",
@@ -105,6 +131,7 @@ async def create_assistant(name: str, system_prompt: str, first_message: str, we
                     },
                 },
                 "structuredDataPrompt": "Extract the complete order from the call. List every item ordered with quantity and price. Include the customer name and whether it is pickup or delivery.",
+                **({"tools": tools} if tools else {}),
             },
         )
         resp.raise_for_status()
@@ -135,6 +162,25 @@ async def provision_phone_number(assistant_id: str, area_code: str = "888") -> d
                 "assistantId": assistant_id,
                 "name": "Order Line",
                 "areaCode": area_code,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def initiate_outbound_call(phone_number: str, assistant_id: str, context_message: str = "") -> dict:
+    """Start an outbound call to a customer — used when they text CALL ME during an SMS session."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        overrides: dict = {}
+        if context_message:
+            overrides["firstMessage"] = context_message
+        resp = await client.post(
+            f"{VAPI_API}/call/phone",
+            headers=_headers(),
+            json={
+                "assistantId": assistant_id,
+                "customer": {"number": phone_number},
+                **({"assistantOverrides": overrides} if overrides else {}),
             },
         )
         resp.raise_for_status()

@@ -1,12 +1,13 @@
 import json
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Form
 from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.config import settings
 from integrations import vapi as vapi_api
+from integrations import twilio_sms, sms_ai
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/phone", tags=["phone"])
@@ -60,7 +61,8 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
     menu_items = [dict(r) for r in menu_rows]
 
     system_prompt = vapi_api.build_system_prompt(
-        tenant["name"], menu_items, body.special_instructions
+        tenant["name"], menu_items, body.special_instructions,
+        sms_number=settings.twilio_sms_number or "",
     )
 
     webhook_url = f"{settings.saas_api_url}/phone/webhook/{tid}"
@@ -80,8 +82,9 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
     else:
         # Create new assistant
         try:
+            sms_tool_url = f"{settings.saas_api_url}/phone/tool/switch-to-sms/{tid}" if twilio_sms.is_configured() else ""
             assistant = await vapi_api.create_assistant(
-                assistant_name, system_prompt, body.greeting, webhook_url
+                assistant_name, system_prompt, body.greeting, webhook_url, sms_tool_url=sms_tool_url
             )
             assistant_id = assistant["id"]
         except Exception as e:
@@ -136,7 +139,8 @@ async def sync_menu_to_agent(current_user=Depends(_require_owner), db=Depends(ge
     menu_items = [dict(r) for r in menu_rows]
 
     system_prompt = vapi_api.build_system_prompt(
-        tenant["name"], menu_items, agent["special_instructions"] or ""
+        tenant["name"], menu_items, agent["special_instructions"] or "",
+        sms_number=settings.twilio_sms_number or "",
     )
 
     try:
@@ -295,3 +299,227 @@ async def phone_webhook(tenant_id: int, request: Request, db=Depends(get_db)):
     )
 
     return {"ok": True, "order_created": order_created, "order_id": order_id}
+
+
+# ─── VAPI tool: switch_to_sms ─────────────────────────────────────────────────
+# VAPI calls this when the voice agent uses the switch_to_sms tool during a call
+
+@router.post("/tool/switch-to-sms/{tenant_id}")
+async def vapi_tool_switch_to_sms(tenant_id: int, request: Request, db=Depends(get_db)):
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"result": "ok"}
+
+    # Extract customer phone and message from VAPI tool call
+    tool_call = payload.get("toolCall") or payload.get("message", {}).get("toolCall", {})
+    fn_args = tool_call.get("function", {}).get("arguments", {})
+    if isinstance(fn_args, str):
+        try:
+            fn_args = json.loads(fn_args)
+        except Exception:
+            fn_args = {}
+
+    customer_phone = (payload.get("call") or payload.get("message", {}).get("call", {})).get("customer", {}).get("number", "")
+    sms_message = fn_args.get("message", f"Hi! Text this number to place your order. We're happy to help!")
+
+    if not twilio_sms.is_configured():
+        return {"result": "SMS not configured"}
+
+    # Find tenant's agent to get their SMS number context
+    agent = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tenant_id)
+    if not agent:
+        return {"result": "Agent not found"}
+
+    # Open or reuse SMS session
+    if customer_phone:
+        try:
+            await _get_or_create_session(db, tenant_id, customer_phone)
+            await twilio_sms.send_sms(customer_phone, sms_message)
+        except Exception as e:
+            log.warning("Failed to send switch-to-sms: %s", e)
+
+    return {"result": "SMS sent — customer can now text to continue their order"}
+
+
+# ─── SMS webhook (Twilio inbound SMS) ────────────────────────────────────────
+
+async def _get_or_create_session(db, tenant_id: int, customer_phone: str) -> int:
+    """Return an active session id, creating one if needed."""
+    row = await db.fetchrow(
+        """SELECT id FROM sms_sessions
+           WHERE tenant_id=$1 AND customer_phone=$2 AND status='active'
+           ORDER BY started_at DESC LIMIT 1""",
+        tenant_id, customer_phone,
+    )
+    if row:
+        return row["id"]
+    row = await db.fetchrow(
+        "INSERT INTO sms_sessions (tenant_id, customer_phone) VALUES ($1,$2) RETURNING id",
+        tenant_id, customer_phone,
+    )
+    return row["id"]
+
+
+@router.post("/sms/webhook/{tenant_id}")
+async def sms_webhook(
+    tenant_id: int,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Twilio posts here when an inbound SMS arrives on the business number."""
+    form = await request.form()
+    from_number = str(form.get("From", ""))
+    body_text   = str(form.get("Body", "")).strip()
+
+    if not from_number or not body_text:
+        return _twiml("")
+
+    log.info("Inbound SMS tenant=%s from=%s body=%s", tenant_id, from_number, body_text[:80])
+
+    # Look up tenant + menu
+    tenant = await db.fetchrow("SELECT * FROM tenants WHERE id=$1", tenant_id)
+    if not tenant:
+        return _twiml("Sorry, this number is not currently active.")
+
+    agent = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tenant_id)
+
+    menu_rows = await db.fetch(
+        "SELECT name, category, price, description, available FROM menu_items WHERE tenant_id=$1", tenant_id
+    )
+    menu_items = [dict(r) for r in menu_rows]
+
+    # Get/create session
+    session_id = await _get_or_create_session(db, tenant_id, from_number)
+
+    # Save inbound message
+    await db.execute(
+        "INSERT INTO sms_messages (session_id, role, content) VALUES ($1,'user',$2)",
+        session_id, body_text,
+    )
+    await db.execute(
+        "UPDATE sms_sessions SET last_message_at=NOW() WHERE id=$1", session_id
+    )
+
+    # Load conversation history (last 20 messages)
+    history_rows = await db.fetch(
+        "SELECT role, content FROM sms_messages WHERE session_id=$1 ORDER BY created_at ASC",
+        session_id,
+    )
+    messages = [{"role": r["role"], "content": r["content"]} for r in history_rows]
+
+    # Get AI reply
+    reply_text = ""
+    if sms_ai.is_configured():
+        try:
+            reply_text = await sms_ai.get_response(
+                tenant["name"],
+                menu_items,
+                messages,
+                special_instructions=(agent["special_instructions"] if agent else ""),
+            )
+        except Exception as e:
+            log.error("SMS AI error: %s", e)
+            reply_text = f"Hi! Welcome to {tenant['name']}. We're experiencing a brief issue — please call us to place your order. Thank you!"
+    else:
+        # Fallback without AI: list the menu
+        lines = [f"Hi! Welcome to {tenant['name']}. Here's our menu:"]
+        by_cat: dict = {}
+        for item in menu_items:
+            if item.get("available"):
+                cat = (item.get("category") or "other").title()
+                by_cat.setdefault(cat, []).append(item)
+        for cat, items in list(by_cat.items())[:4]:
+            lines.append(f"\n{cat}:")
+            for it in items[:5]:
+                lines.append(f"  {it['name']} ${float(it.get('price',0)):.2f}")
+        lines.append("\nReply with your order or text CALL ME to speak with us.")
+        reply_text = "\n".join(lines)
+
+    # Handle CALLBACK request
+    if sms_ai.is_callback_request(reply_text):
+        reply_text = sms_ai.clean_reply(reply_text)
+        if agent and agent["vapi_assistant_id"]:
+            try:
+                await vapi_api.initiate_outbound_call(
+                    from_number,
+                    agent["vapi_assistant_id"],
+                    context_message="Hi! You requested a callback to continue your order. I'm ready to take it now!",
+                )
+            except Exception as e:
+                log.warning("Outbound call failed: %s", e)
+                reply_text = "We'll call you shortly! If you don't hear from us in a moment, feel free to call us directly."
+        else:
+            reply_text = "We'll have someone call you shortly!"
+
+    # Parse order if AI signalled completion
+    order_data = sms_ai.parse_order_from_reply(reply_text)
+    reply_clean = sms_ai.clean_reply(reply_text)
+
+    if order_data and order_data["items"]:
+        items_json = json.dumps([
+            {"name": i["name"], "qty": i["qty"], "price": i["price"]}
+            for i in order_data["items"]
+        ])
+        try:
+            order_row = await db.fetchrow(
+                """INSERT INTO tenant_orders (tenant_id, order_source, status, items, total, notes)
+                   VALUES ($1,'sms_ai','pending',$2,$3,$4) RETURNING id""",
+                tenant_id,
+                items_json,
+                round(order_data["total"], 2),
+                f"SMS order — Customer: {order_data['customer_name']} ({from_number})",
+            )
+            await db.execute(
+                "UPDATE sms_sessions SET status='ordered', order_id=$1 WHERE id=$2",
+                order_row["id"], session_id,
+            )
+        except Exception as e:
+            log.error("Failed to create SMS order: %s", e)
+
+    # Save assistant reply
+    await db.execute(
+        "INSERT INTO sms_messages (session_id, role, content) VALUES ($1,'assistant',$2)",
+        session_id, reply_clean,
+    )
+
+    return _twiml(reply_clean)
+
+
+def _twiml(message: str) -> dict:
+    """Return a Twilio TwiML SMS response."""
+    from fastapi.responses import Response
+    xml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{message}</Message></Response>'
+    return Response(content=xml, media_type="application/xml")
+
+
+# ─── GET SMS sessions (owner view) ───────────────────────────────────────────
+
+@router.get("/sms/sessions")
+async def get_sms_sessions(current_user=Depends(_require_owner), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    sessions = await db.fetch(
+        """SELECT s.*, COUNT(m.id) as message_count
+           FROM sms_sessions s
+           LEFT JOIN sms_messages m ON m.session_id = s.id
+           WHERE s.tenant_id=$1
+           GROUP BY s.id
+           ORDER BY s.last_message_at DESC
+           LIMIT 50""",
+        tid,
+    )
+    return [dict(s) for s in sessions]
+
+
+@router.get("/sms/sessions/{session_id}/messages")
+async def get_session_messages(session_id: int, current_user=Depends(_require_owner), db=Depends(get_db)):
+    session = await db.fetchrow(
+        "SELECT * FROM sms_sessions WHERE id=$1 AND tenant_id=$2",
+        session_id, current_user["tenant_id"],
+    )
+    if not session:
+        raise HTTPException(404, "Session not found")
+    msgs = await db.fetch(
+        "SELECT * FROM sms_messages WHERE session_id=$1 ORDER BY created_at ASC", session_id
+    )
+    return {"session": dict(session), "messages": [dict(m) for m in msgs]}

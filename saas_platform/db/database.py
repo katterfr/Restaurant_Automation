@@ -231,6 +231,24 @@ async def init_db():
                 UNIQUE(tenant_id)
             );
 
+            CREATE TABLE IF NOT EXISTS sms_sessions (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                customer_phone  TEXT NOT NULL,
+                status          VARCHAR(20) NOT NULL DEFAULT 'active',
+                order_id        INTEGER,
+                started_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_message_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS sms_messages (
+                id          SERIAL PRIMARY KEY,
+                session_id  INTEGER NOT NULL REFERENCES sms_sessions(id) ON DELETE CASCADE,
+                role        VARCHAR(10) NOT NULL,
+                content     TEXT NOT NULL,
+                created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS phone_calls (
                 id              SERIAL PRIMARY KEY,
                 tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
