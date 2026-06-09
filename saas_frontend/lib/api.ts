@@ -176,6 +176,40 @@ export interface MenuItem {
   created_at: string
 }
 
+export interface PhoneAgent {
+  id: number
+  tenant_id: number
+  vapi_assistant_id: string | null
+  vapi_phone_number_id: string | null
+  phone_number: string | null
+  greeting: string
+  special_instructions: string
+  is_active: boolean
+  total_calls: number
+  last_call_at: string | null
+  created_at: string
+}
+
+export interface PhoneCall {
+  id: number
+  tenant_id: number
+  vapi_call_id: string
+  caller_number: string | null
+  duration_secs: number
+  summary: string | null
+  transcript: string | null
+  structured_data: string
+  order_created: boolean
+  order_id: number | null
+  created_at: string
+}
+
+export interface PhoneStatus {
+  configured: boolean
+  agent: PhoneAgent | null
+  recent_calls: PhoneCall[]
+}
+
 export interface TenantCustomization {
   accent_color: string
   logo_url: string
@@ -308,6 +342,16 @@ export const api = {
     googleSync: () => request<{ ok: boolean; location: unknown }>('/business/google/sync', { method: 'POST' }),
     googleDisconnect: () => request<{ ok: boolean }>('/business/google/disconnect', { method: 'DELETE' }),
     appleSubmit: () => request<{ status: string; message: string; portal_url: string }>('/business/apple/submit', { method: 'POST' }),
+  },
+  phone: {
+    status: () => request<PhoneStatus>('/phone/status'),
+    activate: (data: { greeting?: string; special_instructions?: string; area_code?: string }) =>
+      request<PhoneAgent>('/phone/activate', { method: 'POST', body: JSON.stringify(data) }),
+    syncMenu: () => request<{ ok: boolean; menu_items_synced: number }>('/phone/sync-menu', { method: 'POST' }),
+    updateConfig: (data: { greeting?: string; special_instructions?: string }) =>
+      request<PhoneAgent>('/phone/config', { method: 'PUT', body: JSON.stringify(data) }),
+    deactivate: () => request<void>('/phone/deactivate', { method: 'DELETE' }),
+    calls: () => request<PhoneCall[]>('/phone/calls'),
   },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),

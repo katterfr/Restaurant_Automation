@@ -215,6 +215,36 @@ async def init_db():
                 UNIQUE(tenant_id)
             );
 
+            CREATE TABLE IF NOT EXISTS phone_agents (
+                id                   SERIAL PRIMARY KEY,
+                tenant_id            INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                vapi_assistant_id    TEXT,
+                vapi_phone_number_id TEXT,
+                phone_number         TEXT,
+                greeting             TEXT NOT NULL DEFAULT 'Thank you for calling! How can I help you today?',
+                special_instructions TEXT NOT NULL DEFAULT '',
+                is_active            BOOLEAN NOT NULL DEFAULT FALSE,
+                total_calls          INTEGER NOT NULL DEFAULT 0,
+                last_call_at         TIMESTAMP,
+                created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(tenant_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS phone_calls (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                vapi_call_id    TEXT UNIQUE,
+                caller_number   TEXT,
+                duration_secs   INTEGER DEFAULT 0,
+                summary         TEXT,
+                transcript      TEXT,
+                structured_data TEXT NOT NULL DEFAULT '{}',
+                order_created   BOOLEAN NOT NULL DEFAULT FALSE,
+                order_id        INTEGER REFERENCES tenant_orders(id),
+                created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
             CREATE TABLE IF NOT EXISTS tenant_customization (
                 id           SERIAL PRIMARY KEY,
                 tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     apple_maps_private_key: Optional[str] = None
     frontend_url: str = "http://localhost:3000"
     saas_api_url: str = "http://localhost:8001"
+    # VAPI — AI phone agent
+    vapi_api_key: Optional[str] = None
+    vapi_webhook_secret: Optional[str] = None
 
 
 settings = Settings()

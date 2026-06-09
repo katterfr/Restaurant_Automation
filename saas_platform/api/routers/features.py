@@ -11,6 +11,7 @@ ALL_FEATURES: dict[str, str] = {
     "menu_management":   "Menu Management",
     "delivery":          "Delivery Integrations",
     "business_listings": "Google & Apple Maps Listings",
+    "phone_agent":       "AI Phone Order Agent",
 }
 
 

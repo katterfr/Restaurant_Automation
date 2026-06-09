@@ -11,6 +11,7 @@ const ALL_FEATURES: Record<string, string> = {
   menu_management:   'Menu Management',
   delivery:          'Delivery Integrations',
   business_listings: 'Google & Apple Maps Listings',
+  phone_agent:       'AI Phone Order Agent',
 }
 
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
