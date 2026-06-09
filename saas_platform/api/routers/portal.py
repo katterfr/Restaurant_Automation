@@ -189,6 +189,7 @@ class CustomizationBody(BaseModel):
     logo_url: Optional[str] = None
     banner_url: Optional[str] = None
     welcome_msg: Optional[str] = None
+    dark_mode: Optional[bool] = None
 
 
 @router.get("/customization")
@@ -196,7 +197,7 @@ async def get_customization(current_user=Depends(_require_owner), db=Depends(get
     tid = current_user["tenant_id"]
     row = await db.fetchrow("SELECT * FROM tenant_customization WHERE tenant_id=$1", tid)
     if not row:
-        return {"accent_color": "#16a34a", "logo_url": "", "banner_url": "", "welcome_msg": ""}
+        return {"accent_color": "#16a34a", "logo_url": "", "banner_url": "", "welcome_msg": "", "dark_mode": False}
     return dict(row)
 
 
@@ -219,6 +220,9 @@ async def save_customization(body: CustomizationBody, current_user=Depends(_requ
         if body.welcome_msg is not None:
             sets.append(f"welcome_msg=${len(vals)+2}")
             vals.append(body.welcome_msg)
+        if body.dark_mode is not None:
+            sets.append(f"dark_mode=${len(vals)+2}")
+            vals.append(body.dark_mode)
         if sets:
             sets.append(f"updated_at=NOW()")
             await db.execute(
@@ -227,13 +231,14 @@ async def save_customization(body: CustomizationBody, current_user=Depends(_requ
             )
     else:
         await db.execute(
-            """INSERT INTO tenant_customization (tenant_id, accent_color, logo_url, banner_url, welcome_msg)
-               VALUES ($1, $2, $3, $4, $5)""",
+            """INSERT INTO tenant_customization (tenant_id, accent_color, logo_url, banner_url, welcome_msg, dark_mode)
+               VALUES ($1, $2, $3, $4, $5, $6)""",
             tid,
             body.accent_color or "#16a34a",
             body.logo_url or "",
             body.banner_url or "",
             body.welcome_msg or "",
+            body.dark_mode or False,
         )
     row = await db.fetchrow("SELECT * FROM tenant_customization WHERE tenant_id=$1", tid)
     return dict(row)

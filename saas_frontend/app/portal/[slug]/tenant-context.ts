@@ -13,6 +13,7 @@ export interface TenantCustomization {
   logo_url: string
   banner_url: string
   welcome_msg: string
+  dark_mode: boolean
 }
 
 export const TenantContext = createContext<TenantPublic | null>(null)
@@ -23,5 +24,6 @@ export const CustomizationContext = createContext<TenantCustomization>({
   logo_url: '',
   banner_url: '',
   welcome_msg: '',
+  dark_mode: false,
 })
 export function useCustomization() { return useContext(CustomizationContext) }

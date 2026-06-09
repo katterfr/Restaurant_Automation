@@ -248,6 +248,7 @@ export interface TenantCustomization {
   logo_url: string
   banner_url: string
   welcome_msg: string
+  dark_mode: boolean
 }
 
 export interface BusinessListing {

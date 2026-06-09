@@ -32,7 +32,38 @@ const DEFAULT_CUSTOMIZATION: TenantCustomization = {
   logo_url: '',
   banner_url: '',
   welcome_msg: '',
+  dark_mode: false,
 }
+
+const DARK_CSS = `
+  .portal-dark { background-color: #0f172a !important; color: #f1f5f9; }
+  .portal-dark .bg-white { background-color: #1e293b !important; }
+  .portal-dark .bg-gray-50 { background-color: #0f172a !important; }
+  .portal-dark .bg-gray-100 { background-color: #1e293b !important; }
+  .portal-dark .bg-gray-200 { background-color: #273447 !important; }
+  .portal-dark .hover\\:bg-gray-50:hover { background-color: #273447 !important; }
+  .portal-dark .hover\\:bg-gray-100:hover { background-color: #334155 !important; }
+  .portal-dark .border-gray-100 { border-color: #1e293b !important; }
+  .portal-dark .border-gray-200 { border-color: #334155 !important; }
+  .portal-dark .border-gray-300 { border-color: #475569 !important; }
+  .portal-dark .divide-gray-100 > * + * { border-color: #273447 !important; }
+  .portal-dark .divide-gray-200 > * + * { border-color: #334155 !important; }
+  .portal-dark .text-gray-900 { color: #f1f5f9 !important; }
+  .portal-dark .text-gray-800 { color: #e2e8f0 !important; }
+  .portal-dark .text-gray-700 { color: #cbd5e1 !important; }
+  .portal-dark .text-gray-600 { color: #94a3b8 !important; }
+  .portal-dark .text-gray-500 { color: #64748b !important; }
+  .portal-dark .text-gray-400 { color: #475569 !important; }
+  .portal-dark .text-gray-300 { color: #334155 !important; }
+  .portal-dark input, .portal-dark textarea, .portal-dark select {
+    background-color: #0f172a !important;
+    border-color: #475569 !important;
+    color: #f1f5f9 !important;
+  }
+  .portal-dark input::placeholder, .portal-dark textarea::placeholder { color: #475569 !important; }
+  .portal-dark .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.4) !important; }
+  .portal-dark .shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important; }
+`
 
 export default function SlugPortalLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ slug: string }>()
@@ -123,12 +154,20 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
     return features.includes(n.feature)
   })
   const accent = customization.accent_color || '#16a34a'
+  const dark = customization.dark_mode
 
   return (
     <TenantContext.Provider value={tenant}>
       <CustomizationContext.Provider value={customization}>
-        <div className="min-h-screen bg-gray-50 flex flex-col" style={{ '--accent': accent } as React.CSSProperties}>
-          <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+        {dark && <style>{DARK_CSS}</style>}
+        <div
+          className={`min-h-screen flex flex-col${dark ? ' portal-dark bg-gray-50' : ' bg-gray-50'}`}
+          style={{ '--accent': accent } as React.CSSProperties}
+        >
+          <header
+            className="border-b px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-30"
+            style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', borderColor: dark ? '#334155' : '#e5e7eb' }}
+          >
             <div className="flex items-center gap-3">
               {customization.logo_url ? (
                 <img
@@ -161,7 +200,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                     key={n.href}
                     href={`/portal/${slug}/${n.href}`}
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                      active ? 'font-medium' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                      active ? 'font-medium' : dark ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-700' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                     style={active ? { backgroundColor: `${accent}18`, color: accent } : {}}
                   >
@@ -200,7 +239,10 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
           {/* Mobile menu */}
           {mobileOpen && (
-            <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 space-y-1">
+            <div
+              className="md:hidden border-b px-4 py-3 space-y-1"
+              style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', borderColor: dark ? '#334155' : '#e5e7eb' }}
+            >
               {visibleNav.map(n => (
                 <Link
                   key={n.href}
@@ -234,6 +276,23 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
               </div>
 
               <div className="flex-1 px-5 py-5 space-y-6">
+                {/* Dark mode */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Appearance</p>
+                  <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Dark Mode</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Dark background for the entire portal</p>
+                    </div>
+                    <button
+                      onClick={() => setDraftCustom(d => ({ ...d, dark_mode: !d.dark_mode }))}
+                      className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ml-4 ${draftCustom.dark_mode ? 'bg-slate-700' : 'bg-gray-300'}`}
+                    >
+                      <span className={`block w-5 h-5 rounded-full bg-white shadow absolute top-0.5 transition-transform ${draftCustom.dark_mode ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Accent color */}
                 <div>
                   <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Accent Color</p>

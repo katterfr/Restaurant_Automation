@@ -286,6 +286,7 @@ async def init_db():
                 logo_url     TEXT        NOT NULL DEFAULT '',
                 banner_url   TEXT        NOT NULL DEFAULT '',
                 welcome_msg  TEXT        NOT NULL DEFAULT '',
+                dark_mode    BOOLEAN     NOT NULL DEFAULT FALSE,
                 updated_at   TIMESTAMP   NOT NULL DEFAULT NOW(),
                 UNIQUE(tenant_id)
             );
@@ -305,6 +306,11 @@ async def init_db():
                 updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
             );
         """)
+
+        # Migrations for existing deployments
+        await conn.execute(
+            "ALTER TABLE tenant_customization ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE"
+        )
 
         admin_email = os.getenv("ADMIN_EMAIL", "admin@restaurant.com")
         admin_password = os.getenv("ADMIN_PASSWORD", "admin1234")
