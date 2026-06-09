@@ -4,10 +4,10 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api, PlatformStatus } from '@/lib/api'
 
-const PLATFORMS = [
-  { key: 'meta',    label: 'Facebook & Instagram', desc: 'Posts to your Facebook Page & Instagram' },
-  { key: 'youtube', label: 'YouTube',               desc: 'Uploads video to your YouTube channel (provide video URL in Image URL field)' },
-  { key: 'tiktok',  label: 'TikTok',                desc: 'Posts as a TikTok photo/video' },
+const ALL_SOCIAL_PLATFORMS = [
+  { key: 'meta',    featureKey: 'social_meta',    label: 'Facebook & Instagram', desc: 'Posts to your Facebook Page & Instagram' },
+  { key: 'youtube', featureKey: 'social_youtube', label: 'YouTube',               desc: 'Uploads video to your YouTube channel (provide video URL in Image URL field)' },
+  { key: 'tiktok',  featureKey: 'social_tiktok',  label: 'TikTok',                desc: 'Posts as a TikTok photo/video' },
 ]
 
 export default function NewPostPage() {
@@ -16,6 +16,7 @@ export default function NewPostPage() {
   const router = useRouter()
 
   const [platformStatus, setPlatformStatus] = useState<Record<string, PlatformStatus>>({})
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -25,8 +26,16 @@ export default function NewPostPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.ads.status().then(setPlatformStatus).catch(() => {})
+    Promise.all([
+      api.ads.status().catch(() => ({})),
+      api.portal.features().catch(() => [] as string[]),
+    ]).then(([s, f]) => {
+      setPlatformStatus(s as Record<string, PlatformStatus>)
+      setEnabledFeatures(f)
+    })
   }, [])
+
+  const PLATFORMS = ALL_SOCIAL_PLATFORMS.filter(p => enabledFeatures.includes(p.featureKey))
 
   function toggle(key: string) {
     setSelected(p => p.includes(key) ? p.filter(x => x !== key) : [...p, key])

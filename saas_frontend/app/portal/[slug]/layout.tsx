@@ -6,15 +6,15 @@ import { api, TenantCustomization as ApiCustomization } from '@/lib/api'
 import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization } from './tenant-context'
 import Link from 'next/link'
 
-const ALL_NAV = [
+const ALL_NAV: { label: string; href: string; feature: null | string | string[] }[] = [
   { label: 'Dashboard',   href: 'dashboard',  feature: null },
   { label: 'Orders',      href: 'orders',     feature: null },
   { label: 'Menu',        href: 'menu',       feature: null },
-  { label: 'Ads',         href: 'ads',        feature: 'ads' },
-  { label: 'Social',      href: 'social',     feature: 'social_posts' },
+  { label: 'Ads',         href: 'ads',        feature: ['ads_meta','ads_google','ads_youtube','ads_tiktok','ads_snapchat','ads_pinterest'] },
+  { label: 'Social',      href: 'social',     feature: ['social_meta','social_youtube','social_tiktok'] },
   { label: 'Accounting',  href: 'accounting', feature: 'accounting' },
   { label: 'Delivery',    href: 'delivery',   feature: 'delivery' },
-  { label: 'Listings',    href: 'business',   feature: 'business_listings' },
+  { label: 'Listings',    href: 'business',   feature: ['listings_google','listings_apple'] },
   { label: 'Phone Agent', href: 'phone',      feature: 'phone_agent' },
   { label: 'AI Creative', href: 'creative',   feature: 'ai_creative' },
 ]
@@ -117,7 +117,11 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   }
 
   const initial = tenant?.name?.[0]?.toUpperCase() ?? '…'
-  const visibleNav = ALL_NAV.filter(n => !n.feature || features.includes(n.feature))
+  const visibleNav = ALL_NAV.filter(n => {
+    if (!n.feature) return true
+    if (Array.isArray(n.feature)) return n.feature.some(f => features.includes(f))
+    return features.includes(n.feature)
+  })
   const accent = customization.accent_color || '#16a34a'
 
   return (

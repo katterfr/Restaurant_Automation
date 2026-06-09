@@ -5,14 +5,26 @@ from api.routers.auth import get_current_user
 router = APIRouter(prefix="/features", tags=["features"])
 
 ALL_FEATURES: dict[str, str] = {
-    "ads":               "Social Media Advertising",
-    "social_posts":      "Social Media Posts",
-    "accounting":        "Accounting & Bookkeeping",
-    "menu_management":   "Menu Management",
-    "delivery":          "Delivery Integrations",
-    "business_listings": "Google & Apple Maps Listings",
-    "phone_agent":       "AI Phone Order Agent",
-    "ai_creative":       "AI Ad Creative (Images & Videos)",
+    # Ad platforms
+    "ads_meta":       "Meta Ads (Facebook & Instagram)",
+    "ads_google":     "Google Ads (Search & Display)",
+    "ads_youtube":    "YouTube Ads (Video Campaigns)",
+    "ads_tiktok":     "TikTok Ads (In-Feed Video)",
+    "ads_snapchat":   "Snapchat Ads (Story & Snap)",
+    "ads_pinterest":  "Pinterest Ads (Promoted Pins)",
+    # Social media posting
+    "social_meta":    "Meta Social (Facebook & Instagram Posts)",
+    "social_youtube": "YouTube Social (Channel Video Uploads)",
+    "social_tiktok":  "TikTok Social (Posts & Videos)",
+    # Business listings
+    "listings_google": "Google Maps Listing",
+    "listings_apple":  "Apple Maps Listing",
+    # Other features
+    "accounting":      "Accounting & Bookkeeping",
+    "menu_management": "Menu Management",
+    "delivery":        "Delivery Integrations",
+    "phone_agent":     "AI Phone Order Agent",
+    "ai_creative":     "AI Ad Creative (Images & Videos)",
 }
 
 

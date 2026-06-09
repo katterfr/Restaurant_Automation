@@ -4,16 +4,48 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, Tenant, Plan, Subscription } from '@/lib/api'
 
-const ALL_FEATURES: Record<string, string> = {
-  ads:               'Social Media Advertising',
-  social_posts:      'Social Media Posts',
-  accounting:        'Accounting & Bookkeeping',
-  menu_management:   'Menu Management',
-  delivery:          'Delivery Integrations',
-  business_listings: 'Google & Apple Maps Listings',
-  phone_agent:       'AI Phone Order Agent',
-  ai_creative:       'AI Ad Creative (Images & Videos)',
-}
+const FEATURE_GROUPS = [
+  {
+    label: 'Ad Platforms',
+    desc: 'Which ad networks this restaurant can connect and run campaigns on',
+    items: [
+      { key: 'ads_meta',      label: 'Meta Ads',      desc: 'Facebook & Instagram advertising' },
+      { key: 'ads_google',    label: 'Google Ads',     desc: 'Search & Display advertising' },
+      { key: 'ads_youtube',   label: 'YouTube Ads',    desc: 'YouTube video ad campaigns' },
+      { key: 'ads_tiktok',    label: 'TikTok Ads',     desc: 'In-Feed video advertising' },
+      { key: 'ads_snapchat',  label: 'Snapchat Ads',   desc: 'Story & Snap advertising' },
+      { key: 'ads_pinterest', label: 'Pinterest Ads',  desc: 'Promoted Pins advertising' },
+    ],
+  },
+  {
+    label: 'Social Media Posting',
+    desc: 'Which platforms the owner can publish organic posts to',
+    items: [
+      { key: 'social_meta',    label: 'Meta Social',    desc: 'Facebook Page & Instagram posts' },
+      { key: 'social_youtube', label: 'YouTube Social', desc: 'YouTube channel video uploads' },
+      { key: 'social_tiktok',  label: 'TikTok Social',  desc: 'TikTok posts & videos' },
+    ],
+  },
+  {
+    label: 'Business Listings',
+    desc: 'Map and directory listings for this restaurant',
+    items: [
+      { key: 'listings_google', label: 'Google Maps',  desc: 'Google Business Profile listing' },
+      { key: 'listings_apple',  label: 'Apple Maps',   desc: 'Apple Business Connect listing' },
+    ],
+  },
+  {
+    label: 'Other Features',
+    desc: 'Additional tools available in the owner portal',
+    items: [
+      { key: 'phone_agent',     label: 'AI Phone Agent',     desc: 'AI voice ordering via phone' },
+      { key: 'ai_creative',     label: 'AI Creative Studio',  desc: 'AI-generated ad images & videos' },
+      { key: 'accounting',      label: 'Accounting',          desc: 'Revenue & expense tracking' },
+      { key: 'menu_management', label: 'Menu Management',     desc: 'Advanced menu controls' },
+      { key: 'delivery',        label: 'Delivery Integrations', desc: 'DoorDash, Uber Eats, etc.' },
+    ],
+  },
+]
 
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -231,28 +263,53 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       {/* Feature flags card */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Feature Access</h2>
-        <p className="text-xs text-gray-400 mb-4">Enable or disable features for this restaurant's owner portal.</p>
-        <div className="space-y-3">
-          {Object.entries(ALL_FEATURES).map(([key, label]) => {
-            const enabled = !!features[key]
-            const toggling = togglingFeature === key
-            return (
-              <div key={key} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{label}</p>
-                  <p className="text-xs text-gray-400 capitalize">{key.replace('_', ' ')}</p>
+        <p className="text-xs text-gray-400 mb-5">Enable or disable individual platforms and features for this restaurant's owner portal.</p>
+        <div className="space-y-6">
+          {FEATURE_GROUPS.map(group => (
+            <div key={group.label}>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{group.label}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => group.items.forEach(i => { if (!features[i.key]) toggleFeature(i.key) })}
+                    className="text-xs text-green-700 hover:underline"
+                  >
+                    Enable all
+                  </button>
+                  <span className="text-gray-300">·</span>
+                  <button
+                    onClick={() => group.items.forEach(i => { if (features[i.key]) toggleFeature(i.key) })}
+                    className="text-xs text-gray-400 hover:underline"
+                  >
+                    Disable all
+                  </button>
                 </div>
-                <button
-                  onClick={() => toggleFeature(key)}
-                  disabled={toggling}
-                  className={`w-12 h-6 rounded-full transition-colors relative disabled:opacity-50 ${enabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                  title={enabled ? 'Disable' : 'Enable'}
-                >
-                  <span className={`block w-5 h-5 rounded-full bg-white shadow absolute top-0.5 transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                </button>
               </div>
-            )
-          })}
+              <p className="text-xs text-gray-400 mb-3">{group.desc}</p>
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                {group.items.map(({ key, label, desc }) => {
+                  const enabled = !!features[key]
+                  const toggling = togglingFeature === key
+                  return (
+                    <div key={key} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition-colors">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{label}</p>
+                        <p className="text-xs text-gray-400">{desc}</p>
+                      </div>
+                      <button
+                        onClick={() => toggleFeature(key)}
+                        disabled={toggling}
+                        className={`w-12 h-6 rounded-full transition-colors relative disabled:opacity-50 shrink-0 ml-4 ${enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                        title={enabled ? 'Disable' : 'Enable'}
+                      >
+                        <span className={`block w-5 h-5 rounded-full bg-white shadow absolute top-0.5 transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

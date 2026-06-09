@@ -132,9 +132,14 @@ export default function SlugDashboardPage() {
   const { stats, recent_orders, features } = data
   const accent = customization.accent_color || '#16a34a'
 
-  const hasAds     = features.includes('ads')
-  const hasSocial  = features.includes('social_posts')
-  const hasListings = features.includes('business_listings')
+  const enabledAdPlatforms     = AD_PLATFORMS.filter(p => features.includes(`ads_${p.key}`))
+  const enabledSocialPlatforms = SOCIAL_PLATFORMS.filter(p => features.includes(`social_${p.key}`))
+  const hasGoogleMaps  = features.includes('listings_google')
+  const hasAppleMaps   = features.includes('listings_apple')
+
+  const hasAds      = enabledAdPlatforms.length > 0
+  const hasSocial   = enabledSocialPlatforms.length > 0
+  const hasListings = hasGoogleMaps || hasAppleMaps
   const showConnections = hasAds || hasSocial || hasListings
 
   return (
@@ -200,7 +205,7 @@ export default function SlugDashboardPage() {
             <div className="mb-5">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Ad Platforms</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {AD_PLATFORMS.map(p => {
+                {enabledAdPlatforms.map(p => {
                   const s = adStatus[p.key]
                   return (
                     <PlatformTile
@@ -228,7 +233,7 @@ export default function SlugDashboardPage() {
             <div className="mb-5">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Social Media</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {SOCIAL_PLATFORMS.map(p => {
+                {enabledSocialPlatforms.map(p => {
                   const s = adStatus[p.key]
                   return (
                     <PlatformTile
@@ -255,32 +260,36 @@ export default function SlugDashboardPage() {
             <div className="mb-2">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Maps & Listings</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div
-                  className="bg-white rounded-xl border-2 border-gray-200 p-4 flex flex-col gap-2 cursor-pointer hover:border-gray-300 transition-colors"
-                  onClick={() => router.push(`/portal/${slug}/business`)}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center text-white font-bold text-xs shrink-0">G</span>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900">Google Maps</p>
-                      <p className="text-xs text-gray-400">Business Profile</p>
+                {hasGoogleMaps && (
+                  <div
+                    className="bg-white rounded-xl border-2 border-gray-200 p-4 flex flex-col gap-2 cursor-pointer hover:border-gray-300 transition-colors"
+                    onClick={() => router.push(`/portal/${slug}/business`)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center text-white font-bold text-xs shrink-0">G</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-900">Google Maps</p>
+                        <p className="text-xs text-gray-400">Business Profile</p>
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-500">Manage your listing →</p>
                   </div>
-                  <p className="text-xs text-gray-500">Manage your listing →</p>
-                </div>
-                <div
-                  className="bg-white rounded-xl border-2 border-gray-200 p-4 flex flex-col gap-2 cursor-pointer hover:border-gray-300 transition-colors"
-                  onClick={() => router.push(`/portal/${slug}/business`)}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center text-white font-bold text-xs shrink-0">A</span>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900">Apple Maps</p>
-                      <p className="text-xs text-gray-400">Business Connect</p>
+                )}
+                {hasAppleMaps && (
+                  <div
+                    className="bg-white rounded-xl border-2 border-gray-200 p-4 flex flex-col gap-2 cursor-pointer hover:border-gray-300 transition-colors"
+                    onClick={() => router.push(`/portal/${slug}/business`)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center text-white font-bold text-xs shrink-0">A</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-900">Apple Maps</p>
+                        <p className="text-xs text-gray-400">Business Connect</p>
+                      </div>
                     </div>
+                    <p className="text-xs text-gray-500">Manage your listing →</p>
                   </div>
-                  <p className="text-xs text-gray-500">Manage your listing →</p>
-                </div>
+                )}
               </div>
             </div>
           )}
