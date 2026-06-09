@@ -4,6 +4,7 @@ import { useParams, useRouter, usePathname } from 'next/navigation'
 import { isLoggedIn, clearToken } from '@/lib/auth'
 import { api, TenantCustomization as ApiCustomization } from '@/lib/api'
 import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization } from './tenant-context'
+import ChatBot from './chat-bot'
 import Link from 'next/link'
 
 const ALL_NAV: { label: string; href: string; feature: null | string | string[] }[] = [
@@ -391,6 +392,9 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
             </div>
           </div>
         )}
+
+        {/* AI Chat bot — available on every portal page */}
+        <ChatBot accent={accent} />
       </CustomizationContext.Provider>
     </TenantContext.Provider>
   )
