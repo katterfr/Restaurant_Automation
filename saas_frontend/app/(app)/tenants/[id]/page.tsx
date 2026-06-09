@@ -28,6 +28,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [ownerMsg, setOwnerMsg] = useState('')
   const [features, setFeatures] = useState<Record<string, boolean>>({})
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', slug: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -36,10 +39,28 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       api.billing.plans(),
       api.adminFeatures.get(tenantId),
     ])
-      .then(([t, s, p, f]) => { setTenant(t); setSubscription(s); setPlans(p); setFeatures(f) })
+      .then(([t, s, p, f]) => {
+        setTenant(t); setSubscription(s); setPlans(p); setFeatures(f)
+        setEditForm({ name: t.name, slug: t.slug })
+      })
       .catch(() => router.replace('/dashboard'))
       .finally(() => setLoading(false))
   }, [tenantId, router])
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    setEditSaving(true)
+    setEditMsg('')
+    try {
+      const updated = await api.tenants.patch(tenantId, { name: editForm.name, slug: editForm.slug })
+      setTenant(updated)
+      setEditMsg(`✓ Saved — new portal URL: /portal/${updated.slug}/dashboard`)
+    } catch (err: unknown) {
+      setEditMsg(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   async function toggleFeature(feature: string) {
     setTogglingFeature(feature)
@@ -116,6 +137,53 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             <dd className="font-medium text-gray-900">{new Date(tenant.created_at).toLocaleDateString()}</dd>
           </div>
         </dl>
+      </div>
+
+      {/* Edit name / slug card */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Restaurant Name &amp; Slug</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          The slug must be lowercase letters, numbers, and hyphens only — no spaces or slashes.
+          Changing it updates the owner portal URL.
+        </p>
+        <form onSubmit={saveEdit} className="space-y-3">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs text-gray-500 mb-1">Restaurant Name</label>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs text-gray-500 mb-1">Portal Slug</label>
+              <input
+                type="text"
+                value={editForm.slug}
+                onChange={e => setEditForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))}
+                required
+                pattern="[a-z0-9][a-z0-9\-]{0,62}"
+                title="Lowercase letters, numbers, and hyphens only"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={editSaving}
+              className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              {editSaving ? 'Saving…' : 'Save'}
+            </button>
+            {editMsg && (
+              <p className={`text-sm ${editMsg.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{editMsg}</p>
+            )}
+          </div>
+        </form>
       </div>
 
       {/* Owner account card */}

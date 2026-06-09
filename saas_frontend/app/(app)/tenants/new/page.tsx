@@ -51,7 +51,7 @@ export default function NewTenantPage() {
           <input
             type="text"
             value={form.slug}
-            onChange={e => set('slug', e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+            onChange={e => set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
             required
             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="bella-italia"
