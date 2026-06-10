@@ -4,12 +4,34 @@ import { useRouter } from 'next/navigation'
 import { login } from '@/lib/api'
 import { saveToken } from '@/lib/auth'
 
+function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Reset Admin Password</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Admin passwords are managed directly on the platform. To reset your password, contact
+          Careful-Server platform support or have another admin set a new password from the
+          admin dashboard.
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,6 +50,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
       <div className="w-full max-w-md px-4">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Careful-Server</h1>
@@ -50,7 +73,16 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <button
+                type="button"
+                onClick={() => setShowForgot(true)}
+                className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
             <input
               type="password"
               value={password}

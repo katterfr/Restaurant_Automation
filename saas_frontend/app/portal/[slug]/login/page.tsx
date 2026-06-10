@@ -5,6 +5,30 @@ import { login } from '@/lib/api'
 import { saveToken } from '@/lib/auth'
 import { useTenant } from '../tenant-context'
 
+function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Forgot Password?</h2>
+        <p className="text-sm text-gray-600 mb-1">
+          To reset your password, contact your restaurant&apos;s platform administrator.
+        </p>
+        <p className="text-sm text-gray-600 mb-4">
+          They can set a new password for your account from the Careful-Server management portal
+          under <span className="font-medium">Team Members</span> or{' '}
+          <span className="font-medium">Owner Portal Access</span>.
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function SlugLoginPage() {
   const params = useParams<{ slug: string }>()
   const slug = params?.slug ?? ''
@@ -15,6 +39,7 @@ export default function SlugLoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,6 +61,7 @@ export default function SlugLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
       <div className="w-full max-w-md px-4">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-green-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4 shadow-sm">
@@ -71,7 +97,16 @@ export default function SlugLoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <button
+                type="button"
+                onClick={() => setShowForgot(true)}
+                className="text-xs text-green-700 hover:text-green-800 hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
             <input
               type="password"
               value={password}

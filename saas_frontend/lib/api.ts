@@ -416,12 +416,18 @@ export const api = {
   },
   team: {
     list: (tenantId: number) => request<TeamMember[]>(`/portal/tenants/${tenantId}/team`),
+    listOwners: (tenantId: number) =>
+      request<Array<{ id: number; email: string; display_name: string; role: string; created_at: string }>>(`/portal/tenants/${tenantId}/owner-accounts`),
     create: (tenantId: number, data: { display_name: string; email: string; password: string; role: string; permissions: string[] }) =>
       request<TeamMember>(`/portal/tenants/${tenantId}/team`, { method: 'POST', body: JSON.stringify(data) }),
     update: (tenantId: number, userId: number, data: { display_name?: string; role?: string; permissions?: string[] }) =>
       request<TeamMember>(`/portal/tenants/${tenantId}/team/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     remove: (tenantId: number, userId: number) =>
       request<void>(`/portal/tenants/${tenantId}/team/${userId}`, { method: 'DELETE' }),
+    resetPassword: (tenantId: number, userId: number, newPassword: string) =>
+      request<{ ok: boolean }>(`/portal/tenants/${tenantId}/users/${userId}/password`, {
+        method: 'PATCH', body: JSON.stringify({ new_password: newPassword }),
+      }),
   },
 }
 

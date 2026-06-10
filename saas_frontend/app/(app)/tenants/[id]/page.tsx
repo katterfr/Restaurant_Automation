@@ -69,19 +69,24 @@ function EditMemberRow({ member, allPages, roleDefaults, onSave, onCancel }: {
 }) {
   const [role, setRole]   = useState(member.role)
   const [perms, setPerms] = useState<string[]>(member.permissions)
+  const [msg, setMsg] = useState('')
   const toggle = (pg: string) => setPerms(p => p.includes(pg) ? p.filter(x => x !== pg) : [...p, pg])
-  const applyPreset = (r: string) => { setRole(r); setPerms(roleDefaults[r] ?? []) }
+  // Role change no longer auto-resets permissions — use the button to apply defaults explicitly
   return (
     <div className="p-4 bg-blue-50 space-y-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={role} onChange={e => applyPreset(e.target.value)}>
+          value={role} onChange={e => setRole(e.target.value)}>
           <option value="manager">Manager</option>
           <option value="marketing">Marketing</option>
           <option value="staff">Staff</option>
           <option value="viewer">Viewer</option>
         </select>
-        <p className="text-xs text-gray-500">Changing role resets page access to role defaults.</p>
+        <button type="button" onClick={() => setPerms(roleDefaults[role] ?? [])}
+          className="text-xs text-blue-600 border border-blue-300 bg-white px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+          Apply role defaults
+        </button>
+        <p className="text-xs text-gray-400">Role change alone won&apos;t reset permissions.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {allPages.map(pg => (
@@ -92,8 +97,50 @@ function EditMemberRow({ member, allPages, roleDefaults, onSave, onCancel }: {
           </label>
         ))}
       </div>
+      {msg && <p className={`text-xs ${msg.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{msg}</p>}
       <div className="flex gap-2">
-        <button onClick={() => onSave(role, perms)} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+        <button onClick={() => { onSave(role, perms); setMsg('') }}
+          className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+        <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordRow({ userId, tenantId, onDone, onCancel }: {
+  userId: number; tenantId: number; onDone: () => void; onCancel: () => void
+}) {
+  const [pw, setPw]   = useState('')
+  const [pw2, setPw2] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function handleSave() {
+    if (pw.length < 8)  { setMsg('Password must be at least 8 characters'); return }
+    if (pw !== pw2)     { setMsg('Passwords do not match'); return }
+    setSaving(true); setMsg('')
+    try {
+      await api.team.resetPassword(tenantId, userId, pw)
+      onDone()
+    } catch (err: unknown) { setMsg(err instanceof Error ? err.message : 'Failed') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="p-4 bg-amber-50 space-y-3">
+      <p className="text-xs font-semibold text-amber-800">Set New Password</p>
+      <div className="flex gap-3 flex-wrap">
+        <input type="password" placeholder="New password (min 8)" value={pw} onChange={e => setPw(e.target.value)}
+          className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"/>
+        <input type="password" placeholder="Confirm password" value={pw2} onChange={e => setPw2(e.target.value)}
+          className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"/>
+      </div>
+      {msg && <p className="text-xs text-red-600">{msg}</p>}
+      <div className="flex gap-2">
+        <button onClick={handleSave} disabled={saving}
+          className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
+          {saving ? 'Saving…' : 'Set Password'}
+        </button>
         <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
       </div>
     </div>
@@ -121,12 +168,16 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
 
   // team management
   const [team, setTeam]           = useState<TeamMember[]>([])
-  const [teamLoading, setTeamLoading] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
   const [memberForm, setMemberForm] = useState({ display_name: '', email: '', password: '', role: 'staff', permissions: [] as string[] })
   const [memberSaving, setMemberSaving] = useState(false)
   const [memberMsg, setMemberMsg] = useState('')
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
+  const [resetPasswordFor, setResetPasswordFor] = useState<number | null>(null)
+  const [resetPwDoneMsg, setResetPwDoneMsg] = useState('')
+  // owner accounts
+  const [ownerAccounts, setOwnerAccounts] = useState<Array<{ id: number; email: string; display_name: string; role: string; created_at: string }>>([])
+  const [resetOwnerPasswordFor, setResetOwnerPasswordFor] = useState<number | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -142,6 +193,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       .catch(() => router.replace('/dashboard'))
       .finally(() => setLoading(false))
     api.team.list(parseInt(id)).then(setTeam).catch(() => {})
+    api.team.listOwners(parseInt(id)).then(setOwnerAccounts).catch(() => {})
   }, [tenantId, router])
 
   async function saveEdit(e: React.FormEvent) {
@@ -192,6 +244,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       const portalUrl = `${window.location.origin}/portal/${tenant?.slug}/login`
       setOwnerMsg(`✓ Owner account created. Share this link: ${portalUrl}`)
       setOwnerForm({ email: '', password: '' })
+      api.team.listOwners(tenantId).then(setOwnerAccounts).catch(() => {})
     } catch (err: unknown) {
       setOwnerMsg(err instanceof Error ? err.message : 'Failed to create owner')
     } finally {
@@ -226,7 +279,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       const updated = await api.team.update(tenantId, m.id, { role, permissions })
       setTeam(t => t.map(x => x.id === m.id ? updated : x))
       setEditingMember(null)
-    } catch { /* ignore */ }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to save')
+    }
   }
 
   async function removeMember(uid: number) {
@@ -323,8 +378,49 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Owner Portal Access</h2>
         <p className="text-xs text-gray-400 mb-4">
-          Create login credentials for the restaurant owner. Their dedicated portal URL will be{' '}
+          Manage login credentials for the restaurant owner. Portal URL:{' '}
           <span className="font-mono text-blue-600">/portal/{tenant.slug}/login</span>
+        </p>
+
+        {/* Existing owner accounts */}
+        {ownerAccounts.length > 0 && (
+          <div className="mb-5 space-y-2">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Existing Owner Accounts</p>
+            {ownerAccounts.map(o => (
+              <div key={o.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                {resetOwnerPasswordFor === o.id ? (
+                  <ResetPasswordRow
+                    userId={o.id} tenantId={tenantId}
+                    onDone={() => { setResetOwnerPasswordFor(null); setOwnerMsg(`✓ Password updated for ${o.email}`) }}
+                    onCancel={() => setResetOwnerPasswordFor(null)}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-green-500 shrink-0">
+                      {o.email[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">{o.email}</p>
+                        <RoleBadge role="owner"/>
+                      </div>
+                      <p className="text-xs text-gray-400">Created {new Date(o.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <button
+                      onClick={() => { setResetOwnerPasswordFor(o.id); setOwnerMsg('') }}
+                      className="text-xs text-amber-600 hover:underline shrink-0">
+                      Reset Password
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create new owner */}
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+          {ownerAccounts.length > 0 ? 'Add Another Owner' : 'Create Owner Login'}
         </p>
         <form onSubmit={createOwner} className="flex gap-3 flex-wrap">
           <input
@@ -503,11 +599,16 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             {team.map(m => (
               <div key={m.id} className="border border-gray-200 rounded-xl overflow-hidden">
                 {editingMember?.id === m.id ? (
-                  // inline edit
                   <EditMemberRow
                     member={m} allPages={ALL_PAGES} roleDefaults={ROLE_DEFAULTS}
                     onSave={(role, perms) => saveMember(m, role, perms)}
                     onCancel={() => setEditingMember(null)}
+                  />
+                ) : resetPasswordFor === m.id ? (
+                  <ResetPasswordRow
+                    userId={m.id} tenantId={tenantId}
+                    onDone={() => { setResetPasswordFor(null); setResetPwDoneMsg(`✓ Password updated for ${m.display_name || m.email}`) }}
+                    onCancel={() => setResetPasswordFor(null)}
                   />
                 ) : (
                   <div className="flex items-center gap-3 px-4 py-3">
@@ -528,13 +629,17 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <button onClick={() => setEditingMember(m)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => { setEditingMember(m); setResetPasswordFor(null) }} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => { setResetPasswordFor(m.id); setEditingMember(null); setResetPwDoneMsg('') }} className="text-xs text-amber-600 hover:underline">Reset Pwd</button>
                       <button onClick={() => removeMember(m.id)} className="text-xs text-red-500 hover:underline">Remove</button>
                     </div>
                   </div>
                 )}
               </div>
             ))}
+            {resetPwDoneMsg && (
+              <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{resetPwDoneMsg}</p>
+            )}
           </div>
         )}
       </div>

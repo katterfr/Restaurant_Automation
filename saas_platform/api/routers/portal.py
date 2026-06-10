@@ -517,3 +517,57 @@ async def delete_team_member(
     if not row:
         raise HTTPException(404, "Team member not found")
     await db.execute("DELETE FROM users WHERE id=$1", user_id)
+
+
+# ─── Owner accounts listing ───────────────────────────────────────────────────
+
+@router.get("/tenants/{tenant_id}/owner-accounts")
+async def list_owner_accounts(
+    tenant_id: int,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    rows = await db.fetch(
+        """SELECT id, email, display_name, role, created_at
+           FROM users WHERE tenant_id=$1 AND role='owner'
+           ORDER BY created_at""",
+        tenant_id,
+    )
+    return [
+        {
+            "id": r["id"],
+            "email": r["email"],
+            "display_name": r.get("display_name") or "",
+            "role": r["role"],
+            "created_at": str(r["created_at"]),
+        }
+        for r in rows
+    ]
+
+
+# ─── Admin password reset for any tenant user ─────────────────────────────────
+
+class UserPasswordReset(BaseModel):
+    new_password: str
+
+
+@router.patch("/tenants/{tenant_id}/users/{user_id}/password")
+async def admin_reset_user_password(
+    tenant_id: int,
+    user_id: int,
+    body: UserPasswordReset,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    row = await db.fetchrow(
+        "SELECT id FROM users WHERE id=$1 AND tenant_id=$2", user_id, tenant_id,
+    )
+    if not row:
+        raise HTTPException(404, "User not found in this tenant")
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    await db.execute(
+        "UPDATE users SET password_hash=$1 WHERE id=$2",
+        hash_password(body.new_password), user_id,
+    )
+    return {"ok": True}
