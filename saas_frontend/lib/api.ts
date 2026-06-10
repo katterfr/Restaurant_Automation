@@ -275,6 +275,13 @@ export interface BusinessStatus {
 }
 
 export const api = {
+  auth: {
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ message: string }>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      }),
+  },
   tenants: {
     list: () => request<Tenant[]>('/tenants/'),
     get: (id: number) => request<Tenant>(`/tenants/${id}`),

@@ -7,6 +7,90 @@ import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization 
 import ChatBot from './chat-bot'
 import Link from 'next/link'
 
+function ChangePasswordModal({ accent, slug, onClose }: { accent: string; slug: string; onClose: () => void }) {
+  const router = useRouter()
+  const [form, setForm] = useState({ current: '', next: '', confirm: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError]   = useState('')
+  const [done, setDone]     = useState(false)
+
+  function field(key: keyof typeof form, val: string) {
+    setForm(p => ({ ...p, [key]: val })); setError('')
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (form.next.length < 8)  { setError('New password must be at least 8 characters'); return }
+    if (form.next !== form.confirm) { setError('Passwords do not match'); return }
+    setLoading(true); setError('')
+    try {
+      await api.auth.changePassword(form.current, form.next)
+      setDone(true)
+      setTimeout(() => {
+        clearToken()
+        router.push(`/portal/${slug}/login`)
+      }, 2500)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        {done ? (
+          <div className="text-center py-4">
+            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3 text-green-600 text-xl font-bold">✓</div>
+            <p className="text-sm font-semibold text-gray-900">Password updated</p>
+            <p className="text-xs text-gray-400 mt-1">Signing you out in a moment…</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-gray-900">Change Password</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                <input type="password" required value={form.current}
+                  onChange={e => field('current', e.target.value)}
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+                  placeholder="••••••••"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <input type="password" required value={form.next}
+                  onChange={e => field('next', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+                  placeholder="Min. 8 characters"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+                <input type="password" required value={form.confirm}
+                  onChange={e => field('confirm', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+                  placeholder="••••••••"/>
+              </div>
+              {error && (
+                <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              )}
+              <button type="submit" disabled={loading}
+                className="w-full text-white py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: accent }}>
+                {loading ? 'Updating…' : 'Update Password'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const ALL_NAV: { label: string; href: string; feature: null | string | string[] }[] = [
   { label: 'Dashboard',   href: 'dashboard',  feature: null },
   { label: 'Orders',      href: 'orders',     feature: null },
@@ -75,6 +159,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   const [features, setFeatures] = useState<string[]>([])
   const [notFound, setNotFound] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [customization, setCustomization] = useState<TenantCustomization>(DEFAULT_CUSTOMIZATION)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draftCustom, setDraftCustom] = useState<TenantCustomization>(DEFAULT_CUSTOMIZATION)
@@ -239,6 +324,12 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                 <span>Customize</span>
               </button>
               <button
+                onClick={() => setShowPasswordModal(true)}
+                className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                Change Password
+              </button>
+              <button
                 onClick={logout}
                 className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
               >
@@ -274,6 +365,9 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
               ))}
               <button onClick={openDrawer} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
                 🎨 Customize
+              </button>
+              <button onClick={() => { setShowPasswordModal(true); setMobileOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
+                🔒 Change Password
               </button>
               <button onClick={logout} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-100">
                 Sign out
@@ -409,6 +503,15 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
               </div>
             </div>
           </div>
+        )}
+
+        {/* Change password modal */}
+        {showPasswordModal && (
+          <ChangePasswordModal
+            accent={accent}
+            slug={slug}
+            onClose={() => setShowPasswordModal(false)}
+          />
         )}
 
         {/* AI Chat bot — available on every portal page */}
