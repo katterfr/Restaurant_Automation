@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { api, PortalDashboard, Order, PlatformStatus } from '@/lib/api'
 import { useCustomization } from '../tenant-context'
 import TourOverlay, { TourStep } from '../tour'
@@ -145,9 +145,8 @@ function PlatformTile({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SlugDashboardPage() {
-  const params       = useParams<{ slug: string }>()
-  const searchParams = useSearchParams()
-  const slug         = params?.slug ?? ''
+  const params = useParams<{ slug: string }>()
+  const slug   = params?.slug ?? ''
   const router       = useRouter()
   const customization = useCustomization()
 
@@ -171,12 +170,12 @@ export default function SlugDashboardPage() {
   // launch tour if ?tour=1 or not yet seen
   useEffect(() => {
     if (loading) return
-    const wantsTour = searchParams?.get('tour') === '1'
-    const tourDone  = typeof window !== 'undefined' && !!localStorage.getItem(`cs_tour_done_${slug}`)
+    const wantsTour = new URLSearchParams(window.location.search).get('tour') === '1'
+    const tourDone  = !!localStorage.getItem(`cs_tour_done_${slug}`)
     if (wantsTour || !tourDone) {
       setTimeout(() => setShowTour(true), 400)
     }
-  }, [loading, searchParams, slug])
+  }, [loading, slug])
 
   function finishTour() {
     if (typeof window !== 'undefined') localStorage.setItem(`cs_tour_done_${slug}`, '1')

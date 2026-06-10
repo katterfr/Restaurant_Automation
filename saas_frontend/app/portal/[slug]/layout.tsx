@@ -99,10 +99,10 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   }, [isLoginPage, slug])
 
   useEffect(() => {
-    if (isLoginPage || isWelcomePage) return
+    if (isLoginPage || isWelcomePage || !slug) return
     if (!isLoggedIn()) { router.replace(`/portal/${slug}/login`); return }
     // first-time visit → welcome page
-    if (typeof window !== 'undefined' && !localStorage.getItem(`cs_welcomed_${slug}`)) {
+    if (!localStorage.getItem(`cs_welcomed_${slug}`)) {
       router.replace(`/portal/${slug}/welcome`)
     }
   }, [isLoginPage, isWelcomePage, router, slug])
@@ -157,7 +157,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
     return (
       <TenantContext.Provider value={tenant}>
         <CustomizationContext.Provider value={customization}>
-          {dark && <style>{DARK_CSS}</style>}
+          {customization.dark_mode && <style>{DARK_CSS}</style>}
           {children}
         </CustomizationContext.Provider>
       </TenantContext.Provider>
