@@ -81,7 +81,8 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   const [saving, setSaving] = useState(false)
   const drawerRef = useRef<HTMLDivElement>(null)
 
-  const isLoginPage = pathname.endsWith('/login')
+  const isLoginPage   = pathname.endsWith('/login')
+  const isWelcomePage = pathname.endsWith('/welcome')
 
   useEffect(() => {
     if (!slug) return
@@ -98,9 +99,13 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   }, [isLoginPage, slug])
 
   useEffect(() => {
-    if (isLoginPage) return
-    if (!isLoggedIn()) router.replace(`/portal/${slug}/login`)
-  }, [isLoginPage, router, slug])
+    if (isLoginPage || isWelcomePage) return
+    if (!isLoggedIn()) { router.replace(`/portal/${slug}/login`); return }
+    // first-time visit → welcome page
+    if (typeof window !== 'undefined' && !localStorage.getItem(`cs_welcomed_${slug}`)) {
+      router.replace(`/portal/${slug}/welcome`)
+    }
+  }, [isLoginPage, isWelcomePage, router, slug])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -148,6 +153,17 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
     return <TenantContext.Provider value={tenant}>{children}</TenantContext.Provider>
   }
 
+  if (isWelcomePage) {
+    return (
+      <TenantContext.Provider value={tenant}>
+        <CustomizationContext.Provider value={customization}>
+          {dark && <style>{DARK_CSS}</style>}
+          {children}
+        </CustomizationContext.Provider>
+      </TenantContext.Provider>
+    )
+  }
+
   const initial = tenant?.name?.[0]?.toUpperCase() ?? '…'
   const visibleNav = ALL_NAV.filter(n => {
     if (!n.feature) return true
@@ -193,7 +209,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
             </div>
 
             {/* Desktop nav */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav data-tour-id="portal-nav" className="hidden md:flex items-center gap-1">
               {visibleNav.map(n => {
                 const active = pathname.includes(`/${n.href}`)
                 return (
@@ -213,6 +229,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
             <div className="flex items-center gap-2">
               <button
+                data-tour-id="customize-btn"
                 onClick={openDrawer}
                 className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
                 title="Customize portal"

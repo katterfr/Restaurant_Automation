@@ -322,6 +322,12 @@ async def init_db():
         await conn.execute(
             "ALTER TABLE tenant_customization ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE"
         )
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''"
+        )
+        await conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT '[]'"
+        )
 
         admin_email = os.getenv("ADMIN_EMAIL", "admin@restaurant.com")
         admin_password = os.getenv("ADMIN_PASSWORD", "admin1234")

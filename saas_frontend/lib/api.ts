@@ -414,4 +414,22 @@ export const api = {
       request<{ feature: string; enabled: boolean }>(`/features/${tenantId}/${feature}`, { method: 'POST' }),
     list: () => request<Record<string, string>>('/features/list'),
   },
+  team: {
+    list: (tenantId: number) => request<TeamMember[]>(`/portal/tenants/${tenantId}/team`),
+    create: (tenantId: number, data: { display_name: string; email: string; password: string; role: string; permissions: string[] }) =>
+      request<TeamMember>(`/portal/tenants/${tenantId}/team`, { method: 'POST', body: JSON.stringify(data) }),
+    update: (tenantId: number, userId: number, data: { display_name?: string; role?: string; permissions?: string[] }) =>
+      request<TeamMember>(`/portal/tenants/${tenantId}/team/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (tenantId: number, userId: number) =>
+      request<void>(`/portal/tenants/${tenantId}/team/${userId}`, { method: 'DELETE' }),
+  },
+}
+
+export interface TeamMember {
+  id: number
+  display_name: string
+  email: string
+  role: string
+  permissions: string[]
+  created_at: string
 }

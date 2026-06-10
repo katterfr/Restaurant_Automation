@@ -2,7 +2,7 @@
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { api, Tenant, Plan, Subscription } from '@/lib/api'
+import { api, Tenant, Plan, Subscription, TeamMember } from '@/lib/api'
 
 const FEATURE_GROUPS = [
   {
@@ -47,6 +47,59 @@ const FEATURE_GROUPS = [
   },
 ]
 
+const ROLE_COLORS: Record<string, string> = {
+  manager:   'bg-purple-100 text-purple-700',
+  marketing: 'bg-blue-100 text-blue-700',
+  staff:     'bg-amber-100 text-amber-700',
+  viewer:    'bg-gray-100 text-gray-500',
+  owner:     'bg-green-100 text-green-700',
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-500'}`}>
+      {role}
+    </span>
+  )
+}
+
+function EditMemberRow({ member, allPages, roleDefaults, onSave, onCancel }: {
+  member: TeamMember; allPages: string[]; roleDefaults: Record<string, string[]>
+  onSave: (role: string, perms: string[]) => void; onCancel: () => void
+}) {
+  const [role, setRole]   = useState(member.role)
+  const [perms, setPerms] = useState<string[]>(member.permissions)
+  const toggle = (pg: string) => setPerms(p => p.includes(pg) ? p.filter(x => x !== pg) : [...p, pg])
+  const applyPreset = (r: string) => { setRole(r); setPerms(roleDefaults[r] ?? []) }
+  return (
+    <div className="p-4 bg-blue-50 space-y-3">
+      <div className="flex items-center gap-3">
+        <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={role} onChange={e => applyPreset(e.target.value)}>
+          <option value="manager">Manager</option>
+          <option value="marketing">Marketing</option>
+          <option value="staff">Staff</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <p className="text-xs text-gray-500">Changing role resets page access to role defaults.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {allPages.map(pg => (
+          <label key={pg} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-colors
+            ${perms.includes(pg) ? 'border-blue-500 bg-blue-100 text-blue-700' : 'border-gray-200 text-gray-500 bg-white'}`}>
+            <input type="checkbox" className="sr-only" checked={perms.includes(pg)} onChange={() => toggle(pg)}/>
+            {pg}
+          </label>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => onSave(role, perms)} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">Save</button>
+        <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const tenantId = parseInt(id)
@@ -66,6 +119,15 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [editSaving, setEditSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
 
+  // team management
+  const [team, setTeam]           = useState<TeamMember[]>([])
+  const [teamLoading, setTeamLoading] = useState(false)
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [memberForm, setMemberForm] = useState({ display_name: '', email: '', password: '', role: 'staff', permissions: [] as string[] })
+  const [memberSaving, setMemberSaving] = useState(false)
+  const [memberMsg, setMemberMsg] = useState('')
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
+
   useEffect(() => {
     Promise.all([
       api.tenants.get(tenantId),
@@ -79,6 +141,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       })
       .catch(() => router.replace('/dashboard'))
       .finally(() => setLoading(false))
+    api.team.list(parseInt(id)).then(setTeam).catch(() => {})
   }, [tenantId, router])
 
   async function saveEdit(e: React.FormEvent) {
@@ -134,6 +197,42 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
     } finally {
       setOwnerSaving(false)
     }
+  }
+
+  const ROLE_DEFAULTS: Record<string, string[]> = {
+    manager:   ['dashboard','orders','menu','ads','social','accounting','delivery','business','phone','creative'],
+    marketing: ['dashboard','ads','social','creative'],
+    staff:     ['dashboard','orders','menu'],
+    viewer:    ['dashboard'],
+  }
+
+  const ALL_PAGES = ['dashboard','orders','menu','ads','social','accounting','delivery','business','phone','creative']
+
+  async function addMember(e: React.FormEvent) {
+    e.preventDefault()
+    setMemberSaving(true); setMemberMsg('')
+    try {
+      const m = await api.team.create(tenantId, { ...memberForm, permissions: memberForm.permissions.length ? memberForm.permissions : ROLE_DEFAULTS[memberForm.role] ?? [] })
+      setTeam(t => [...t, m])
+      setMemberForm({ display_name: '', email: '', password: '', role: 'staff', permissions: [] })
+      setShowAddMember(false)
+      setMemberMsg('✓ Team member created')
+    } catch (err: unknown) { setMemberMsg(err instanceof Error ? err.message : 'Failed') }
+    finally { setMemberSaving(false) }
+  }
+
+  async function saveMember(m: TeamMember, role: string, permissions: string[]) {
+    try {
+      const updated = await api.team.update(tenantId, m.id, { role, permissions })
+      setTeam(t => t.map(x => x.id === m.id ? updated : x))
+      setEditingMember(null)
+    } catch { /* ignore */ }
+  }
+
+  async function removeMember(uid: number) {
+    if (!confirm('Remove this team member? They will lose portal access immediately.')) return
+    await api.team.remove(tenantId, uid)
+    setTeam(t => t.filter(m => m.id !== uid))
   }
 
   if (loading) return <div className="p-8 text-sm text-gray-400">Loading…</div>
@@ -311,6 +410,133 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Team Management */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
+          <button onClick={() => setShowAddMember(o => !o)}
+            className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+            + Add Member
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mb-5">
+          Give staff, managers, or marketing team access to the owner portal with limited permissions.
+        </p>
+
+        {/* Add member form */}
+        {showAddMember && (
+          <form onSubmit={addMember} className="border border-gray-200 rounded-xl p-4 mb-5 space-y-3 bg-gray-50">
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">New Team Member</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Name</label>
+                <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Jane Smith" value={memberForm.display_name}
+                  onChange={e => setMemberForm(p => ({ ...p, display_name: e.target.value }))} required/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Email</label>
+                <input type="email" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="jane@restaurant.com" value={memberForm.email}
+                  onChange={e => setMemberForm(p => ({ ...p, email: e.target.value }))} required/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Password</label>
+                <input type="password" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Min 8 characters" value={memberForm.password} minLength={8}
+                  onChange={e => setMemberForm(p => ({ ...p, password: e.target.value }))} required/>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Role</label>
+                <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={memberForm.role}
+                  onChange={e => setMemberForm(p => ({ ...p, role: e.target.value, permissions: [] }))}>
+                  <option value="manager">Manager — Full Access</option>
+                  <option value="marketing">Marketing — Ads &amp; Social</option>
+                  <option value="staff">Staff — Orders &amp; Menu</option>
+                  <option value="viewer">Viewer — Read Only</option>
+                </select>
+              </div>
+            </div>
+            {/* Permission override */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Page Access <span className="text-gray-400">(leave blank to use role defaults)</span></p>
+              <div className="flex flex-wrap gap-2">
+                {ALL_PAGES.map(pg => {
+                  const defaultPerms = ROLE_DEFAULTS[memberForm.role] ?? []
+                  const checked = memberForm.permissions.length ? memberForm.permissions.includes(pg) : defaultPerms.includes(pg)
+                  return (
+                    <label key={pg} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-colors
+                      ${checked ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500'}`}>
+                      <input type="checkbox" className="sr-only" checked={checked}
+                        onChange={e => {
+                          const base = memberForm.permissions.length ? memberForm.permissions : ROLE_DEFAULTS[memberForm.role] ?? []
+                          setMemberForm(p => ({ ...p, permissions: e.target.checked ? [...base, pg] : base.filter(x => x !== pg) }))
+                        }}/>
+                      {pg}
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={memberSaving}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                {memberSaving ? 'Creating…' : 'Create Member'}
+              </button>
+              <button type="button" onClick={() => setShowAddMember(false)} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+            </div>
+            {memberMsg && <p className={`text-sm ${memberMsg.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{memberMsg}</p>}
+          </form>
+        )}
+
+        {/* Team list */}
+        {team.length === 0 ? (
+          <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center">
+            <p className="text-gray-400 text-sm">No team members yet.</p>
+            <p className="text-gray-400 text-xs mt-1">Add staff, managers, or marketing team for limited portal access.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {team.map(m => (
+              <div key={m.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                {editingMember?.id === m.id ? (
+                  // inline edit
+                  <EditMemberRow
+                    member={m} allPages={ALL_PAGES} roleDefaults={ROLE_DEFAULTS}
+                    onSave={(role, perms) => saveMember(m, role, perms)}
+                    onCancel={() => setEditingMember(null)}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gray-400 shrink-0">
+                      {(m.display_name || m.email)[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-gray-900">{m.display_name || m.email}</p>
+                        <RoleBadge role={m.role}/>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {m.permissions.slice(0, 6).map(p => (
+                          <span key={p} className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{p}</span>
+                        ))}
+                        {m.permissions.length > 6 && <span className="text-xs text-gray-400">+{m.permissions.length - 6} more</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => setEditingMember(m)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => removeMember(m.id)} className="text-xs text-red-500 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Plans card */}

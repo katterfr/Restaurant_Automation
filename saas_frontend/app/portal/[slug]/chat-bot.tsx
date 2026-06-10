@@ -132,6 +132,7 @@ export default function ChatBot({ accent }: { accent: string }) {
       {/* ── Bubble ── */}
       {mode === 'bubble' && (
         <button
+          data-tour-id="chatbot-bubble"
           onMouseDown={startDrag}
           onClick={openChat}
           title="AI Assistant"

@@ -11,8 +11,10 @@ from core.config import settings
 router = APIRouter(prefix="/portal", tags=["portal"])
 
 
+PORTAL_ROLES = {"owner", "admin", "manager", "marketing", "staff", "viewer"}
+
 def _require_owner(current_user=Depends(get_current_user)):
-    if current_user["role"] not in ("owner", "admin"):
+    if current_user["role"] not in PORTAL_ROLES:
         raise HTTPException(status_code=403, detail="Tenant access only")
     return current_user
 
@@ -392,3 +394,126 @@ a restaurant using the Careful-Server management platform.
         )
         r.raise_for_status()
         return {"reply": r.json()["content"][0]["text"]}
+
+
+# ─── Team Management ──────────────────────────────────────────────────────────
+
+TEAM_ROLES = ["manager", "marketing", "staff", "viewer"]
+
+ROLE_DEFAULT_PERMISSIONS: dict[str, list[str]] = {
+    "manager":   ["dashboard", "orders", "menu", "ads", "social", "accounting", "delivery", "business", "phone", "creative"],
+    "marketing": ["dashboard", "ads", "social", "creative"],
+    "staff":     ["dashboard", "orders", "menu"],
+    "viewer":    ["dashboard"],
+}
+
+class TeamMemberCreate(BaseModel):
+    display_name: str
+    email: str
+    password: str
+    role: str = "staff"
+    permissions: list[str] = []
+
+class TeamMemberUpdate(BaseModel):
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+    permissions: Optional[list[str]] = None
+    is_active: Optional[bool] = None
+
+
+def _team_row(row: dict) -> dict:
+    import json
+    return {
+        "id":           row["id"],
+        "display_name": row.get("display_name") or "",
+        "email":        row["email"],
+        "role":         row["role"],
+        "permissions":  json.loads(row.get("permissions") or "[]"),
+        "is_active":    True,  # active unless explicitly deactivated via status
+        "created_at":   str(row["created_at"]),
+    }
+
+
+@router.get("/tenants/{tenant_id}/team")
+async def list_team(tenant_id: int, current_user=Depends(_require_admin), db=Depends(get_db)):
+    rows = await db.fetch(
+        """SELECT id, display_name, email, role, permissions, created_at
+           FROM users WHERE tenant_id=$1 AND role != 'owner'
+           ORDER BY created_at""",
+        tenant_id,
+    )
+    return [_team_row(dict(r)) for r in rows]
+
+
+@router.post("/tenants/{tenant_id}/team", status_code=201)
+async def create_team_member(
+    tenant_id: int,
+    body: TeamMemberCreate,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    import json
+    if body.role not in TEAM_ROLES:
+        raise HTTPException(400, f"Role must be one of: {', '.join(TEAM_ROLES)}")
+    tenant = await db.fetchrow("SELECT id FROM tenants WHERE id=$1", tenant_id)
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    existing = await db.fetchrow("SELECT id FROM users WHERE email=$1", body.email)
+    if existing:
+        raise HTTPException(400, "Email already in use")
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    perms = body.permissions if body.permissions else ROLE_DEFAULT_PERMISSIONS.get(body.role, [])
+    row = await db.fetchrow(
+        """INSERT INTO users (email, password_hash, role, tenant_id, display_name, permissions)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, display_name, email, role, permissions, created_at""",
+        body.email, hash_password(body.password), body.role, tenant_id,
+        body.display_name, json.dumps(perms),
+    )
+    return _team_row(dict(row))
+
+
+@router.patch("/tenants/{tenant_id}/team/{user_id}")
+async def update_team_member(
+    tenant_id: int,
+    user_id: int,
+    body: TeamMemberUpdate,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    import json
+    row = await db.fetchrow(
+        "SELECT * FROM users WHERE id=$1 AND tenant_id=$2 AND role != 'owner'",
+        user_id, tenant_id,
+    )
+    if not row:
+        raise HTTPException(404, "Team member not found")
+    sets, vals = [], []
+    if body.display_name is not None:
+        sets.append(f"display_name=${len(vals)+2}"); vals.append(body.display_name)
+    if body.role is not None:
+        if body.role not in TEAM_ROLES:
+            raise HTTPException(400, f"Role must be one of: {', '.join(TEAM_ROLES)}")
+        sets.append(f"role=${len(vals)+2}"); vals.append(body.role)
+    if body.permissions is not None:
+        sets.append(f"permissions=${len(vals)+2}"); vals.append(json.dumps(body.permissions))
+    if sets:
+        await db.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=$1", user_id, *vals)
+    updated = await db.fetchrow("SELECT id, display_name, email, role, permissions, created_at FROM users WHERE id=$1", user_id)
+    return _team_row(dict(updated))
+
+
+@router.delete("/tenants/{tenant_id}/team/{user_id}", status_code=204)
+async def delete_team_member(
+    tenant_id: int,
+    user_id: int,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    row = await db.fetchrow(
+        "SELECT id FROM users WHERE id=$1 AND tenant_id=$2 AND role != 'owner'",
+        user_id, tenant_id,
+    )
+    if not row:
+        raise HTTPException(404, "Team member not found")
+    await db.execute("DELETE FROM users WHERE id=$1", user_id)

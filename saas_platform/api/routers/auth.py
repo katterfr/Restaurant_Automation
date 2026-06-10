@@ -36,7 +36,13 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db))
     user = await db.fetchrow("SELECT * FROM users WHERE email = $1", form.username)
     if not user or not verify_password(form.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": str(user["id"]), "tenant": user["tenant_id"], "role": user["role"]})
+    token = create_access_token({
+        "sub": str(user["id"]),
+        "tenant": user["tenant_id"],
+        "role": user["role"],
+        "permissions": user["permissions"] if user["permissions"] else "[]",
+        "display_name": user["display_name"] if user["display_name"] else "",
+    })
     return TokenResponse(access_token=token)
 
 
