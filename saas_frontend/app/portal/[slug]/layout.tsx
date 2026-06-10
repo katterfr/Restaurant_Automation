@@ -101,8 +101,9 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   useEffect(() => {
     if (isLoginPage || isWelcomePage || !slug) return
     if (!isLoggedIn()) { router.replace(`/portal/${slug}/login`); return }
-    // first-time visit → welcome page
-    if (!localStorage.getItem(`cs_welcomed_${slug}`)) {
+    // redirect to welcome on every fresh login (sessionStorage clears when tab closes)
+    if (sessionStorage.getItem(`cs_show_welcome_${slug}`)) {
+      sessionStorage.removeItem(`cs_show_welcome_${slug}`)
       router.replace(`/portal/${slug}/welcome`)
     }
   }, [isLoginPage, isWelcomePage, router, slug])

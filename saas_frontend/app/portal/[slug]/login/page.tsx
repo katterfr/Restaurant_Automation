@@ -23,6 +23,7 @@ export default function SlugLoginPage() {
     try {
       const { access_token } = await login(email, password)
       saveToken(access_token)
+      sessionStorage.setItem(`cs_show_welcome_${slug}`, '1')
       router.push(`/portal/${slug}/dashboard`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
