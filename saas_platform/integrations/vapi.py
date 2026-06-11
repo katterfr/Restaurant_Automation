@@ -89,50 +89,55 @@ async def create_assistant(name: str, system_prompt: str, first_message: str, we
             "server": {"url": sms_tool_url},
         })
 
+    payload: dict = {
+        "name": name,
+        "firstMessage": first_message,
+        "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "system", "content": system_prompt}],
+            "temperature": 0.4,
+        },
+        "voice": {
+            "provider": "openai",
+            "voiceId": "nova",
+        },
+        "serverUrl": webhook_url,
+        "analysisPlan": {
+            "structuredDataSchema": {
+                "type": "object",
+                "properties": {
+                    "order_items": {
+                        "type": "array",
+                        "description": "Every item the customer ordered",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name":     {"type": "string"},
+                                "quantity": {"type": "integer"},
+                                "price":    {"type": "number"},
+                            },
+                        },
+                    },
+                    "customer_name":  {"type": "string", "description": "Customer's first name"},
+                    "order_type":     {"type": "string", "enum": ["pickup", "delivery"], "description": "pickup or delivery"},
+                    "special_notes":  {"type": "string", "description": "Any dietary restrictions or special requests"},
+                },
+            },
+            "structuredDataPrompt": "Extract the complete order from the call. List every item ordered with quantity and price. Include the customer name and whether it is pickup or delivery.",
+        },
+    }
+
+    if settings.vapi_webhook_secret:
+        payload["serverUrlSecret"] = settings.vapi_webhook_secret
+    if tools:
+        payload["tools"] = tools
+
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{VAPI_API}/assistant",
             headers=_headers(),
-            json={
-                "name": name,
-                "model": {
-                    "provider": "openai",
-                    "model": "gpt-4o-mini",
-                    "systemPrompt": system_prompt,
-                    "temperature": 0.4,
-                },
-                "voice": {
-                    "provider": "playht",
-                    "voiceId": "jennifer",
-                },
-                "firstMessage": first_message,
-                "serverUrl": webhook_url,
-                "serverUrlSecret": settings.vapi_webhook_secret or "",
-                "endCallFunctionEnabled": True,
-                "backgroundSound": "office",
-                "structuredDataSchema": {
-                    "type": "object",
-                    "properties": {
-                        "order_items": {
-                            "type": "array",
-                            "description": "Every item the customer ordered",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name":     {"type": "string"},
-                                    "quantity": {"type": "integer"},
-                                    "price":    {"type": "number"},
-                                },
-                            },
-                        },
-                        "customer_name":  {"type": "string", "description": "Customer's first name"},
-                        "order_type":     {"type": "string", "enum": ["pickup", "delivery"], "description": "pickup or delivery"},
-                        "special_notes":  {"type": "string", "description": "Any dietary restrictions or special requests"},
-                    },
-                },
-                "structuredDataPrompt": "Extract the complete order from the call. List every item ordered with quantity and price. Include the customer name and whether it is pickup or delivery.",
-                **({"tools": tools} if tools else {}),
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()
@@ -144,8 +149,13 @@ async def update_assistant(assistant_id: str, system_prompt: str, first_message:
             f"{VAPI_API}/assistant/{assistant_id}",
             headers=_headers(),
             json={
-                "model": {"systemPrompt": system_prompt},
                 "firstMessage": first_message,
+                "model": {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "system", "content": system_prompt}],
+                    "temperature": 0.4,
+                },
             },
         )
         resp.raise_for_status()
