@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
-import { isLoggedIn, clearToken } from '@/lib/auth'
+import { isLoggedIn, clearToken, getTenantId } from '@/lib/auth'
 import { api, TenantCustomization as ApiCustomization } from '@/lib/api'
 import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization } from './tenant-context'
 import ChatBot from './chat-bot'
@@ -185,7 +185,8 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
   useEffect(() => {
     if (isLoginPage || isWelcomePage || !slug) return
-    if (!isLoggedIn()) { router.replace(`/portal/${slug}/login`); return }
+    // Require a portal (tenant) token — admin tokens have no tenant claim
+    if (!isLoggedIn() || !getTenantId()) { router.replace(`/portal/${slug}/login`); return }
     // redirect to welcome on every fresh login (sessionStorage clears when tab closes)
     if (sessionStorage.getItem(`cs_show_welcome_${slug}`)) {
       sessionStorage.removeItem(`cs_show_welcome_${slug}`)

@@ -49,10 +49,12 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
         raise HTTPException(503, "VAPI_API_KEY not configured — add it in Railway environment variables")
 
     tid = current_user["tenant_id"]
+    if not tid:
+        raise HTTPException(403, "No restaurant linked to this account. Please log in via the owner portal.")
 
     tenant = await db.fetchrow("SELECT * FROM tenants WHERE id=$1", tid)
     if not tenant:
-        raise HTTPException(404, "Tenant not found")
+        raise HTTPException(404, "Restaurant not found — it may have been removed.")
 
     menu_rows = await db.fetch(
         "SELECT name, category, price, description, available FROM menu_items WHERE tenant_id=$1",
