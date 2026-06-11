@@ -338,6 +338,10 @@ export const api = {
     }),
     cancel: (id: number) => request<void>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
     connectUrl: (platform: string) => request<{ oauth_url: string }>(`/ads/connect/${platform}/url`),
+    saveCredentials: (platform: string, data: { access_token: string; account_id: string; page_id?: string }) =>
+      request<{ ok: boolean; platform: string }>(`/ads/credentials/${platform}`, { method: 'POST', body: JSON.stringify(data) }),
+    disconnect: (platform: string) =>
+      request<{ ok: boolean }>(`/ads/connect/${platform}`, { method: 'DELETE' }),
   },
   portal: {
     dashboard: () => request<PortalDashboard & { features: string[] }>('/portal/dashboard'),

@@ -171,6 +171,57 @@ async def oauth_callback(
     return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/ads?connected={platform}")
 
 
+# ─── Manual credentials (owner pastes their own tokens) ─────────────────────
+
+class PlatformCredentials(BaseModel):
+    access_token: str
+    account_id: str
+    page_id: Optional[str] = None     # Meta: Facebook Page ID
+    extra_token: Optional[str] = None # Google: developer token override
+
+
+@router.post("/credentials/{platform}", status_code=200)
+async def save_platform_credentials(
+    platform: str,
+    body: PlatformCredentials,
+    current_user=Depends(_require_owner),
+    db=Depends(get_db),
+):
+    if platform not in PLATFORMS:
+        raise HTTPException(404, "Unknown platform")
+    if not body.access_token.strip() or not body.account_id.strip():
+        raise HTTPException(400, "access_token and account_id are required")
+
+    await db.execute(
+        """INSERT INTO platform_connections
+               (tenant_id, platform, access_token, refresh_token, ad_account_id, page_id)
+           VALUES ($1, $2, $3, '', $4, $5)
+           ON CONFLICT (tenant_id, platform)
+           DO UPDATE SET
+               access_token  = EXCLUDED.access_token,
+               ad_account_id = EXCLUDED.ad_account_id,
+               page_id       = EXCLUDED.page_id,
+               connected_at  = NOW()""",
+        current_user["tenant_id"], platform,
+        body.access_token.strip(), body.account_id.strip(),
+        (body.page_id or "").strip(),
+    )
+    return {"ok": True, "platform": platform}
+
+
+@router.delete("/connect/{platform}", status_code=200)
+async def disconnect_platform(
+    platform: str,
+    current_user=Depends(_require_owner),
+    db=Depends(get_db),
+):
+    await db.execute(
+        "DELETE FROM platform_connections WHERE tenant_id=$1 AND platform=$2",
+        current_user["tenant_id"], platform,
+    )
+    return {"ok": True}
+
+
 # ─── Campaigns ────────────────────────────────────────────────────────────────
 
 @router.get("/campaigns")
