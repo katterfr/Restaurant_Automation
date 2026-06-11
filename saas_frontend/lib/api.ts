@@ -293,9 +293,11 @@ export const api = {
     stats: () => request<TenantStats>('/tenants/stats'),
     create: (data: { name: string; slug: string; plan: string }) =>
       request<Tenant>('/tenants/', { method: 'POST', body: JSON.stringify(data) }),
-    patch: (id: number, data: { name?: string; slug?: string; status?: string }) =>
+    patch: (id: number, data: { name?: string; slug?: string; status?: string; plan?: string }) =>
       request<Tenant>(`/tenants/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/tenants/${id}`, { method: 'DELETE' }),
+    syncFeatures: (id: number) =>
+      request<{ ok: boolean; plan: string }>(`/tenants/${id}/sync-features`, { method: 'POST' }),
   },
   billing: {
     plans: () => request<Record<string, Plan>>('/billing/plans'),

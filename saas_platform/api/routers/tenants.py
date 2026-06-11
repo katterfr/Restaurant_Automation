@@ -149,6 +149,15 @@ async def patch_tenant(tenant_id: int, body: TenantPatch, db=Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{tenant_id}/sync-features")
+async def sync_tenant_features(tenant_id: int, db=Depends(get_db)):
+    tenant = await db.fetchrow("SELECT plan FROM tenants WHERE id = $1", tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    await provision_plan_features(tenant_id, tenant["plan"], db)
+    return {"ok": True, "plan": tenant["plan"]}
+
+
 @router.get("/{tenant_id}", response_model=TenantOut)
 async def get_tenant(tenant_id: int, db=Depends(get_db)):
     tenant = await db.fetchrow("SELECT * FROM tenants WHERE id = $1", tenant_id)

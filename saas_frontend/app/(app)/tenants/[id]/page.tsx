@@ -165,6 +165,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [editForm, setEditForm] = useState({ name: '', slug: '' })
   const [editSaving, setEditSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   // team management
   const [team, setTeam]           = useState<TeamMember[]>([])
@@ -195,6 +197,20 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
     api.team.list(parseInt(id)).then(setTeam).catch(() => {})
     api.team.listOwners(parseInt(id)).then(setOwnerAccounts).catch(() => {})
   }, [tenantId, router])
+
+  async function syncPlanFeatures() {
+    setSyncing(true); setSyncMsg('')
+    try {
+      const res = await api.tenants.syncFeatures(tenantId)
+      const updated = await api.adminFeatures.get(tenantId)
+      setFeatures(updated)
+      setSyncMsg(`✓ Features synced for ${res.plan} plan`)
+    } catch (err: unknown) {
+      setSyncMsg(err instanceof Error ? err.message : 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault()
@@ -318,13 +334,27 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <div>
             <dt className="text-gray-400 text-xs mb-0.5">Current Plan</dt>
-            <dd className="font-medium text-gray-900 capitalize">{tenant.plan}</dd>
+            <dd className="flex items-center gap-3 flex-wrap">
+              <span className="font-medium text-gray-900 capitalize">{tenant.plan}</span>
+              <button
+                onClick={syncPlanFeatures}
+                disabled={syncing}
+                className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2.5 py-1 rounded-lg transition-colors"
+              >
+                {syncing ? 'Syncing…' : '⟳ Sync Plan Features'}
+              </button>
+            </dd>
           </div>
           <div>
             <dt className="text-gray-400 text-xs mb-0.5">Created</dt>
             <dd className="font-medium text-gray-900">{new Date(tenant.created_at).toLocaleDateString()}</dd>
           </div>
         </dl>
+        {syncMsg && (
+          <p className={`mt-3 text-sm px-3 py-2 rounded-lg border ${syncMsg.startsWith('✓') ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-600 bg-red-50 border-red-200'}`}>
+            {syncMsg}
+          </p>
+        )}
       </div>
 
       {/* Edit name / slug card */}

@@ -10,28 +10,20 @@ from core.config import settings
 from core.security import hash_password
 
 # Features automatically enabled per plan on signup (cumulative)
+_GROWTH_FEATURES = [
+    "menu_management",
+    "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
+    "social_meta", "social_youtube", "social_tiktok",
+    "delivery", "listings_google", "listings_apple", "ai_creative",
+]
+_PRO_FEATURES = _GROWTH_FEATURES + ["phone_agent", "accounting"]
+
 PLAN_FEATURES: dict[str, list[str]] = {
-    "starter": [
-        "menu_management",
-    ],
-    "growth": [
-        "menu_management",
-        "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
-        "social_meta", "social_youtube", "social_tiktok",
-        "delivery",
-        "listings_google", "listings_apple",
-        "ai_creative",
-    ],
-    "pro": [
-        "menu_management",
-        "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
-        "social_meta", "social_youtube", "social_tiktok",
-        "delivery",
-        "listings_google", "listings_apple",
-        "ai_creative",
-        "phone_agent",
-        "accounting",
-    ],
+    "starter":    ["menu_management"],
+    "growth":     _GROWTH_FEATURES,
+    "pro":        _PRO_FEATURES,
+    "business":   _PRO_FEATURES,
+    "enterprise": _PRO_FEATURES,
 }
 
 

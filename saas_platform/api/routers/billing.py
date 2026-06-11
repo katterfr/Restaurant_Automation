@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from core.config import settings
 from db.database import get_db
+from api.routers.public import provision_plan_features
 import stripe
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -63,6 +64,7 @@ async def upgrade_plan(tenant_id: int, body: PlanUpgrade, db=Depends(get_db)):
     if body.plan not in PLANS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {body.plan}")
     await db.execute("UPDATE tenants SET plan = $1 WHERE id = $2", body.plan, tenant_id)
+    await provision_plan_features(tenant_id, body.plan, db)
     return {"tenant_id": tenant_id, "plan": body.plan, "status": "updated"}
 
 
