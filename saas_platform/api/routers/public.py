@@ -9,6 +9,42 @@ from db.database import get_db
 from core.config import settings
 from core.security import hash_password
 
+# Features automatically enabled per plan on signup (cumulative)
+PLAN_FEATURES: dict[str, list[str]] = {
+    "starter": [
+        "menu_management",
+    ],
+    "growth": [
+        "menu_management",
+        "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
+        "social_meta", "social_youtube", "social_tiktok",
+        "delivery",
+        "listings_google", "listings_apple",
+        "ai_creative",
+    ],
+    "pro": [
+        "menu_management",
+        "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
+        "social_meta", "social_youtube", "social_tiktok",
+        "delivery",
+        "listings_google", "listings_apple",
+        "ai_creative",
+        "phone_agent",
+        "accounting",
+    ],
+}
+
+
+async def provision_plan_features(tenant_id: int, plan: str, db) -> None:
+    features = PLAN_FEATURES.get(plan, PLAN_FEATURES["starter"])
+    for feature in features:
+        await db.execute(
+            """INSERT INTO tenant_features (tenant_id, feature, enabled, enabled_at)
+               VALUES ($1, $2, TRUE, NOW())
+               ON CONFLICT (tenant_id, feature) DO UPDATE SET enabled = TRUE, enabled_at = NOW()""",
+            tenant_id, feature,
+        )
+
 router = APIRouter(prefix="/public", tags=["public"])
 
 
@@ -129,5 +165,7 @@ async def public_signup(body: SignupData, db=Depends(get_db)):
         "INSERT INTO users (email, password_hash, role, tenant_id) VALUES ($1,$2,'owner',$3)",
         body.owner_email, hash_password(body.owner_password), tid,
     )
+
+    await provision_plan_features(tid, body.plan, db)
 
     return {"ok": True, "slug": row["slug"], "portal_url": f"/portal/{row['slug']}/login"}

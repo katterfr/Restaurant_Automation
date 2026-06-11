@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 from db.database import get_db
+from api.routers.public import provision_plan_features
 
 SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,62}$')
 
@@ -115,6 +116,7 @@ class TenantPatch(BaseModel):
     name: str | None = None
     slug: str | None = None
     status: str | None = None
+    plan: str | None = None
 
 
 @router.patch("/{tenant_id}", response_model=TenantOut)
@@ -131,6 +133,8 @@ async def patch_tenant(tenant_id: int, body: TenantPatch, db=Depends(get_db)):
         sets.append(f"slug=${len(vals)+2}"); vals.append(body.slug)
     if body.status is not None:
         sets.append(f"status=${len(vals)+2}"); vals.append(body.status)
+    if body.plan is not None:
+        sets.append(f"plan=${len(vals)+2}"); vals.append(body.plan)
     if not sets:
         return dict(tenant)
     try:
@@ -138,6 +142,8 @@ async def patch_tenant(tenant_id: int, body: TenantPatch, db=Depends(get_db)):
             f"UPDATE tenants SET {', '.join(sets)} WHERE id=$1 RETURNING *",
             tenant_id, *vals,
         )
+        if body.plan is not None:
+            await provision_plan_features(tenant_id, body.plan, db)
         return dict(row)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
