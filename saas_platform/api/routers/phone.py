@@ -40,7 +40,6 @@ async def get_phone_status(current_user=Depends(_require_owner), db=Depends(get_
 class ActivateBody(BaseModel):
     greeting: str = "Thank you for calling! I'm your virtual order assistant. How can I help you today?"
     special_instructions: str = ""
-    area_code: str = "888"
     existing_number: Optional[str] = None  # owner's current business number (skip VAPI provisioning)
 
 
@@ -101,7 +100,7 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
             phone_number = body.existing_number
         else:
             try:
-                num = await vapi_api.provision_phone_number(assistant_id, body.area_code)
+                num = await vapi_api.provision_phone_number(assistant_id)
                 phone_number_id = num.get("id")
                 phone_number = num.get("number")
             except Exception as e:
@@ -132,9 +131,8 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
 # ─── PATCH set phone number (post-activation) ────────────────────────────────
 
 class SetNumberBody(BaseModel):
-    existing_number: Optional[str] = None   # owner's current business number
-    area_code: str = "888"                  # for VAPI provisioning
-    provision_new: bool = False             # request a new VAPI number
+    existing_number: Optional[str] = None  # owner's current business number
+    provision_new: bool = False            # request a new VAPI auto-assigned number
 
 
 @router.patch("/number")
@@ -157,7 +155,7 @@ async def set_phone_number(body: SetNumberBody, current_user=Depends(_require_ow
         if not agent["vapi_assistant_id"]:
             raise HTTPException(400, "VAPI assistant not ready — please re-activate the agent")
         try:
-            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"], body.area_code)
+            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"])
         except Exception as e:
             raise HTTPException(502, f"VAPI number provisioning failed: {e}")
         row = await db.fetchrow(

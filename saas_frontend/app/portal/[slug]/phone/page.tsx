@@ -98,7 +98,6 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
   const [greeting, setGreeting] = useState("Thank you for calling! I'm your virtual order assistant. How can I help you today?")
   const [instructions, setInstructions] = useState('')
   const [numberMode, setNumberMode] = useState<'new' | 'existing'>('new')
-  const [areaCode, setAreaCode] = useState('888')
   const [existingNumber, setExistingNumber] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
   const [loading, setLoading] = useState(false)
@@ -112,14 +111,12 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
     setLoading(true)
     setError('')
     try {
-      const payload: { greeting: string; special_instructions: string; area_code?: string; existing_number?: string } = {
+      const payload: { greeting: string; special_instructions: string; existing_number?: string } = {
         greeting,
         special_instructions: instructions,
       }
       if (numberMode === 'existing' && existingNumber.trim()) {
         payload.existing_number = existingNumber.trim()
-      } else {
-        payload.area_code = areaCode
       }
       const agent = await api.phone.activate(payload)
       onActivated(agent)
@@ -226,17 +223,9 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
           </div>
 
           {numberMode === 'new' ? (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Preferred area code</label>
-              <input
-                type="text"
-                value={areaCode}
-                onChange={e => setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                maxLength={3}
-                className={`w-24 ${inputCls} font-mono`}
-                placeholder="888"
-              />
-              <p className="text-xs text-gray-400 mt-1">VAPI provisions a dedicated number in your area.</p>
+            <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+              <span className="shrink-0 mt-0.5">ℹ️</span>
+              <span>VAPI will automatically assign you a dedicated US phone number. No configuration needed — just activate and your number will appear instantly.</span>
             </div>
           ) : (
             <div>
@@ -297,7 +286,6 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
   const [copied, setCopied] = useState(false)
   // phone number setup (shown when agent is active but no number yet)
   const [numMode, setNumMode] = useState<'choose' | 'new' | 'existing'>('choose')
-  const [numAreaCode, setNumAreaCode] = useState('888')
   const [numExisting, setNumExisting] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
   const [numLoading, setNumLoading] = useState(false)
@@ -340,7 +328,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
     setNumLoading(true); setNumMsg('')
     try {
       if (numMode === 'new') {
-        await api.phone.setNumber({ provision_new: true, area_code: numAreaCode })
+        await api.phone.setNumber({ provision_new: true })
       } else {
         const numberToSave = overrideExisting ?? numExisting.trim()
         if (!numberToSave) { setNumMsg('Enter your phone number'); setNumLoading(false); return }
@@ -500,25 +488,15 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
               {numMode === 'new' && (
                 <div className="space-y-2">
                   <button onClick={() => setNumMode('choose')} className="text-xs text-amber-600 hover:text-amber-800">← Back</button>
-                  <p className="text-xs text-amber-700">VAPI will provision a dedicated number in your area.</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={numAreaCode}
-                      onChange={e => setNumAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                      maxLength={3}
-                      placeholder="Area code"
-                      className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2"
-                    />
-                    <button
-                      onClick={() => saveNumber()}
-                      disabled={numLoading}
-                      className="text-xs text-white px-4 py-1.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
-                      style={{ backgroundColor: accent }}
-                    >
-                      {numLoading ? 'Provisioning…' : 'Get Number'}
-                    </button>
-                  </div>
+                  <p className="text-xs text-amber-700">VAPI will auto-assign you a dedicated US phone number.</p>
+                  <button
+                    onClick={() => saveNumber()}
+                    disabled={numLoading}
+                    className="text-xs text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {numLoading ? 'Provisioning…' : 'Get My Number'}
+                  </button>
                   {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
                 </div>
               )}
