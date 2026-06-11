@@ -97,15 +97,31 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
   const [step, setStep] = useState<'intro' | 'configure'>('intro')
   const [greeting, setGreeting] = useState("Thank you for calling! I'm your virtual order assistant. How can I help you today?")
   const [instructions, setInstructions] = useState('')
+  const [numberMode, setNumberMode] = useState<'new' | 'existing'>('new')
   const [areaCode, setAreaCode] = useState('888')
+  const [existingNumber, setExistingNumber] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.business.info().then(b => { if (b.phone) { setBusinessPhone(b.phone); setExistingNumber(b.phone) } }).catch(() => {})
+  }, [])
 
   async function activate() {
     setLoading(true)
     setError('')
     try {
-      const agent = await api.phone.activate({ greeting, special_instructions: instructions, area_code: areaCode })
+      const payload: { greeting: string; special_instructions: string; area_code?: string; existing_number?: string } = {
+        greeting,
+        special_instructions: instructions,
+      }
+      if (numberMode === 'existing' && existingNumber.trim()) {
+        payload.existing_number = existingNumber.trim()
+      } else {
+        payload.area_code = areaCode
+      }
+      const agent = await api.phone.activate(payload)
       onActivated(agent)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Activation failed')
@@ -170,10 +186,89 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
           <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Special Instructions <span className="font-normal text-gray-400 normal-case">(optional)</span></label>
           <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={3} className={`${inputCls} resize-none`} placeholder="Hours, delivery minimums, allergy notices, upsell hints…" />
         </div>
+
+        {/* Phone number setup */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Preferred Area Code</label>
-          <input type="text" value={areaCode} onChange={e => setAreaCode(e.target.value.replace(/\D/g,'').slice(0,3))} maxLength={3} className={`w-24 ${inputCls} font-mono`} placeholder="888" />
+          <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Phone Number Setup</label>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setNumberMode('new')}
+              className={`flex items-start gap-2 p-3 rounded-xl border text-left transition-colors ${
+                numberMode === 'new'
+                  ? 'border-transparent text-white'
+                  : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+              }`}
+              style={numberMode === 'new' ? { backgroundColor: accent } : {}}
+            >
+              <span className="text-lg shrink-0">🔢</span>
+              <div>
+                <p className="text-xs font-semibold">Get a new number</p>
+                <p className={`text-xs mt-0.5 ${numberMode === 'new' ? 'opacity-80' : 'text-gray-400'}`}>AI gets a dedicated local number</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setNumberMode('existing')}
+              className={`flex items-start gap-2 p-3 rounded-xl border text-left transition-colors ${
+                numberMode === 'existing'
+                  ? 'border-transparent text-white'
+                  : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+              }`}
+              style={numberMode === 'existing' ? { backgroundColor: accent } : {}}
+            >
+              <span className="text-lg shrink-0">📱</span>
+              <div>
+                <p className="text-xs font-semibold">Use existing number</p>
+                <p className={`text-xs mt-0.5 ${numberMode === 'existing' ? 'opacity-80' : 'text-gray-400'}`}>Forward your current line to AI</p>
+              </div>
+            </button>
+          </div>
+
+          {numberMode === 'new' ? (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Preferred area code</label>
+              <input
+                type="text"
+                value={areaCode}
+                onChange={e => setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                maxLength={3}
+                className={`w-24 ${inputCls} font-mono`}
+                placeholder="888"
+              />
+              <p className="text-xs text-gray-400 mt-1">VAPI provisions a dedicated number in your area.</p>
+            </div>
+          ) : (
+            <div>
+              {businessPhone ? (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">From your business profile</p>
+                    <p className="text-sm font-mono font-semibold text-gray-900">{businessPhone}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExistingNumber(businessPhone === existingNumber ? '' : businessPhone)}
+                    className="text-xs px-3 py-1 rounded-lg border transition-colors"
+                    style={existingNumber === businessPhone ? { backgroundColor: accent, color: '#fff', borderColor: 'transparent' } : { borderColor: '#d1d5db', color: '#6b7280' }}
+                  >
+                    {existingNumber === businessPhone ? '✓ Selected' : 'Use this'}
+                  </button>
+                </div>
+              ) : null}
+              <label className="block text-xs text-gray-500 mt-2 mb-1">{businessPhone ? 'Or enter a different number' : 'Your current business number'}</label>
+              <input
+                type="tel"
+                value={existingNumber}
+                onChange={e => setExistingNumber(e.target.value)}
+                className={`${inputCls} font-mono`}
+                placeholder="+1 (555) 123-4567"
+              />
+              <p className="text-xs text-gray-400 mt-1">Calls to this number will be handled by your AI agent via forwarding.</p>
+            </div>
+          )}
         </div>
+
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
         <button onClick={activate} disabled={loading} className="w-full text-white py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: accent }}>
           {loading ? 'Activating…' : 'Activate Agent'}
@@ -200,6 +295,19 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
   const [expandedCall, setExpandedCall] = useState<number | null>(null)
   const [selectedSession, setSelectedSession] = useState<SmsSession | null>(null)
   const [copied, setCopied] = useState(false)
+  // phone number setup (shown when agent is active but no number yet)
+  const [numMode, setNumMode] = useState<'choose' | 'new' | 'existing'>('choose')
+  const [numAreaCode, setNumAreaCode] = useState('888')
+  const [numExisting, setNumExisting] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
+  const [numLoading, setNumLoading] = useState(false)
+  const [numMsg, setNumMsg] = useState('')
+
+  useEffect(() => {
+    if (!agent.phone_number) {
+      api.business.info().then(b => { if (b.phone) { setBusinessPhone(b.phone); setNumExisting(b.phone) } }).catch(() => {})
+    }
+  }, [agent.phone_number])
 
   async function syncMenu() {
     setSyncing(true); setSyncMsg('')
@@ -226,6 +334,24 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
     if (!agent.phone_number) return
     navigator.clipboard.writeText(agent.phone_number)
     setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function saveNumber(overrideExisting?: string) {
+    setNumLoading(true); setNumMsg('')
+    try {
+      if (numMode === 'new') {
+        await api.phone.setNumber({ provision_new: true, area_code: numAreaCode })
+      } else {
+        const numberToSave = overrideExisting ?? numExisting.trim()
+        if (!numberToSave) { setNumMsg('Enter your phone number'); setNumLoading(false); return }
+        await api.phone.setNumber({ existing_number: numberToSave })
+      }
+      onRefresh()
+    } catch (e: unknown) {
+      setNumMsg(e instanceof Error ? e.message : 'Failed to set number')
+    } finally {
+      setNumLoading(false)
+    }
   }
 
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-transparent'
@@ -266,35 +392,161 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
         <div className="mt-5 pt-5 border-t border-gray-100">
           {agent.phone_number ? (
             <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Your Order Line (Voice + SMS)</p>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">
+                {agent.vapi_phone_number_id ? 'Your Dedicated AI Number (Voice + SMS)' : 'Your Linked Business Number'}
+              </p>
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-bold text-gray-900 font-mono tracking-wide">{agent.phone_number}</span>
                 <button onClick={copyNumber} className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-2.5 py-1 rounded-lg">
                   {copied ? '✓ Copied' : 'Copy'}
                 </button>
               </div>
-              <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                  <p className="text-xs font-semibold text-blue-700 mb-1">📞 For voice calls</p>
-                  <p className="text-xs text-blue-600">Forward your business phone to <strong>{agent.phone_number}</strong>. The AI answers and takes the order.</p>
+
+              {agent.vapi_phone_number_id ? (
+                /* VAPI-provisioned number: customers call/text directly */
+                <>
+                  <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                      <p className="text-xs font-semibold text-blue-700 mb-1">📞 For voice calls</p>
+                      <p className="text-xs text-blue-600">Give customers <strong>{agent.phone_number}</strong> — the AI answers and takes the order.</p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                      <p className="text-xs font-semibold text-green-700 mb-1">💬 For text orders</p>
+                      <p className="text-xs text-green-600">Customers can text <strong>{agent.phone_number}</strong> directly. The AI responds and takes their order.</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">🔄 Seamless handoff</p>
+                    <p className="text-xs text-amber-600">
+                      During a voice call, customers can say <em>&ldquo;I&apos;d rather text&rdquo;</em> — the AI sends them an SMS and they continue by text.
+                      During an SMS session, customers can text <em>&ldquo;CALL ME&rdquo;</em> — the AI calls them back.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                /* Linked existing number: show forwarding instructions */
+                <div className="mt-3 space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-blue-700 mb-1">📞 Set up call forwarding</p>
+                    <p className="text-xs text-blue-600 mb-2">To have your AI answer calls to <strong>{agent.phone_number}</strong>, enable call forwarding on your carrier or VoIP system:</p>
+                    <ol className="text-xs text-blue-600 space-y-1 list-decimal list-inside">
+                      <li>Log into your phone carrier or VoIP portal (e.g., Google Voice, RingCentral, AT&amp;T)</li>
+                      <li>Go to <strong>Call Forwarding</strong> settings</li>
+                      <li>Forward all calls (or calls when busy / unanswered) to your AI assistant</li>
+                      <li>Contact your account manager for the VAPI SIP address or forwarding number</li>
+                    </ol>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-green-700 mb-1">💬 Text ordering is separate</p>
+                    <p className="text-xs text-green-600">SMS ordering runs through your Twilio number independently of call forwarding. Customers can text your Twilio number to place orders now.</p>
+                  </div>
                 </div>
-                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                  <p className="text-xs font-semibold text-green-700 mb-1">💬 For text orders</p>
-                  <p className="text-xs text-green-600">Customers can text <strong>{agent.phone_number}</strong> directly. The AI responds and takes their order.</p>
-                </div>
-              </div>
-              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <p className="text-xs font-semibold text-amber-700 mb-1">🔄 Seamless handoff</p>
-                <p className="text-xs text-amber-600">
-                  During a voice call, customers can say <em>"I'd rather text"</em> — the AI sends them an SMS and they continue by text.
-                  During an SMS session, customers can text <em>"CALL ME"</em> — the AI calls them back and continues by voice.
-                </p>
-              </div>
+              )}
             </div>
           ) : (
-            <div className="bg-gray-50 rounded-xl px-4 py-3">
-              <p className="text-xs font-semibold text-gray-700">Phone number not yet provisioned</p>
-              <p className="text-xs text-gray-500 mt-0.5">Add your <span className="font-mono bg-white px-1 rounded border border-gray-200">VAPI_API_KEY</span> and re-activate to get a dedicated number.</p>
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <p className="text-xs font-semibold text-amber-800 mb-3">No phone number linked yet — set one up to receive calls</p>
+
+              {numMode === 'choose' && (
+                <div className="space-y-2">
+                  {/* One-click existing number link (when business profile has a phone) */}
+                  {businessPhone && (
+                    <button
+                      onClick={() => saveNumber(businessPhone)}
+                      disabled={numLoading}
+                      className="w-full flex items-center justify-between gap-3 p-3 bg-white border-2 hover:border-amber-400 rounded-xl text-left transition-colors disabled:opacity-50"
+                      style={{ borderColor: accent }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📱</span>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-900">Link my existing number</p>
+                          <p className="text-xs font-mono text-gray-500 mt-0.5">{businessPhone}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-white px-3 py-1 rounded-lg shrink-0" style={{ backgroundColor: accent }}>
+                        {numLoading ? 'Linking…' : 'Link →'}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setNumMode('new')}
+                    className="w-full flex items-center gap-3 p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-xl text-left transition-colors"
+                  >
+                    <span className="text-base">🔢</span>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800">Get a new dedicated number</p>
+                      <p className="text-xs text-gray-400 mt-0.5">VAPI provisions a local number automatically</p>
+                    </div>
+                    <span className="ml-auto text-gray-300 text-xs">→</span>
+                  </button>
+                  {!businessPhone && (
+                    <button
+                      onClick={() => setNumMode('existing')}
+                      className="w-full flex items-center gap-3 p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-xl text-left transition-colors"
+                    >
+                      <span className="text-base">📱</span>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-800">Link my existing business number</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Enter your number and set up forwarding</p>
+                      </div>
+                      <span className="ml-auto text-gray-300 text-xs">→</span>
+                    </button>
+                  )}
+                  {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
+                </div>
+              )}
+
+              {numMode === 'new' && (
+                <div className="space-y-2">
+                  <button onClick={() => setNumMode('choose')} className="text-xs text-amber-600 hover:text-amber-800">← Back</button>
+                  <p className="text-xs text-amber-700">VAPI will provision a dedicated number in your area.</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={numAreaCode}
+                      onChange={e => setNumAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      maxLength={3}
+                      placeholder="Area code"
+                      className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2"
+                    />
+                    <button
+                      onClick={() => saveNumber()}
+                      disabled={numLoading}
+                      className="text-xs text-white px-4 py-1.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {numLoading ? 'Provisioning…' : 'Get Number'}
+                    </button>
+                  </div>
+                  {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
+                </div>
+              )}
+
+              {numMode === 'existing' && (
+                <div className="space-y-2">
+                  <button onClick={() => setNumMode('choose')} className="text-xs text-amber-600 hover:text-amber-800">← Back</button>
+                  <p className="text-xs text-amber-700">Enter your current business number. You&apos;ll configure call forwarding on your carrier to route calls to your AI assistant.</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={numExisting}
+                      onChange={e => setNumExisting(e.target.value)}
+                      placeholder="+1 (555) 123-4567"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2"
+                    />
+                    <button
+                      onClick={() => saveNumber()}
+                      disabled={numLoading}
+                      className="text-xs text-white px-4 py-1.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {numLoading ? 'Saving…' : 'Link Number'}
+                    </button>
+                  </div>
+                  {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
+                </div>
+              )}
             </div>
           )}
         </div>

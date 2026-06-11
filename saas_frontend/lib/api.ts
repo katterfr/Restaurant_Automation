@@ -409,8 +409,10 @@ export const api = {
   },
   phone: {
     status: () => request<PhoneStatus>('/phone/status'),
-    activate: (data: { greeting?: string; special_instructions?: string; area_code?: string }) =>
+    activate: (data: { greeting?: string; special_instructions?: string; area_code?: string; existing_number?: string }) =>
       request<PhoneAgent>('/phone/activate', { method: 'POST', body: JSON.stringify(data) }),
+    setNumber: (data: { existing_number?: string; area_code?: string; provision_new?: boolean }) =>
+      request<PhoneAgent>('/phone/number', { method: 'PATCH', body: JSON.stringify(data) }),
     syncMenu: () => request<{ ok: boolean; menu_items_synced: number }>('/phone/sync-menu', { method: 'POST' }),
     updateConfig: (data: { greeting?: string; special_instructions?: string }) =>
       request<PhoneAgent>('/phone/config', { method: 'PUT', body: JSON.stringify(data) }),
