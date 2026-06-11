@@ -5,6 +5,7 @@ import { api, PortalDashboard, Order, PlatformStatus } from '@/lib/api'
 import { useCustomization } from '../tenant-context'
 import TourOverlay, { TourStep } from '../tour'
 import Link from 'next/link'
+import { BarChart, LineChart, DonutChart } from '@/app/components/charts'
 
 // ── Platform metadata ──────────────────────────────────────────────────────────
 
@@ -150,20 +151,25 @@ export default function SlugDashboardPage() {
   const router       = useRouter()
   const customization = useCustomization()
 
+  type Analytics = Awaited<ReturnType<typeof api.portal.analytics>>
   const [data, setData]         = useState<PortalDashboard & { features: string[] } | null>(null)
+  const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [adStatus, setAdStatus] = useState<Record<string, PlatformStatus>>({})
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
   const [connecting, setConnecting] = useState<string | null>(null)
   const [showTour, setShowTour] = useState(false)
+  const [analyticsTab, setAnalyticsTab] = useState<'revenue' | 'orders'>('revenue')
 
   useEffect(() => {
     Promise.all([
       api.portal.dashboard(),
       api.ads.status().catch(() => ({})),
-    ]).then(([d, s]) => {
+      api.portal.analytics().catch(() => null),
+    ]).then(([d, s, a]) => {
       setData(d)
       setAdStatus(s as Record<string, PlatformStatus>)
+      setAnalytics(a)
     }).catch(e => setError(e.message)).finally(() => setLoading(false))
   }, [])
 
@@ -266,6 +272,81 @@ export default function SlugDashboardPage() {
           <StatCard label="Total Orders"  value={String(stats.total_orders)}  sub={`$${stats.total_revenue.toFixed(2)} lifetime`} />
           <StatCard label="Menu Items"    value={String(stats.menu_items)}    sub={`${stats.menu_active} active`} />
         </div>
+
+        {/* Analytics */}
+        {analytics && (
+          <div className="space-y-4">
+            {/* WoW comparison */}
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Orders this week', value: analytics.this_week.orders, prev: analytics.last_week.orders, fmt: (n: number) => String(n) },
+                { label: 'Revenue this week', value: analytics.this_week.revenue, prev: analytics.last_week.revenue, fmt: (n: number) => `$${n.toFixed(2)}` },
+              ].map(({ label, value, prev, fmt }) => {
+                const pct  = prev > 0 ? Math.round((value - prev) / prev * 100) : null
+                const up   = pct !== null && pct >= 0
+                return (
+                  <div key={label} className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+                    <p className="text-2xl font-bold mt-1 text-gray-900">{fmt(value)}</p>
+                    {pct !== null ? (
+                      <p className={`text-xs mt-0.5 font-medium ${up ? 'text-green-600' : 'text-red-500'}`}>
+                        {up ? '▲' : '▼'} {Math.abs(pct)}% vs last week
+                      </p>
+                    ) : (
+                      <p className="text-xs mt-0.5 text-gray-400">No prior week data</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* 30-day chart */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-gray-900">Last 30 Days</h2>
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                  {(['revenue', 'orders'] as const).map(tab => (
+                    <button key={tab} onClick={() => setAnalyticsTab(tab)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors capitalize ${analyticsTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {analyticsTab === 'revenue' ? (
+                <LineChart
+                  data={analytics.daily.map(d => ({ label: d.label, short: d.short, value: d.revenue }))}
+                  color={accent}
+                  height={160}
+                  formatValue={n => `$${n.toFixed(0)}`}
+                  showEvery={5}
+                />
+              ) : (
+                <BarChart
+                  data={analytics.daily.map(d => ({ label: d.label, short: d.short, value: d.orders }))}
+                  color={accent}
+                  height={160}
+                  showEvery={5}
+                />
+              )}
+            </div>
+
+            {/* Order sources */}
+            {analytics.sources.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-4">Order Sources</h2>
+                <DonutChart
+                  size={120}
+                  data={analytics.sources.map((s, i) => ({
+                    label: s.source,
+                    value: s.count,
+                    color: [accent, '#6366f1', '#f59e0b', '#ef4444', '#14b8a6'][i % 5],
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick links */}
         <div data-tour-id="quick-actions" className="flex gap-3 flex-wrap">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { api, Tenant, TenantStats } from '@/lib/api'
+import { BarChart, DonutChart } from '@/app/components/charts'
 
 const planBadge: Record<string, string> = {
   starter:    'bg-blue-100 text-blue-700',
@@ -21,14 +22,16 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 }
 
 export default function DashboardPage() {
+  type AdminAnalytics = Awaited<ReturnType<typeof api.tenants.analytics>>
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [stats, setStats] = useState<TenantStats | null>(null)
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([api.tenants.list(), api.tenants.stats()])
-      .then(([t, s]) => { setTenants(t); setStats(s) })
+    Promise.all([api.tenants.list(), api.tenants.stats(), api.tenants.analytics().catch(() => null)])
+      .then(([t, s, a]) => { setTenants(t); setStats(s); setAnalytics(a) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -61,6 +64,54 @@ export default function DashboardPage() {
             value={topPlans[0]?.[0] ?? '—'}
             sub={topPlans.map(([p, n]) => `${p}: ${n}`).join(' · ')}
           />
+        </div>
+      )}
+
+      {/* Analytics */}
+      {analytics && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+          {/* Tenant growth bar chart */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Tenant Growth</h2>
+                <p className="text-xs text-gray-400 mt-0.5">New sign-ups per month</p>
+              </div>
+            </div>
+            <BarChart
+              data={analytics.growth.map(g => ({ label: g.month, value: g.count }))}
+              color="#2563eb"
+              height={150}
+              showEvery={1}
+            />
+          </div>
+
+          {/* Plan distribution donut */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Plan Mix</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Active tenant distribution</p>
+            </div>
+            <DonutChart
+              size={110}
+              data={analytics.plan_distribution.map((p, i) => ({
+                label: p.plan,
+                value: p.count,
+                color: ['#2563eb','#7c3aed','#ea580c','#16a34a'][i % 4],
+              }))}
+            />
+            {analytics.plan_distribution.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400 mb-1">MRR by plan</p>
+                {analytics.plan_distribution.map((p, i) => (
+                  <div key={i} className="flex justify-between text-xs py-0.5">
+                    <span className="capitalize text-gray-600">{p.plan}</span>
+                    <span className="font-medium text-gray-900">${p.mrr.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

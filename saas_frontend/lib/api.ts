@@ -286,6 +286,10 @@ export const api = {
     list: () => request<Tenant[]>('/tenants/'),
     get: (id: number) => request<Tenant>(`/tenants/${id}`),
     getPublic: (slug: string) => request<{ id: number; name: string; slug: string; status: string }>(`/tenants/public/${slug}`),
+    analytics: () => request<{
+      growth: Array<{ month: string; count: number }>
+      plan_distribution: Array<{ plan: string; count: number; mrr: number }>
+    }>('/tenants/analytics'),
     stats: () => request<TenantStats>('/tenants/stats'),
     create: (data: { name: string; slug: string; plan: string }) =>
       request<Tenant>('/tenants/', { method: 'POST', body: JSON.stringify(data) }),
@@ -348,6 +352,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
+    analytics: () => request<{
+      daily: Array<{ date: string; label: string; short: string; orders: number; revenue: number }>
+      sources: Array<{ source: string; count: number }>
+      this_week: { orders: number; revenue: number }
+      last_week: { orders: number; revenue: number }
+    }>('/portal/analytics'),
     customization: () => request<TenantCustomization>('/portal/customization'),
     saveCustomization: (data: Partial<TenantCustomization>) =>
       request<TenantCustomization>('/portal/customization', { method: 'PUT', body: JSON.stringify(data) }),

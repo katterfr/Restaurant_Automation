@@ -2,7 +2,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from datetime import date, timezone, datetime
+from datetime import date, timezone, datetime, timedelta
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.security import hash_password
@@ -394,6 +394,62 @@ a restaurant using the Careful-Server management platform.
         )
         r.raise_for_status()
         return {"reply": r.json()["content"][0]["text"]}
+
+
+# ─── Analytics ───────────────────────────────────────────────────────────────
+
+@router.get("/analytics")
+async def portal_analytics(current_user=Depends(_require_owner), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+
+    # 30-day daily orders + revenue
+    rows = await db.fetch(
+        """SELECT created_at::date AS day,
+                  COUNT(*) AS orders,
+                  COALESCE(SUM(total), 0) AS revenue
+           FROM tenant_orders
+           WHERE tenant_id=$1 AND created_at >= CURRENT_DATE - INTERVAL '29 days'
+           GROUP BY created_at::date
+           ORDER BY day""",
+        tid,
+    )
+    daily_map = {str(r["day"]): {"orders": int(r["orders"]), "revenue": float(r["revenue"])} for r in rows}
+    today = date.today()
+    daily = []
+    for i in range(29, -1, -1):
+        d   = today - timedelta(days=i)
+        ds  = str(d)
+        entry = daily_map.get(ds, {"orders": 0, "revenue": 0.0})
+        daily.append({"date": ds, "label": d.strftime("%b %d"), "short": d.strftime("%d"),
+                      "orders": entry["orders"], "revenue": entry["revenue"]})
+
+    # Order source breakdown (all time)
+    sources = await db.fetch(
+        "SELECT order_source, COUNT(*) AS count FROM tenant_orders WHERE tenant_id=$1 GROUP BY order_source ORDER BY count DESC",
+        tid,
+    )
+
+    # Week-over-week
+    this_week = await db.fetchrow(
+        """SELECT COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
+           FROM tenant_orders WHERE tenant_id=$1
+           AND created_at >= date_trunc('week', CURRENT_DATE)""",
+        tid,
+    )
+    last_week = await db.fetchrow(
+        """SELECT COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
+           FROM tenant_orders WHERE tenant_id=$1
+           AND created_at >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days'
+           AND created_at < date_trunc('week', CURRENT_DATE)""",
+        tid,
+    )
+
+    return {
+        "daily": daily,
+        "sources": [{"source": r["order_source"], "count": int(r["count"])} for r in sources],
+        "this_week": {"orders": int(this_week["orders"]), "revenue": float(this_week["revenue"])},
+        "last_week": {"orders": int(last_week["orders"]), "revenue": float(last_week["revenue"])},
+    }
 
 
 # ─── Team Management ──────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import re
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from db.database import get_db
 
 SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,62}$')
@@ -25,6 +25,48 @@ class TenantOut(BaseModel):
 
 
 _PLAN_PRICES = {"starter": 49, "pro": 99, "business": 149, "enterprise": 249}
+
+
+@router.get("/analytics")
+async def get_analytics(db=Depends(get_db)):
+    # Monthly tenant growth — last 6 complete months + current
+    growth_rows = await db.fetch(
+        """SELECT to_char(date_trunc('month', created_at), 'Mon') AS month,
+                  date_trunc('month', created_at) AS month_date,
+                  COUNT(*) AS count
+           FROM tenants
+           WHERE created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '5 months'
+           GROUP BY month_date
+           ORDER BY month_date""",
+    )
+    # Fill gaps so every month in the 6-month window is represented
+    today = date.today()
+    month_map = {str(r["month_date"])[:7]: {"month": r["month"], "count": int(r["count"])} for r in growth_rows}
+    growth = []
+    for i in range(5, -1, -1):
+        d  = (today.replace(day=1) - timedelta(days=1) * i * 30)
+        mo = date(d.year, d.month, 1)
+        key = str(mo)[:7]
+        growth.append({"month": mo.strftime("%b"), "count": month_map.get(key, {"count": 0})["count"]})
+
+    # Plan distribution (all tenants)
+    plan_rows = await db.fetch("SELECT plan, COUNT(*) AS count FROM tenants GROUP BY plan ORDER BY count DESC")
+
+    # MRR trend — monthly revenue estimate for last 6 months
+    _plan_prices = {"starter": 49, "pro": 99, "business": 149, "enterprise": 249}
+    mrr_rows = await db.fetch(
+        """SELECT to_char(date_trunc('month', created_at), 'Mon') AS month,
+                  date_trunc('month', created_at) AS month_date,
+                  plan
+           FROM tenants WHERE status='active'
+           ORDER BY month_date""",
+    )
+    # Build running MRR snapshot per month (cumulative active tenants * price)
+    # Simplified: just return current plan distribution with prices
+    plan_dist = [{"plan": r["plan"], "count": int(r["count"]),
+                  "mrr": _plan_prices.get(r["plan"], 0) * int(r["count"])} for r in plan_rows]
+
+    return {"growth": growth, "plan_distribution": plan_dist}
 
 
 @router.get("/stats")
