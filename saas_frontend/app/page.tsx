@@ -39,11 +39,11 @@ const PLATFORMS = ['Meta Ads','Google Ads','YouTube Ads','TikTok Ads','Snapchat 
   'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps']
 
 const PLANS = [
-  { id:'starter', name:'Starter', monthly:49, yearly:39, tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(255,255,255,0.08)',
+  { id:'starter', name:'Starter', monthly:49, yearly:39, tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(255,255,255,0.08)', locations:'1 Location',
     features:['Order Management','Menu Management','Basic Reporting','Owner Portal','AI Chat Assistant'] },
-  { id:'growth',  name:'Growth',  monthly:149,yearly:119,tag:'Most Popular',color:'rgba(15,23,42,0.9)',border:'rgba(34,197,94,0.5)',
+  { id:'growth',  name:'Growth',  monthly:149,yearly:119,tag:'Most Popular',color:'rgba(15,23,42,0.9)',border:'rgba(34,197,94,0.5)',   locations:'Up to 3 Locations',
     features:['Everything in Starter','6-Platform Ad Campaigns','Social Media Posting','Delivery Integrations','Google & Apple Maps Listings','AI Creative Studio'] },
-  { id:'pro',     name:'Pro',     monthly:299,yearly:239,tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(129,140,248,0.4)',
+  { id:'pro',     name:'Pro',     monthly:299,yearly:239,tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(129,140,248,0.4)', locations:'Unlimited Locations',
     features:['Everything in Growth','AI Phone Agent 24/7','Voice ↔ Text Bridge','Accounting & Bookkeeping','Priority Support','Custom Onboarding'] },
 ]
 
@@ -584,6 +584,10 @@ export default function MarketingPage() {
                     <span className="text-slate-400 text-sm mb-1">/month</span>
                   </div>
                   {yearly && <p className="text-green-400 text-xs mt-0.5">Billed annually</p>}
+                  <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)' }}>
+                    <span>📍</span>
+                    <span className="text-slate-200">{p.locations}</span>
+                  </div>
                 </div>
                 <ul className="space-y-2.5 flex-1">
                   {p.features.map(f => (
