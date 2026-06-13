@@ -367,8 +367,8 @@ export const api = {
     customization: () => request<TenantCustomization>('/portal/customization'),
     saveCustomization: (data: Partial<TenantCustomization>) =>
       request<TenantCustomization>('/portal/customization', { method: 'PUT', body: JSON.stringify(data) }),
-    chat: (messages: Array<{ role: string; content: string }>) =>
-      request<{ reply: string }>('/portal/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+    chat: (messages: Array<{ role: string; content: string; image?: string }>) =>
+      request<{ reply: string; navigate: string | null; action_result: Record<string, unknown> | null }>('/portal/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
   },
   social: {
     posts: () => request<SocialPost[]>('/social/posts'),
