@@ -386,7 +386,7 @@ a restaurant using the Careful-Server management platform.
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-haiku-4-5-20251001",
+                "model": "claude-3-5-haiku-20241022",
                 "max_tokens": 400,
                 "system": system_prompt,
                 "messages": messages,
