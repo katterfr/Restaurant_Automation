@@ -433,6 +433,10 @@ export const api = {
     signup: (data: { restaurant_name: string; owner_email: string; owner_password: string; phone?: string; city?: string; plan?: string }) =>
       request<{ ok: boolean; slug: string; portal_url: string }>('/public/signup', { method: 'POST', body: JSON.stringify(data) }),
   },
+  adminChat: {
+    chat: (messages: Array<{ role: string; content: string; image?: string }>) =>
+      request<{ reply: string; navigate: string | null; action_result: Record<string, unknown> | null }>('/admin/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+  },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),
     toggle: (tenantId: number, feature: string) =>
