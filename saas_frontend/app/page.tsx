@@ -93,7 +93,7 @@ function VisitorChat() {
         <div className="w-80 sm:w-96 rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ height: 480, background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }}>
           {/* header */}
           <div className="px-4 py-3 flex items-center gap-2.5 shrink-0" style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}>
-            <img src="/logo.jpg" alt="Careful-Server" className="w-8 h-8 rounded-full object-cover shrink-0" />
+            <img src="/logo.jpg" alt="Careful-Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
             <div className="flex-1">
               <p className="text-white text-sm font-semibold leading-none">Alex</p>
               <p className="text-white/70 text-xs mt-0.5">Careful-Server Assistant</p>
@@ -145,10 +145,12 @@ function VisitorChat() {
       )}
       {/* bubble */}
       <button onClick={() => setOpen(o => !o)}
-        className="w-14 h-14 rounded-full text-white shadow-2xl flex items-center justify-center text-2xl transition-transform hover:scale-110 cs-glow"
-        style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)' }}
+        className="w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center transition-transform hover:scale-110 cs-glow overflow-hidden"
         title="Chat with us">
-        {open ? '✕' : '💬'}
+        {open
+          ? <span className="text-white text-2xl" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
+          : <img src="/logo.jpg" alt="Chat" className="w-full h-full object-cover" />
+        }
       </button>
     </div>
   )
