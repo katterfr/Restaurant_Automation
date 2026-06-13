@@ -100,7 +100,12 @@ VISITOR_PROMPT = """You are Alex, a friendly and enthusiastic sales assistant fo
 
 ## Your Tone
 Be warm, concise, and excited about the product. Keep replies under 80 words. Use bullet points when listing features.
-If asked about pricing specifics or custom enterprise plans, suggest contacting via the form on the page."""
+If asked about pricing specifics or custom enterprise plans, suggest contacting via the form on the page.
+
+## Navigation
+If a visitor asks to sign up, get started, create an account, or try Careful-Server, end your reply with exactly: [NAV:/signup]
+If a visitor asks to log in, access their portal, or go to the owner dashboard, end your reply with exactly: [NAV:/portal/login]
+Put the NAV tag on its own line at the very end. Only include it when the visitor explicitly wants to navigate somewhere."""
 
 
 @router.post("/chat")
@@ -136,8 +141,12 @@ async def visitor_chat(body: VisitorChatReq):
             )
             if not r.is_success:
                 log.error("Anthropic %s: %s", r.status_code, r.text)
-                return {"reply": fallback}
-            return {"reply": r.json()["content"][0]["text"]}
+                return {"reply": fallback, "navigate": None}
+            text = r.json()["content"][0]["text"]
+            nav_match = re.search(r'\[NAV:([^\]]+)\]', text)
+            navigate = nav_match.group(1) if nav_match else None
+            clean = re.sub(r'\s*\[NAV:[^\]]+\]', '', text).strip()
+            return {"reply": clean, "navigate": navigate}
     except Exception as e:
         log.error("Visitor chat error: %s", e)
         return {"reply": fallback}

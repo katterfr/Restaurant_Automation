@@ -427,7 +427,7 @@ export const api = {
   },
   public: {
     chat: (messages: Array<{ role: string; content: string }>) =>
-      request<{ reply: string }>('/public/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+      request<{ reply: string; navigate: string | null }>('/public/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
     contact: (data: { name: string; email: string; restaurant_name?: string; phone?: string; plan_interest?: string; message: string }) =>
       request<{ ok: boolean }>('/public/contact', { method: 'POST', body: JSON.stringify(data) }),
     signup: (data: { restaurant_name: string; owner_email: string; owner_password: string; phone?: string; city?: string; plan?: string }) =>

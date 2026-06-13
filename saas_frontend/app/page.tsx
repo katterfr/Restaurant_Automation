@@ -60,7 +60,7 @@ const STEPS = [
 ]
 
 // ─── visitor chatbot ───────────────────────────────────────────────────────────
-type ChatMsg = { role: 'user' | 'assistant'; content: string }
+type ChatMsg = { role: 'user' | 'assistant'; content: string; navigate?: string }
 
 function VisitorChat() {
   const [open, setOpen]     = useState(false)
@@ -79,8 +79,8 @@ function VisitorChat() {
     const next: ChatMsg[] = [...msgs, { role: 'user', content }]
     setMsgs(next); setInput(''); setLoading(true)
     try {
-      const { reply } = await api.public.chat(next)
-      setMsgs(p => [...p, { role: 'assistant', content: reply }])
+      const { reply, navigate } = await api.public.chat(next)
+      setMsgs(p => [...p, { role: 'assistant', content: reply, navigate: navigate ?? undefined }])
     } catch { setMsgs(p => [...p, { role: 'assistant', content: "Sorry! Please use the contact form and we'll reply within 24 hours." }]) }
     finally { setLoading(false) }
   }
@@ -103,11 +103,20 @@ function VisitorChat() {
           {/* messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
             {msgs.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 rounded-bl-sm'}`}
                   style={m.role === 'user' ? { background: 'linear-gradient(135deg,#16a34a,#6366f1)' } : {}}>
                   {m.content}
                 </div>
+                {m.navigate && (
+                  <a
+                    href={m.navigate}
+                    className="mt-1.5 text-xs font-semibold text-white px-4 py-2 rounded-xl flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                    style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}
+                  >
+                    {m.navigate === '/signup' ? '🚀 Get Started' : '🔑 Go to Owner Portal'} →
+                  </a>
+                )}
               </div>
             ))}
             {loading && <div className="flex justify-start"><div className="bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1">{[0,150,300].map(d => <span key={d} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay:`${d}ms` }}/>)}</div></div>}
