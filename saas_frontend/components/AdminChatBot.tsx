@@ -12,6 +12,8 @@ type Msg = {
   action_result?: Record<string, unknown> | null
 }
 
+const ACCEPT = 'image/*,.pdf,.txt,.csv,.json'
+
 const SUGGESTIONS = [
   'Show me all tenants',
   'What is the platform MRR?',
@@ -45,6 +47,7 @@ export default function AdminChatBot() {
   const [input,      setInput]      = useState('')
   const [loading,    setLoading]    = useState(false)
   const [attachment, setAttachment] = useState<Attachment | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
@@ -60,7 +63,7 @@ export default function AdminChatBot() {
     }
   }
 
-  function readFile(file: File) {
+  const readFile = useCallback((file: File) => {
     const isImage = file.type.startsWith('image/')
     const reader  = new FileReader()
     if (isImage) {
@@ -70,19 +73,42 @@ export default function AdminChatBot() {
       reader.onload = ev => setAttachment({ data: ev.target?.result as string, name: file.name, isImage: false })
       reader.readAsText(file)
     }
-  }
+  }, [])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (file) readFile(file); e.target.value = ''
   }
 
-  function handlePaste(e: React.ClipboardEvent) {
+  // Paste anywhere in the window when chat is open
+  useEffect(() => {
+    if (!open) return
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items; if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile(); if (file) { readFile(file); e.preventDefault() }; return
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [open, readFile])
+
+  function handleInputPaste(e: React.ClipboardEvent) {
+    // Already handled at document level; this catches it if focus is in input
     const items = e.clipboardData?.items; if (!items) return
     for (const item of Array.from(items)) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile(); if (file) { readFile(file); e.preventDefault() }; return
       }
     }
+  }
+
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); setIsDragging(true) }
+  function handleDragLeave(e: React.DragEvent) { e.preventDefault(); setIsDragging(false) }
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault(); setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]; if (file) readFile(file)
   }
 
   const send = useCallback(async (text?: string) => {
@@ -136,7 +162,20 @@ export default function AdminChatBot() {
         <div
           className="fixed bottom-6 right-6 z-50 flex flex-col rounded-2xl shadow-2xl overflow-hidden"
           style={{ width: w, height: h, background: '#0f172a', color: '#f1f5f9' }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
+          {/* Drop overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-20 rounded-2xl flex flex-col items-center justify-center gap-3 pointer-events-none"
+              style={{ background: 'rgba(37,99,235,0.18)', border: '2.5px dashed #3b82f6' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth={1.5} className="w-12 h-12">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+              </svg>
+              <p className="text-blue-300 font-semibold text-base">Drop image to attach</p>
+            </div>
+          )}
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-3 shrink-0 bg-blue-600">
             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 shrink-0">
@@ -247,14 +286,14 @@ export default function AdminChatBot() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                 </svg>
               </button>
-              <input ref={fileRef} type="file" accept="image/*,.pdf,.txt,.csv,.json" className="hidden" onChange={handleFileChange} />
+              <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={handleFileChange} />
               <input
                 ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                onPaste={handlePaste}
-                placeholder={attachment ? 'Add a message…' : 'Ask anything or give a command…'}
+                onPaste={handleInputPaste}
+                placeholder={attachment ? 'Add a message or just send the image…' : 'Command, question, or paste/drop an image…'}
                 disabled={loading}
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-60"
               />
@@ -266,7 +305,7 @@ export default function AdminChatBot() {
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 rotate-90"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-1.5 text-center">Full admin access · paste images · attach files</p>
+            <p className="text-xs text-slate-600 mt-1.5 text-center">Full admin access · paste or drag & drop images · attach files</p>
           </div>
         </div>
       )}

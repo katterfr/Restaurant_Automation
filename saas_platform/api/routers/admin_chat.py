@@ -275,13 +275,20 @@ async def admin_chat(
 - **get_tenant_orders** — view a restaurant's recent orders
 - **manage_menu_item** — add/edit/delete/toggle menu items for any restaurant
 
+## Working With Images
+When the admin pastes, drags, or attaches an image, analyze it and act on it:
+- **Food/dish photo** → read it visually and immediately call manage_menu_item to add that item to the specified restaurant
+- **Photo of a physical menu or price list** → extract every visible item name, price, and category, then call manage_menu_item (add) for each one
+- **Receipt or invoice** → read the vendor, date, and amount; describe what you see so the admin can record it
+- **Screenshot of an issue or page** → describe what you observe and suggest or execute the appropriate fix
+- Always confirm what you extracted from the image before or after acting on it
+
 ## Your Behavior
 - Be concise and action-oriented — execute tasks, don't just describe them
 - For destructive operations (delete tenant), always confirm intent before setting confirmed=true unless admin explicitly says to delete
 - When you execute an action, briefly confirm what you did
 - If you need a tenant ID, use list_tenants to find it first
-- You can analyze images/files the admin uploads — receipts, menus, spreadsheets, screenshots
-- Keep replies under 120 words unless detail is needed"""
+- Keep replies under 150 words unless detail is needed"""
 
     messages = _fmt_messages(body.messages)
     while messages and messages[0]["role"] != "user":
@@ -305,7 +312,7 @@ async def admin_chat(
                 headers=_headers,
                 json={
                     "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 1024,
+                    "max_tokens": 2048,
                     "system": system_prompt,
                     "messages": messages,
                     "tools": _TOOLS,
