@@ -1,8 +1,11 @@
 from typing import Optional
+import logging
 import re
 import random
 import string
 import httpx
+
+log = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from db.database import get_db
@@ -102,28 +105,34 @@ If asked about pricing specifics or custom enterprise plans, suggest contacting 
 
 @router.post("/chat")
 async def visitor_chat(body: VisitorChatReq):
+    fallback = "Great question! Careful-Server is an AI-powered restaurant management platform. To learn more or get a demo, fill out the contact form below and we'll reach out within 24 hours!"
+
     if not settings.anthropic_api_key:
-        return {"reply": "Hi! I'd love to help. For the fastest response, fill out the contact form and our team will reach out within 24 hours!"}
+        return {"reply": fallback}
 
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": settings.anthropic_api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 250,
-                "system": VISITOR_PROMPT,
-                "messages": messages,
-            },
-        )
-        r.raise_for_status()
-        return {"reply": r.json()["content"][0]["text"]}
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": settings.anthropic_api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 250,
+                    "system": VISITOR_PROMPT,
+                    "messages": messages,
+                },
+            )
+            r.raise_for_status()
+            return {"reply": r.json()["content"][0]["text"]}
+    except Exception as e:
+        log.error("Visitor chat error: %s", e)
+        return {"reply": fallback}
 
 
 # ── Self-service signup ───────────────────────────────────────────────────────
