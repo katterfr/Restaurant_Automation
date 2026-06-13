@@ -117,6 +117,7 @@ async def visitor_chat(body: VisitorChatReq):
     if not messages:
         return {"reply": fallback}
 
+    log.info("Sending to Anthropic: %s", messages)
     try:
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(
@@ -133,7 +134,9 @@ async def visitor_chat(body: VisitorChatReq):
                     "messages": messages,
                 },
             )
-            r.raise_for_status()
+            if not r.is_success:
+                log.error("Anthropic %s: %s", r.status_code, r.text)
+                return {"reply": fallback}
             return {"reply": r.json()["content"][0]["text"]}
     except Exception as e:
         log.error("Visitor chat error: %s", e)
