@@ -507,11 +507,12 @@ async def admin_chat(
                            FROM tenants GROUP BY 1 ORDER BY 1 DESC LIMIT 6"""
                     )
                     mrr_val = s["starter"]*49 + s["growth"]*149 + s["pro"]*299
+                    growth_str = " | ".join(r["month"].strftime("%b") + ":" + str(r["count"]) for r in monthly)
                     result = (
                         f"Platform stats:\n"
                         f"  Tenants: {s['total']} total ({s['active']} active)\n"
                         f"  MRR: ${mrr_val:,}/mo  (Starter×{s['starter']} Growth×{s['growth']} Pro×{s['pro']})\n"
-                        f"  Monthly growth: {' | '.join(f'{r[\"month\"].strftime(\"%b\")}:{r[\"count\"]}' for r in monthly)}"
+                        f"  Monthly growth: {growth_str}"
                     )
                     action_result = {"type": "analytics", "mrr": mrr_val, "total": s["total"]}
 
