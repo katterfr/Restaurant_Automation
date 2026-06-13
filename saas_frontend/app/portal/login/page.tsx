@@ -84,10 +84,7 @@ export default function PortalLoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-        <p className="text-center text-xs text-gray-400 mt-6">
-          SaaS admin?{' '}
-          <a href="/login" className="text-blue-600 hover:underline">Admin portal →</a>
-        </p>
+
       </div>
     </div>
   )
