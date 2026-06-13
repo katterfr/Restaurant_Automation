@@ -449,38 +449,61 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                   <p className="text-xs text-gray-400 mt-1">Shown at the top of your dashboard</p>
                 </div>
 
-                {/* Logo URL */}
+                {/* Logo Upload */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                    Logo URL
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Logo</label>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-green-400 flex items-center justify-center overflow-hidden shrink-0 transition-colors bg-gray-50">
+                      {draftCustom.logo_url
+                        ? <img src={draftCustom.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                        : <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4"/></svg>
+                      }
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 group-hover:text-green-600 transition-colors">
+                        {draftCustom.logo_url ? 'Change logo' : 'Upload logo'}
+                      </p>
+                      <p className="text-xs text-gray-400">PNG, JPG up to 2MB · Square image recommended</p>
+                    </div>
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0]; if (!file) return
+                      if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return }
+                      const reader = new FileReader()
+                      reader.onload = ev => setDraftCustom(d => ({ ...d, logo_url: ev.target?.result as string }))
+                      reader.readAsDataURL(file)
+                    }} />
                   </label>
-                  <input
-                    type="url"
-                    value={draftCustom.logo_url}
-                    onChange={e => setDraftCustom(d => ({ ...d, logo_url: e.target.value }))}
-                    placeholder="https://yoursite.com/logo.png"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
                   {draftCustom.logo_url && (
-                    <img src={draftCustom.logo_url} alt="Logo preview" className="mt-2 h-10 w-10 rounded-lg object-cover border border-gray-200" />
+                    <button onClick={() => setDraftCustom(d => ({ ...d, logo_url: '' }))} className="mt-1.5 text-xs text-red-400 hover:text-red-600 transition-colors">
+                      Remove logo
+                    </button>
                   )}
-                  <p className="text-xs text-gray-400 mt-1">Replaces the initials icon in the header</p>
                 </div>
 
-                {/* Banner URL */}
+                {/* Banner Upload */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                    Banner Image URL
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Banner Image</label>
+                  <label className="flex flex-col items-center justify-center cursor-pointer group w-full h-24 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-green-400 overflow-hidden transition-colors bg-gray-50 relative">
+                    {draftCustom.banner_url
+                      ? <img src={draftCustom.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                      : <>
+                          <svg className="w-6 h-6 text-gray-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                          <p className="text-xs text-gray-500 group-hover:text-green-600 transition-colors font-medium">Upload banner image</p>
+                          <p className="text-xs text-gray-400">Wide/landscape image recommended</p>
+                        </>
+                    }
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0]; if (!file) return
+                      if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB'); return }
+                      const reader = new FileReader()
+                      reader.onload = ev => setDraftCustom(d => ({ ...d, banner_url: ev.target?.result as string }))
+                      reader.readAsDataURL(file)
+                    }} />
                   </label>
-                  <input
-                    type="url"
-                    value={draftCustom.banner_url}
-                    onChange={e => setDraftCustom(d => ({ ...d, banner_url: e.target.value }))}
-                    placeholder="https://yoursite.com/banner.jpg"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
                   {draftCustom.banner_url && (
-                    <img src={draftCustom.banner_url} alt="Banner preview" className="mt-2 w-full h-20 rounded-lg object-cover border border-gray-200" />
+                    <button onClick={() => setDraftCustom(d => ({ ...d, banner_url: '' }))} className="mt-1.5 text-xs text-red-400 hover:text-red-600 transition-colors">
+                      Remove banner
+                    </button>
                   )}
                   <p className="text-xs text-gray-400 mt-1">Full-width hero shown on your dashboard</p>
                 </div>
