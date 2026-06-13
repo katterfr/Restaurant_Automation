@@ -128,7 +128,7 @@ async def visitor_chat(body: VisitorChatReq):
                     "content-type": "application/json",
                 },
                 json={
-                    "model": "claude-3-5-haiku-20241022",
+                    "model": "claude-3-haiku-20240307",
                     "max_tokens": 250,
                     "system": VISITOR_PROMPT,
                     "messages": messages,
