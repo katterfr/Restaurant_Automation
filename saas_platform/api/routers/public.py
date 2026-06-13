@@ -110,7 +110,12 @@ async def visitor_chat(body: VisitorChatReq):
     if not settings.anthropic_api_key:
         return {"reply": fallback}
 
+    # Anthropic requires conversations to start with a user message — drop any leading assistant turns
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
+    while messages and messages[0]["role"] != "user":
+        messages.pop(0)
+    if not messages:
+        return {"reply": fallback}
 
     try:
         async with httpx.AsyncClient(timeout=30) as c:
