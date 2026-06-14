@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
 
 type Attachment = { data: string; name: string; isImage: boolean }
@@ -39,7 +39,8 @@ const ACTION_COLOR: Record<string, string> = {
 const DEFAULT_ACTION_COLOR = 'text-green-400 bg-green-500/10 border-green-500/20'
 
 export default function AdminChatBot() {
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
 
   const [open,       setOpen]       = useState(false)
   const [expanded,   setExpanded]   = useState(false)
@@ -55,6 +56,9 @@ export default function AdminChatBot() {
 
   useEffect(() => { if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, open])
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 100) }, [open])
+
+  // Redundant on the full-page /chat
+  if (pathname === '/chat') return null
 
   function openChat() {
     setOpen(true)

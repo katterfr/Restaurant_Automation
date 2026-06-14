@@ -4,9 +4,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { clearToken } from '@/lib/auth'
 
 const nav = [
-  { label: 'Dashboard',   href: '/dashboard',    icon: '▦' },
-  { label: 'Phone Agent', href: '/phone-agent',  icon: '☎' },
-  { label: 'Settings',    href: '/settings',     icon: '⚙' },
+  { label: 'Dashboard',    href: '/dashboard',    icon: '▦' },
+  { label: 'Phone Agent',  href: '/phone-agent',  icon: '☎' },
+  { label: 'AI Assistant', href: '/chat',         icon: '✦' },
+  { label: 'Settings',     href: '/settings',     icon: '⚙' },
 ]
 
 export default function Sidebar() {
