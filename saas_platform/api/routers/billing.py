@@ -8,10 +8,44 @@ import stripe
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 PLANS = {
-    "starter":    {"name": "Starter",    "price_monthly": 49,  "features": ["1 location", "Phone agent", "Inventory"]},
-    "pro":        {"name": "Pro",         "price_monthly": 99,  "features": ["3 locations", "All Starter", "Ads automation", "Accounting"]},
-    "business":   {"name": "Business",   "price_monthly": 149, "features": ["10 locations", "All Pro", "Priority support"]},
-    "enterprise": {"name": "Enterprise", "price_monthly": 249, "features": ["Unlimited locations", "All Pro", "Custom integrations", "Priority support"]},
+    "starter": {
+        "name": "Starter",
+        "price_monthly": 49,
+        "locations": "1 Location",
+        "features": [
+            "Order Management",
+            "Menu Management",
+            "Basic Reporting",
+            "Owner Portal",
+            "AI Chat Assistant",
+        ],
+    },
+    "growth": {
+        "name": "Growth",
+        "price_monthly": 149,
+        "locations": "Up to 3 Locations",
+        "features": [
+            "Everything in Starter",
+            "6-Platform Ad Campaigns",
+            "Social Media Posting",
+            "Delivery Integrations",
+            "Google & Apple Maps Listings",
+            "AI Creative Studio",
+        ],
+    },
+    "pro": {
+        "name": "Pro",
+        "price_monthly": 299,
+        "locations": "Unlimited Locations",
+        "features": [
+            "Everything in Growth",
+            "AI Phone Agent 24/7",
+            "Voice ↔ Text Bridge",
+            "Accounting & Bookkeeping",
+            "Priority Support",
+            "Custom Onboarding",
+        ],
+    },
 }
 
 
@@ -21,12 +55,12 @@ def _price_to_plan() -> dict[str, str]:
     pairs = [
         (settings.stripe_starter_monthly_price_id, "starter"),
         (settings.stripe_starter_annual_price_id, "starter"),
-        (settings.stripe_pro_monthly_price_id, "pro"),
-        (settings.stripe_pro_annual_price_id, "pro"),
-        (settings.stripe_business_monthly_price_id, "business"),
-        (settings.stripe_business_annual_price_id, "business"),
-        (settings.stripe_enterprise_monthly_price_id, "enterprise"),
-        (settings.stripe_enterprise_annual_price_id, "enterprise"),
+        (settings.stripe_pro_monthly_price_id, "growth"),
+        (settings.stripe_pro_annual_price_id, "growth"),
+        (settings.stripe_business_monthly_price_id, "pro"),
+        (settings.stripe_business_annual_price_id, "pro"),
+        (settings.stripe_enterprise_monthly_price_id, "pro"),
+        (settings.stripe_enterprise_annual_price_id, "pro"),
     ]
     for price_id, plan in pairs:
         if price_id:

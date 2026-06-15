@@ -66,8 +66,8 @@ export default function NewTenantPage() {
             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="starter">Starter — $49/mo</option>
-            <option value="pro">Pro — $99/mo</option>
-            <option value="enterprise">Enterprise — $249/mo</option>
+            <option value="growth">Growth — $149/mo</option>
+            <option value="pro">Pro — $299/mo</option>
           </select>
         </div>
         {error && (
