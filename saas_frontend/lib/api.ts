@@ -426,6 +426,8 @@ export const api = {
     smsMessages: (sessionId: number) => request<{ session: SmsSession; messages: SmsMessage[] }>(`/phone/sms/sessions/${sessionId}/messages`),
   },
   public: {
+    stats: () =>
+      request<{ restaurant_count: number; order_count: number }>('/public/stats'),
     chat: (messages: Array<{ role: string; content: string }>) =>
       request<{ reply: string; navigate: string | null }>('/public/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
     contact: (data: { name: string; email: string; restaurant_name?: string; phone?: string; plan_interest?: string; message: string }) =>

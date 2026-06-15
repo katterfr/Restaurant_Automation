@@ -4,6 +4,28 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import Simulator from './components/simulator'
 
+// ─── count-up animation hook ──────────────────────────────────────────────────
+function useCountUp(target: number, active: boolean, duration = 1800) {
+  const [val, setVal] = useState(0)
+  useEffect(() => {
+    if (!active || target < 100) return
+    const t0 = Date.now()
+    const id = setInterval(() => {
+      const p = Math.min((Date.now() - t0) / duration, 1)
+      setVal(Math.round((1 - Math.pow(1 - p, 3)) * target))
+      if (p >= 1) clearInterval(id)
+    }, 16)
+    return () => clearInterval(id)
+  }, [active, target, duration])
+  return val
+}
+
+function fmtCount(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M+`
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K+`
+  return `${n}+`
+}
+
 // ─── scroll-reveal hook ────────────────────────────────────────────────────────
 function useInView(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null)
@@ -303,6 +325,19 @@ export default function MarketingPage() {
     return () => window.removeEventListener('scroll', fn)
   }, [])
 
+  const [publicStats, setPublicStats] = useState<{ restaurant_count: number; order_count: number } | null>(null)
+  useEffect(() => {
+    api.public.stats().then(setPublicStats).catch(() => {})
+  }, [])
+
+  const restaurantTarget = publicStats?.restaurant_count ?? 0
+  const orderTarget      = publicStats?.order_count ?? 0
+  const animRestaurants  = useCountUp(restaurantTarget, statsVis)
+  const animOrders       = useCountUp(orderTarget, statsVis)
+
+  const restaurantVal = !publicStats || restaurantTarget < 100 ? '—' : fmtCount(animRestaurants)
+  const orderVal      = !publicStats || orderTarget < 100      ? '—' : fmtCount(animOrders)
+
   async function sendContact(e: React.FormEvent) {
     e.preventDefault()
     setContactLoading(true)
@@ -447,12 +482,22 @@ export default function MarketingPage() {
       {/* ── STATS ── */}
       <section id="stats" className="py-16 border-y border-white/5" style={{ background:'rgba(15,23,42,0.8)' }}>
         <div ref={statsRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center transition-all duration-700 ${statsVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          {[['500+','Restaurants'],['1M+','Orders Handled'],['6','Ad Platforms'],['24/7','AI Coverage']].map(([v, l]) => (
-            <div key={l}>
-              <p className="text-4xl sm:text-5xl font-extrabold cs-grad-text">{v}</p>
-              <p className="text-slate-400 text-sm mt-1">{l}</p>
-            </div>
-          ))}
+          <div>
+            <p className={`text-4xl sm:text-5xl font-extrabold ${restaurantTarget >= 100 ? 'cs-grad-text' : 'text-slate-600'}`}>{restaurantVal}</p>
+            <p className="text-slate-400 text-sm mt-1">Restaurants</p>
+          </div>
+          <div>
+            <p className={`text-4xl sm:text-5xl font-extrabold ${orderTarget >= 100 ? 'cs-grad-text' : 'text-slate-600'}`}>{orderVal}</p>
+            <p className="text-slate-400 text-sm mt-1">Orders Handled</p>
+          </div>
+          <div>
+            <p className="text-4xl sm:text-5xl font-extrabold cs-grad-text">6</p>
+            <p className="text-slate-400 text-sm mt-1">Ad Platforms</p>
+          </div>
+          <div>
+            <p className="text-4xl sm:text-5xl font-extrabold cs-grad-text">24/7</p>
+            <p className="text-slate-400 text-sm mt-1">AI Coverage</p>
+          </div>
         </div>
       </section>
 

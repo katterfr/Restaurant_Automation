@@ -43,6 +43,19 @@ async def provision_plan_features(tenant_id: int, plan: str, db) -> None:
 router = APIRouter(prefix="/public", tags=["public"])
 
 
+# ── Public stats (used by landing page counters) ──────────────────────────────
+
+@router.get("/stats")
+async def public_stats(db=Depends(get_db)):
+    restaurant_count = await db.fetchval(
+        "SELECT COUNT(*) FROM tenants WHERE status = 'active'"
+    ) or 0
+    order_count = await db.fetchval(
+        "SELECT COUNT(*) FROM tenant_orders"
+    ) or 0
+    return {"restaurant_count": int(restaurant_count), "order_count": int(order_count)}
+
+
 # ── Contact form ──────────────────────────────────────────────────────────────
 
 class ContactForm(BaseModel):
