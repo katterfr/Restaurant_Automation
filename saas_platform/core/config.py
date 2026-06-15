@@ -18,13 +18,8 @@ class Settings(BaseSettings):
     stripe_webhook_secret: Optional[str] = None
 
     stripe_starter_monthly_price_id: Optional[str] = None
-    stripe_starter_annual_price_id: Optional[str] = None
+    stripe_growth_monthly_price_id: Optional[str] = None
     stripe_pro_monthly_price_id: Optional[str] = None
-    stripe_pro_annual_price_id: Optional[str] = None
-    stripe_business_monthly_price_id: Optional[str] = None
-    stripe_business_annual_price_id: Optional[str] = None
-    stripe_enterprise_monthly_price_id: Optional[str] = None
-    stripe_enterprise_annual_price_id: Optional[str] = None
 
     sendgrid_api_key: Optional[str] = None
     email_from: str = ""
