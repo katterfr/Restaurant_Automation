@@ -408,7 +408,7 @@ export default function AdminChatFullPage() {
                     }
                   </div>
                 )}
-                {m.action_result?.type && <ActionBadge r={m.action_result} />}
+                {!!m.action_result?.type && <ActionBadge r={m.action_result} />}
                 {m.navigate && (
                   <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700">
                     <span className="text-blue-400">↗</span>

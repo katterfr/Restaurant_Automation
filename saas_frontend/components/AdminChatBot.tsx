@@ -229,7 +229,7 @@ export default function AdminChatBot() {
                       {m.content}
                     </div>
                   )}
-                  {m.action_result?.type && (
+                  {!!m.action_result?.type && (
                     <div className={`text-xs rounded-lg px-2.5 py-1.5 border ${ACTION_COLOR[m.action_result.type as string] ?? DEFAULT_ACTION_COLOR}`}>
                       {ACTION_LABELS[m.action_result.type as string] ?? '✓ Action completed'}
                     </div>
