@@ -54,8 +54,11 @@ def _price_to_plan() -> dict[str, str]:
     mapping: dict[str, str] = {}
     pairs = [
         (settings.stripe_starter_monthly_price_id, "starter"),
+        (settings.stripe_starter_annual_price_id,  "starter"),
         (settings.stripe_growth_monthly_price_id,  "growth"),
+        (settings.stripe_growth_annual_price_id,   "growth"),
         (settings.stripe_pro_monthly_price_id,     "pro"),
+        (settings.stripe_pro_annual_price_id,      "pro"),
     ]
     for price_id, plan in pairs:
         if price_id:
