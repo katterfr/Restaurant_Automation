@@ -99,10 +99,19 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
         except Exception as e:
             raise HTTPException(502, f"Failed to create VAPI assistant: {e}")
 
-        # Provision phone number or use existing
-        phone_number_id = None
+        # Re-link existing VAPI number to new assistant, or provision a new one
+        existing_vapi_number_id = existing["vapi_phone_number_id"] if existing else None
         phone_number = body.existing_number or (existing["phone_number"] if existing else None)
-        if not phone_number:
+        phone_number_id = None
+
+        if existing_vapi_number_id:
+            try:
+                await vapi_api.relink_phone_number(existing_vapi_number_id, assistant_id)
+                phone_number_id = existing_vapi_number_id
+            except Exception as e:
+                log.warning("Failed to re-link VAPI phone number, will provision new: %s", e)
+
+        if not phone_number_id and not body.existing_number:
             try:
                 num = await vapi_api.provision_phone_number(assistant_id)
                 phone_number_id = num.get("id")

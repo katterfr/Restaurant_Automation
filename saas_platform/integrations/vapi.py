@@ -165,6 +165,17 @@ async def update_assistant(assistant_id: str, system_prompt: str, first_message:
         return resp.json()
 
 
+async def relink_phone_number(phone_number_id: str, assistant_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.patch(
+            f"{VAPI_API}/phone-number/{phone_number_id}",
+            headers=_headers(),
+            json={"assistantId": assistant_id},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def provision_phone_number(assistant_id: str, area_code: str = "") -> dict:
     payload: dict = {
         "provider": "vapi",
