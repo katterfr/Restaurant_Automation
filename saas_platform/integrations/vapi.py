@@ -143,20 +143,23 @@ async def create_assistant(name: str, system_prompt: str, first_message: str, we
         return resp.json()
 
 
-async def update_assistant(assistant_id: str, system_prompt: str, first_message: str) -> dict:
+async def update_assistant(assistant_id: str, system_prompt: str, first_message: str, webhook_url: str = "") -> dict:
+    payload: dict = {
+        "firstMessage": first_message,
+        "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "system", "content": system_prompt}],
+            "temperature": 0.4,
+        },
+    }
+    if webhook_url:
+        payload["serverUrl"] = webhook_url
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.patch(
             f"{VAPI_API}/assistant/{assistant_id}",
             headers=_headers(),
-            json={
-                "firstMessage": first_message,
-                "model": {
-                    "provider": "openai",
-                    "model": "gpt-4o-mini",
-                    "messages": [{"role": "system", "content": system_prompt}],
-                    "temperature": 0.4,
-                },
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()

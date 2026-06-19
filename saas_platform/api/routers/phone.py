@@ -76,7 +76,7 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
     if existing and existing["vapi_assistant_id"]:
         # Update existing assistant
         try:
-            await vapi_api.update_assistant(existing["vapi_assistant_id"], system_prompt, body.greeting)
+            await vapi_api.update_assistant(existing["vapi_assistant_id"], system_prompt, body.greeting, webhook_url=webhook_url)
             assistant_id = existing["vapi_assistant_id"]
             phone_number_id = existing["vapi_phone_number_id"]
             # Allow switching to an existing number
