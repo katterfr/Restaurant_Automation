@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { login } from '@/lib/api'
-import { saveToken } from '@/lib/auth'
+import { saveToken, getRole, clearToken } from '@/lib/auth'
 
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
   return (
@@ -40,6 +40,11 @@ export default function LoginPage() {
     try {
       const { access_token } = await login(email, password)
       saveToken(access_token)
+      if (getRole() !== 'admin') {
+        clearToken()
+        setError('This is the admin portal. Please sign in via your restaurant portal link.')
+        return
+      }
       router.push('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
