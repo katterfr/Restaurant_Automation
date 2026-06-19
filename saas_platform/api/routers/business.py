@@ -27,10 +27,11 @@ def _require_owner(current_user=Depends(get_current_user)):
 
 async def _check_feature(tenant_id: int, db) -> None:
     row = await db.fetchrow(
-        "SELECT enabled FROM tenant_features WHERE tenant_id=$1 AND feature='business_listings'",
+        """SELECT COUNT(*) as cnt FROM tenant_features
+           WHERE tenant_id=$1 AND feature IN ('listings_google','listings_apple') AND enabled=TRUE""",
         tenant_id,
     )
-    if not row or not row["enabled"]:
+    if not row or row["cnt"] == 0:
         raise HTTPException(403, "Business listings feature not enabled for this account")
 
 
