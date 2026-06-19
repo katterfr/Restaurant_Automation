@@ -73,17 +73,22 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
 
     existing = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tid)
 
+    needs_new_assistant = not existing or not existing["vapi_assistant_id"]
+
     if existing and existing["vapi_assistant_id"]:
-        # Update existing assistant
+        # Try to update existing assistant; recreate if it no longer exists in VAPI
         try:
             await vapi_api.update_assistant(existing["vapi_assistant_id"], system_prompt, body.greeting, webhook_url=webhook_url)
             assistant_id = existing["vapi_assistant_id"]
             phone_number_id = existing["vapi_phone_number_id"]
-            # Allow switching to an existing number
             phone_number = body.existing_number or existing["phone_number"]
         except Exception as e:
-            raise HTTPException(502, f"Failed to update VAPI assistant: {e}")
-    else:
+            if "404" in str(e):
+                needs_new_assistant = True
+            else:
+                raise HTTPException(502, f"Failed to update VAPI assistant: {e}")
+
+    if needs_new_assistant:
         # Create new assistant
         try:
             sms_tool_url = f"{settings.saas_api_url}/phone/tool/switch-to-sms/{tid}" if twilio_sms.is_configured() else ""
@@ -96,10 +101,8 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
 
         # Provision phone number or use existing
         phone_number_id = None
-        phone_number = None
-        if body.existing_number:
-            phone_number = body.existing_number
-        else:
+        phone_number = body.existing_number or (existing["phone_number"] if existing else None)
+        if not phone_number:
             try:
                 num = await vapi_api.provision_phone_number(assistant_id)
                 phone_number_id = num.get("id")
