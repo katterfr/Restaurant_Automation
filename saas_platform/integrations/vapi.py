@@ -163,16 +163,16 @@ async def update_assistant(assistant_id: str, system_prompt: str, first_message:
 
 
 async def provision_phone_number(assistant_id: str, area_code: str = "") -> dict:
-    # VAPI provider does not support areaCode — number is auto-assigned by VAPI.
-    # areaCode is only valid for Twilio/Vonage bring-your-own-number flows.
+    payload: dict = {
+        "provider": "vapi",
+        "assistantId": assistant_id,
+        "numberDesiredAreaCode": area_code if area_code else "800",
+    }
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{VAPI_API}/phone-number",
             headers=_headers(),
-            json={
-                "provider": "vapi",
-                "assistantId": assistant_id,
-            },
+            json=payload,
         )
         if not resp.is_success:
             try:

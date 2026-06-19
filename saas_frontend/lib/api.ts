@@ -419,7 +419,7 @@ export const api = {
     status: () => request<PhoneStatus>('/phone/status'),
     activate: (data: { greeting?: string; special_instructions?: string; existing_number?: string }) =>
       request<PhoneAgent>('/phone/activate', { method: 'POST', body: JSON.stringify(data) }),
-    setNumber: (data: { existing_number?: string; provision_new?: boolean }) =>
+    setNumber: (data: { existing_number?: string; provision_new?: boolean; area_code?: string }) =>
       request<PhoneAgent>('/phone/number', { method: 'PATCH', body: JSON.stringify(data) }),
     syncMenu: () => request<{ ok: boolean; menu_items_synced: number }>('/phone/sync-menu', { method: 'POST' }),
     updateConfig: (data: { greeting?: string; special_instructions?: string }) =>

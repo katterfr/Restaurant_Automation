@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { api, PhoneStatus, PhoneAgent, PhoneCall, SmsSession, SmsMessage } from '@/lib/api'
 import { useCustomization } from '../tenant-context'
 
@@ -287,9 +287,12 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
   // phone number setup (shown when agent is active but no number yet)
   const [numMode, setNumMode] = useState<'choose' | 'new' | 'existing'>('choose')
   const [numExisting, setNumExisting] = useState('')
+  const [numAreaCode, setNumAreaCode] = useState('')
   const [businessPhone, setBusinessPhone] = useState('')
   const [numLoading, setNumLoading] = useState(false)
   const [numMsg, setNumMsg] = useState('')
+  const [stripeConnecting, setStripeConnecting] = useState(false)
+  const [stripeMsg, setStripeMsg] = useState('')
 
   useEffect(() => {
     if (!agent.phone_number) {
@@ -324,11 +327,23 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
     setCopied(true); setTimeout(() => setCopied(false), 2000)
   }
 
+  async function connectStripe() {
+    setStripeConnecting(true)
+    setStripeMsg('')
+    try {
+      const { url } = await api.phone.connectStripeStart()
+      window.location.href = url
+    } catch (e: unknown) {
+      setStripeMsg(e instanceof Error ? e.message : 'Failed to start Stripe Connect')
+      setStripeConnecting(false)
+    }
+  }
+
   async function saveNumber(overrideExisting?: string) {
     setNumLoading(true); setNumMsg('')
     try {
       if (numMode === 'new') {
-        await api.phone.setNumber({ provision_new: true })
+        await api.phone.setNumber({ provision_new: true, area_code: numAreaCode.trim() || undefined })
       } else {
         const numberToSave = overrideExisting ?? numExisting.trim()
         if (!numberToSave) { setNumMsg('Enter your phone number'); setNumLoading(false); return }
@@ -488,15 +503,25 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
               {numMode === 'new' && (
                 <div className="space-y-2">
                   <button onClick={() => setNumMode('choose')} className="text-xs text-amber-600 hover:text-amber-800">← Back</button>
-                  <p className="text-xs text-amber-700">VAPI will auto-assign you a dedicated US phone number.</p>
-                  <button
-                    onClick={() => saveNumber()}
-                    disabled={numLoading}
-                    className="text-xs text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: accent }}
-                  >
-                    {numLoading ? 'Provisioning…' : 'Get My Number'}
-                  </button>
+                  <p className="text-xs text-amber-700">Get a dedicated US phone number for your AI agent.</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={numAreaCode}
+                      onChange={e => setNumAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      placeholder="Area code (e.g. 415)"
+                      className="w-40 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2"
+                    />
+                    <button
+                      onClick={() => saveNumber()}
+                      disabled={numLoading}
+                      className="text-xs text-white px-4 py-1.5 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: accent }}
+                    >
+                      {numLoading ? 'Provisioning…' : 'Get My Number'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400">Leave blank for any available US number.</p>
                   {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
                 </div>
               )}
@@ -525,6 +550,34 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                   {numMsg && <p className="text-xs text-red-600">{numMsg}</p>}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Stripe Connect */}
+        <div className="mt-5 pt-5 border-t border-gray-100">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Accept Payments</p>
+          {agent.stripe_connect_status === 'active' ? (
+            <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+              <span className="w-2 h-2 bg-green-500 rounded-full" />
+              Stripe connected — ready to charge phone orders
+            </div>
+          ) : (
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <p className="text-xs font-semibold text-amber-800 mb-2">
+                {agent.stripe_connect_status === 'pending'
+                  ? 'Stripe onboarding incomplete — finish setup to accept payments'
+                  : 'Connect your Stripe account so the AI agent can charge customers for phone orders'}
+              </p>
+              <button
+                onClick={connectStripe}
+                disabled={stripeConnecting}
+                className="text-xs text-white px-4 py-2 rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: accent }}
+              >
+                {stripeConnecting ? 'Redirecting…' : agent.stripe_connect_status === 'pending' ? 'Continue Setup →' : 'Connect Stripe →'}
+              </button>
+              {stripeMsg && <p className="text-xs text-red-600 mt-2">{stripeMsg}</p>}
             </div>
           )}
         </div>
@@ -676,6 +729,8 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
 
 export default function PhonePage() {
   useParams<{ slug: string }>()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const customization = useCustomization()
   const accent = customization.accent_color || '#16a34a'
 
@@ -696,6 +751,14 @@ export default function PhonePage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (searchParams.get('stripe') !== 'return') return
+    api.phone.connectStripeRefresh().catch(() => {}).finally(() => {
+      load()
+      router.replace(window.location.pathname)
+    })
+  }, [searchParams, load, router])
 
   if (loading) return <div className="text-sm text-gray-400 py-20 text-center">Loading…</div>
   if (!status) return null

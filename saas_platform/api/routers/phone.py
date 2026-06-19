@@ -8,6 +8,7 @@ from api.routers.auth import get_current_user
 from core.config import settings
 from integrations import vapi as vapi_api
 from integrations import twilio_sms, sms_ai
+import stripe
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/phone", tags=["phone"])
@@ -133,6 +134,7 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
 class SetNumberBody(BaseModel):
     existing_number: Optional[str] = None  # owner's current business number
     provision_new: bool = False            # request a new VAPI auto-assigned number
+    area_code: Optional[str] = None        # preferred area code for new number
 
 
 @router.patch("/number")
@@ -155,7 +157,7 @@ async def set_phone_number(body: SetNumberBody, current_user=Depends(_require_ow
         if not agent["vapi_assistant_id"]:
             raise HTTPException(400, "VAPI assistant not ready — please re-activate the agent")
         try:
-            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"])
+            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"], area_code=body.area_code or "")
         except Exception as e:
             raise HTTPException(502, f"VAPI number provisioning failed: {e}")
         row = await db.fetchrow(
@@ -197,6 +199,74 @@ async def sync_menu_to_agent(current_user=Depends(_require_owner), db=Depends(ge
         raise HTTPException(502, f"Failed to sync: {e}")
 
     return {"ok": True, "menu_items_synced": len(menu_items)}
+
+
+# ─── Stripe Connect (per-tenant payments) ────────────────────────────────────
+
+@router.post("/connect-stripe/start")
+async def start_stripe_connect(current_user=Depends(_require_owner), db=Depends(get_db)):
+    if not settings.stripe_secret_key:
+        raise HTTPException(503, "Stripe not configured")
+    stripe.api_key = settings.stripe_secret_key
+
+    tid = current_user["tenant_id"]
+    agent = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tid)
+    if not agent:
+        raise HTTPException(404, "Activate the phone agent before connecting Stripe")
+
+    tenant = await db.fetchrow("SELECT * FROM tenants WHERE id=$1", tid)
+
+    account_id = agent["stripe_connect_account_id"]
+    if not account_id:
+        try:
+            account = stripe.Account.create(
+                type="express",
+                email=current_user["email"],
+                business_profile={"name": tenant["name"]},
+            )
+        except Exception as e:
+            raise HTTPException(502, f"Failed to create Stripe account: {e}")
+        account_id = account.id
+        await db.execute(
+            "UPDATE phone_agents SET stripe_connect_account_id=$2, stripe_connect_status='pending' WHERE tenant_id=$1",
+            tid, account_id,
+        )
+
+    try:
+        link = stripe.AccountLink.create(
+            account=account_id,
+            type="account_onboarding",
+            return_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=return",
+            refresh_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=refresh",
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Failed to create onboarding link: {e}")
+
+    return {"url": link.url}
+
+
+@router.post("/connect-stripe/refresh")
+async def refresh_stripe_connect(current_user=Depends(_require_owner), db=Depends(get_db)):
+    if not settings.stripe_secret_key:
+        raise HTTPException(503, "Stripe not configured")
+    stripe.api_key = settings.stripe_secret_key
+
+    tid = current_user["tenant_id"]
+    agent = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tid)
+    if not agent or not agent["stripe_connect_account_id"]:
+        raise HTTPException(404, "Stripe account not connected yet")
+
+    try:
+        account = stripe.Account.retrieve(agent["stripe_connect_account_id"])
+    except Exception as e:
+        raise HTTPException(502, f"Failed to check Stripe account: {e}")
+
+    status = "active" if account.charges_enabled else "pending"
+    await db.execute(
+        "UPDATE phone_agents SET stripe_connect_status=$2 WHERE tenant_id=$1",
+        tid, status,
+    )
+    return {"status": status}
 
 
 # ─── PUT config ───────────────────────────────────────────────────────────────
