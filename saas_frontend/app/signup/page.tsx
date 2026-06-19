@@ -4,14 +4,15 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 
 const PLANS = [
-  { id: 'starter', name: 'Starter',  monthly: 49,  tag: '' },
-  { id: 'growth',  name: 'Growth',   monthly: 149, tag: 'Most Popular' },
-  { id: 'pro',     name: 'Pro',      monthly: 299, tag: '' },
+  { id: 'starter', name: 'Starter',  monthly: 49,  annual: 39,  tag: '' },
+  { id: 'growth',  name: 'Growth',   monthly: 149, annual: 119, tag: 'Most Popular' },
+  { id: 'pro',     name: 'Pro',      monthly: 299, annual: 239, tag: '' },
 ]
 
 export default function SignupPage() {
   const [step, setStep]     = useState(0)
   const [plan, setPlan]     = useState('growth')
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const [form, setForm]     = useState({ restaurant_name: '', city: '', phone: '', owner_email: '', owner_password: '', confirm: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError]   = useState('')
@@ -27,7 +28,15 @@ export default function SignupPage() {
     setLoading(true); setError('')
     try {
       const res = await api.public.signup({ restaurant_name: form.restaurant_name, owner_email: form.owner_email, owner_password: form.owner_password, phone: form.phone, city: form.city, plan })
-      setDone(res)
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const checkout = await api.billing.checkoutByPlan({
+        tenant_id: res.tenant_id,
+        plan,
+        billing_cycle: billing,
+        success_url: `${origin}${res.portal_url}?payment=success`,
+        cancel_url:  `${origin}/signup`,
+      })
+      window.location.href = checkout.checkout_url
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Signup failed') }
     finally { setLoading(false) }
   }
@@ -54,7 +63,7 @@ export default function SignupPage() {
         {/* Header */}
         <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg,rgba(22,163,74,0.2),rgba(99,102,241,0.2))', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <p className="text-white font-semibold">Get Started Free</p>
-          <p className="text-slate-400 text-xs mt-0.5">No credit card required · Cancel anytime</p>
+          <p className="text-slate-400 text-xs mt-0.5">Secure checkout via Stripe · Cancel anytime</p>
         </div>
 
         {done ? (
@@ -119,6 +128,15 @@ export default function SignupPage() {
             {step === 2 && (
               <div className="space-y-3">
                 <p className="text-slate-400 text-xs text-center">Choose your plan — upgrade or downgrade anytime</p>
+                {/* billing cycle toggle */}
+                <div className="flex items-center justify-center gap-3">
+                  <span className={`text-xs ${billing === 'monthly' ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
+                  <button type="button" onClick={() => setBilling(b => b === 'monthly' ? 'annual' : 'monthly')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${billing === 'annual' ? 'bg-green-500' : 'bg-slate-700'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${billing === 'annual' ? 'translate-x-5' : ''}`}/>
+                  </button>
+                  <span className={`text-xs ${billing === 'annual' ? 'text-white' : 'text-slate-500'}`}>Annual <span className="text-green-400 font-semibold">Save 20%</span></span>
+                </div>
                 {PLANS.map(p => (
                   <button key={p.id} onClick={() => setPlan(p.id)}
                     className={`w-full text-left rounded-xl p-3.5 border transition-all ${plan === p.id ? 'border-green-500 bg-green-500/10' : 'border-slate-700 hover:border-slate-600'}`}>
@@ -130,7 +148,7 @@ export default function SignupPage() {
                         <span className="text-white text-sm font-semibold">{p.name}</span>
                         {p.tag && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">{p.tag}</span>}
                       </div>
-                      <span className="text-white text-sm font-bold">${p.monthly}<span className="text-slate-500 font-normal text-xs">/mo</span></span>
+                      <span className="text-white text-sm font-bold">${billing === 'annual' ? p.annual : p.monthly}<span className="text-slate-500 font-normal text-xs">/mo</span></span>
                     </div>
                   </button>
                 ))}
@@ -146,7 +164,7 @@ export default function SignupPage() {
             )}
 
             {error && <p className="text-red-400 text-sm text-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
-            <p className="text-xs text-slate-600 text-center">No credit card required · Cancel anytime</p>
+            <p className="text-xs text-slate-600 text-center">Secure checkout via Stripe · Cancel anytime</p>
           </div>
         )}
       </div>

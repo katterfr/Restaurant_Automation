@@ -188,6 +188,8 @@ export interface PhoneAgent {
   total_calls: number
   last_call_at: string | null
   created_at: string
+  stripe_connect_account_id: string | null
+  stripe_connect_status: 'not_connected' | 'pending' | 'active'
 }
 
 export interface PhoneCall {
@@ -307,6 +309,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ plan }),
       }),
+    checkoutByPlan: (data: { tenant_id: number; plan: string; billing_cycle: string; success_url: string; cancel_url: string }) =>
+      request<{ checkout_url: string }>('/billing/checkout-by-plan', { method: 'POST', body: JSON.stringify(data) }),
   },
   menu: {
     list: (tenantId: number) => request<MenuItem[]>(`/menu/${tenantId}`),
@@ -424,6 +428,8 @@ export const api = {
     calls: () => request<PhoneCall[]>('/phone/calls'),
     smsSessions: () => request<SmsSession[]>('/phone/sms/sessions'),
     smsMessages: (sessionId: number) => request<{ session: SmsSession; messages: SmsMessage[] }>(`/phone/sms/sessions/${sessionId}/messages`),
+    connectStripeStart: () => request<{ url: string }>('/phone/connect-stripe/start', { method: 'POST' }),
+    connectStripeRefresh: () => request<{ status: string }>('/phone/connect-stripe/refresh', { method: 'POST' }),
   },
   public: {
     stats: () =>
@@ -433,7 +439,7 @@ export const api = {
     contact: (data: { name: string; email: string; restaurant_name?: string; phone?: string; plan_interest?: string; message: string }) =>
       request<{ ok: boolean }>('/public/contact', { method: 'POST', body: JSON.stringify(data) }),
     signup: (data: { restaurant_name: string; owner_email: string; owner_password: string; phone?: string; city?: string; plan?: string }) =>
-      request<{ ok: boolean; slug: string; portal_url: string }>('/public/signup', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ ok: boolean; tenant_id: number; slug: string; portal_url: string }>('/public/signup', { method: 'POST', body: JSON.stringify(data) }),
   },
   adminChat: {
     chat: (messages: Array<{ role: string; content: string; image?: string }>) =>

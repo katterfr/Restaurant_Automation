@@ -138,6 +138,57 @@ async def create_checkout_session(body: CheckoutRequest, db=Depends(get_db)):
     return {"checkout_url": session.url}
 
 
+class CheckoutByPlanRequest(BaseModel):
+    tenant_id: int
+    plan: str
+    billing_cycle: str  # "monthly" | "annual"
+    success_url: str
+    cancel_url: str
+
+
+@router.post("/checkout-by-plan")
+async def create_checkout_by_plan(body: CheckoutByPlanRequest, db=Depends(get_db)):
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    price_map = {
+        ("starter", "monthly"): settings.stripe_starter_monthly_price_id,
+        ("starter", "annual"):  settings.stripe_starter_annual_price_id,
+        ("growth",  "monthly"): settings.stripe_growth_monthly_price_id,
+        ("growth",  "annual"):  settings.stripe_growth_annual_price_id,
+        ("pro",     "monthly"): settings.stripe_pro_monthly_price_id,
+        ("pro",     "annual"):  settings.stripe_pro_annual_price_id,
+    }
+    price_id = price_map.get((body.plan, body.billing_cycle))
+    if not price_id:
+        raise HTTPException(status_code=400, detail=f"No price configured for {body.plan}/{body.billing_cycle}")
+
+    stripe.api_key = settings.stripe_secret_key
+
+    tenant = await db.fetchrow("SELECT * FROM tenants WHERE id = $1", body.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    customer_id = tenant["stripe_customer_id"]
+    if not customer_id:
+        customer = stripe.Customer.create(name=tenant["name"], metadata={"tenant_id": str(body.tenant_id)})
+        customer_id = customer.id
+        await db.execute(
+            "UPDATE tenants SET stripe_customer_id = $1 WHERE id = $2",
+            customer_id, body.tenant_id,
+        )
+
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        mode="subscription",
+        line_items=[{"price": price_id, "quantity": 1}],
+        success_url=body.success_url,
+        cancel_url=body.cancel_url,
+        metadata={"tenant_id": str(body.tenant_id)},
+    )
+    return {"checkout_url": session.url}
+
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db=Depends(get_db)):
     if not settings.stripe_webhook_secret:

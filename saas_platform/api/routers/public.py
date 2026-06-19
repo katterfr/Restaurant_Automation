@@ -199,4 +199,4 @@ async def public_signup(body: SignupData, db=Depends(get_db)):
 
     await provision_plan_features(tid, body.plan, db)
 
-    return {"ok": True, "slug": row["slug"], "portal_url": f"/portal/{row['slug']}/login"}
+    return {"ok": True, "tenant_id": tid, "slug": row["slug"], "portal_url": f"/portal/{row['slug']}/login"}
