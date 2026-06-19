@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     # fal.ai — AI image + video generation
     fal_api_key: Optional[str] = None
+    # Delivery platform — platform-level credentials (set once in Railway)
+    doordash_developer_id: Optional[str] = None
+    doordash_key_id: Optional[str] = None
+    doordash_signing_secret: Optional[str] = None
+    ubereats_client_id: Optional[str] = None
+    ubereats_client_secret: Optional[str] = None
 
 
 settings = Settings()

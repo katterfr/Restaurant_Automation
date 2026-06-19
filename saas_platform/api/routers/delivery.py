@@ -3,14 +3,16 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
+from integrations import doordash as doordash_api
+from integrations import ubereats as ubereats_api
 
 router = APIRouter(prefix="/delivery", tags=["delivery"])
 
 PROVIDERS: dict[str, dict] = {
-    "doordash":  {"name": "DoorDash",  "icon": "🔴", "apply_url": "https://developer.doordash.com"},
-    "ubereats":  {"name": "Uber Eats", "icon": "🟢", "apply_url": "https://developer.uber.com/docs/eats"},
-    "grubhub":   {"name": "Grubhub",   "icon": "🟠", "apply_url": "https://restaurant.grubhub.com"},
-    "instacart": {"name": "Instacart", "icon": "🟤", "apply_url": "https://partner.instacart.com"},
+    "doordash":  {"name": "DoorDash",  "verify_supported": True},
+    "ubereats":  {"name": "Uber Eats", "verify_supported": True},
+    "grubhub":   {"name": "Grubhub",   "verify_supported": False},
+    "instacart": {"name": "Instacart", "verify_supported": False},
 }
 
 
@@ -43,21 +45,29 @@ async def get_connections(current_user=Depends(_require_owner), db=Depends(get_d
     return {
         p: {
             **info,
-            "connected": existing.get(p, {}).get("status") == "connected",
-            "status":    existing.get(p, {}).get("status", "not_connected"),
-            "store_id":  existing.get(p, {}).get("store_id"),
+            "connected":        existing.get(p, {}).get("status") in ("connected", "linked"),
+            "status":           existing.get(p, {}).get("status", "not_connected"),
+            "store_id":         existing.get(p, {}).get("store_id"),
+            "platform_ready":   _platform_ready(p),
         }
         for p, info in PROVIDERS.items()
     }
 
 
+def _platform_ready(provider: str) -> bool:
+    if provider == "doordash":
+        return doordash_api.is_configured()
+    if provider == "ubereats":
+        return ubereats_api.is_configured()
+    return False
+
+
 class DeliveryConnect(BaseModel):
-    api_key: str
-    store_id: Optional[str] = None
+    store_id: str
 
 
-@router.post("/connect/{provider}", status_code=201)
-async def connect_provider(
+@router.post("/verify/{provider}")
+async def verify_provider(
     provider: str,
     body: DeliveryConnect,
     current_user=Depends(_require_owner),
@@ -67,14 +77,41 @@ async def connect_provider(
     await _check_feature(tid, db)
     if provider not in PROVIDERS:
         raise HTTPException(400, "Unknown provider")
+
+    store_id = body.store_id.strip()
+    if not store_id:
+        raise HTTPException(400, "Store ID is required")
+
+    # Platforms that support live verification
+    try:
+        if provider == "doordash":
+            await doordash_api.verify_store(store_id)
+        elif provider == "ubereats":
+            await ubereats_api.verify_store(store_id)
+        else:
+            # Grubhub / Instacart — no verification API, just store
+            await db.execute(
+                """INSERT INTO delivery_connections (tenant_id, provider, status, store_id, connected_at)
+                   VALUES ($1,$2,'linked',$3,NOW())
+                   ON CONFLICT (tenant_id, provider)
+                   DO UPDATE SET status='linked', store_id=$3, connected_at=NOW()""",
+                tid, provider, store_id,
+            )
+            return {"provider": provider, "status": "linked", "verified": False,
+                    "message": "Store ID saved. Full integration activates once partnership is approved."}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Verification failed: {e}")
+
     await db.execute(
-        """INSERT INTO delivery_connections (tenant_id, provider, status, api_key, store_id, connected_at)
-           VALUES ($1,$2,'connected',$3,$4,NOW())
+        """INSERT INTO delivery_connections (tenant_id, provider, status, store_id, connected_at)
+           VALUES ($1,$2,'connected',$3,NOW())
            ON CONFLICT (tenant_id, provider)
-           DO UPDATE SET status='connected', api_key=$3, store_id=$4, connected_at=NOW()""",
-        tid, provider, body.api_key, body.store_id,
+           DO UPDATE SET status='connected', store_id=$3, connected_at=NOW()""",
+        tid, provider, store_id,
     )
-    return {"provider": provider, "status": "connected"}
+    return {"provider": provider, "status": "connected", "verified": True}
 
 
 @router.delete("/connect/{provider}", status_code=204)

@@ -158,11 +158,11 @@ export interface AccountingSummary {
 
 export interface DeliveryProvider {
   name: string
-  icon: string
-  apply_url: string
+  verify_supported: boolean
   connected: boolean
   status: string
   store_id: string | null
+  platform_ready: boolean
 }
 
 export interface MenuItem {
@@ -392,8 +392,8 @@ export const api = {
   },
   delivery: {
     connections: () => request<Record<string, DeliveryProvider>>('/delivery/connections'),
-    connect: (provider: string, data: { api_key: string; store_id?: string }) =>
-      request(`/delivery/connect/${provider}`, { method: 'POST', body: JSON.stringify(data) }),
+    verify: (provider: string, store_id: string) =>
+      request<{ status: string; verified: boolean; message?: string }>(`/delivery/verify/${provider}`, { method: 'POST', body: JSON.stringify({ store_id }) }),
     disconnect: (provider: string) => request<void>(`/delivery/connect/${provider}`, { method: 'DELETE' }),
   },
   business: {
