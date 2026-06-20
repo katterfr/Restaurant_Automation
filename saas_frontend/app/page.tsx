@@ -115,7 +115,7 @@ function VisitorChat() {
         <div className="w-80 sm:w-96 rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ height: 480, background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }}>
           {/* header */}
           <div className="px-4 py-3 flex items-center gap-2.5 shrink-0" style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}>
-            <img src="/logo.jpg" alt="Careful-Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+            <img src="/logo.svg" alt="Careful-Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
             <div className="flex-1">
               <p className="text-white text-sm font-semibold leading-none">Alex</p>
               <p className="text-white/70 text-xs mt-0.5">Careful-Server Assistant</p>
@@ -171,7 +171,7 @@ function VisitorChat() {
         title="Chat with us">
         {open
           ? <span className="text-white text-2xl" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
-          : <img src="/logo.jpg" alt="Chat" className="w-full h-full object-cover" />
+          : <img src="/logo.svg" alt="Chat" className="w-full h-full object-cover" />
         }
       </button>
     </div>

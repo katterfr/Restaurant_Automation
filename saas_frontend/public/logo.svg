@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Green rounded background -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="#34C759"/>
+
+  <!-- Fork (left) -->
+  <g fill="white" opacity="0.92">
+    <!-- Fork handle -->
+    <rect x="330" y="540" width="36" height="200" rx="18"/>
+    <!-- Fork tines -->
+    <rect x="316" y="290" width="12" height="160" rx="6"/>
+    <rect x="336" y="290" width="12" height="160" rx="6"/>
+    <rect x="356" y="290" width="12" height="160" rx="6"/>
+    <!-- Fork neck connecting tines to handle -->
+    <rect x="316" y="440" width="52" height="28" rx="6"/>
+    <rect x="334" y="440" width="16" height="100" rx="6"/>
+  </g>
+
+  <!-- Knife (right) -->
+  <g fill="white" opacity="0.92">
+    <!-- Knife handle -->
+    <rect x="658" y="540" width="36" height="200" rx="18"/>
+    <!-- Knife blade -->
+    <path d="M658 290 Q710 350 694 450 L658 450 Z" rx="4"/>
+    <!-- Knife stem -->
+    <rect x="658" y="450" width="36" height="90" rx="4"/>
+  </g>
+
+  <!-- Plate (center) -->
+  <circle cx="512" cy="480" r="168" fill="white" opacity="0.92"/>
+  <!-- Plate inner ring -->
+  <circle cx="512" cy="480" r="136" fill="#e8f5e9" opacity="0.6"/>
+</svg>

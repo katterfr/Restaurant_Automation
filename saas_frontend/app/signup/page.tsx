@@ -49,7 +49,7 @@ export default function SignupPage() {
       {/* Logo + back link */}
       <div className="w-full max-w-md flex items-center justify-between mb-6">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.jpg" alt="Careful-Server" className="w-8 h-8 rounded-xl object-cover" />
+          <img src="/logo.svg" alt="Careful-Server" className="w-8 h-8 rounded-xl object-cover" />
           <span className="text-white text-sm font-semibold">Careful-Server</span>
         </Link>
         <Link href="/portal/login" className="text-slate-400 hover:text-white text-xs transition-colors">
