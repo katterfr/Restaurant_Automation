@@ -376,11 +376,23 @@ export const api = {
   },
   social: {
     posts: () => request<SocialPost[]>('/social/posts'),
-    create: (data: { platforms: string[]; content: string; image_url?: string; link_url?: string }) =>
+    create: (data: { platforms: string[]; content: string; image_url?: string; video_url?: string; link_url?: string; media_type?: string }) =>
       request<{ id: number; status: string; results: Record<string, { status: string; error?: string }> }>('/social/posts', {
         method: 'POST', body: JSON.stringify(data),
       }),
     delete: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
+    upload: async (file: File): Promise<{ url: string; is_video: boolean; content_type: string }> => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`${API_URL}/social/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Upload failed') }
+      return res.json()
+    },
   },
   accounting: {
     summary: () => request<AccountingSummary>('/accounting/summary'),

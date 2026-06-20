@@ -84,12 +84,17 @@ async def platform_status(current_user=Depends(_require_owner), db=Depends(get_d
 
 @router.get("/connect/{platform}/url")
 async def get_connect_url(platform: str, current_user=Depends(_require_owner)):
+    state = _sign_state(current_user["tenant_id"])
+    # TikTok content (organic posts) uses Login Kit OAuth
+    if platform == "tiktok_content":
+        if not tiktok_api.is_configured():
+            raise HTTPException(400, "TikTok credentials not configured in Railway")
+        return {"oauth_url": tiktok_api.content_oauth_url(_callback_uri(platform), state)}
     if platform not in PLATFORMS:
         raise HTTPException(404, "Unknown platform")
     mod = PLATFORMS[platform]
     if not mod.is_configured():
         raise HTTPException(400, f"{platform.title()} credentials not yet configured. Add the API keys in Railway.")
-    state = _sign_state(current_user["tenant_id"])
     return {"oauth_url": mod.oauth_start_url(_callback_uri(platform), state)}
 
 
@@ -102,6 +107,27 @@ async def oauth_callback(
     state: str = Query(...),
     db=Depends(get_db),
 ):
+    # tiktok_content uses Login Kit OAuth, not business API
+    if platform == "tiktok_content":
+        tenant_id = _parse_state(state)
+        try:
+            token_data = await tiktok_api.content_exchange_code(code, _callback_uri(platform))
+        except Exception as e:
+            raise HTTPException(400, f"TikTok content OAuth failed: {e}")
+        access_token = token_data.get("access_token", "")
+        refresh_token = token_data.get("refresh_token", "")
+        open_id = token_data.get("open_id", "")
+        await db.execute(
+            """INSERT INTO platform_connections (tenant_id, platform, access_token, refresh_token, ad_account_id)
+               VALUES ($1,$2,$3,$4,$5)
+               ON CONFLICT (tenant_id, platform)
+               DO UPDATE SET access_token=$3, refresh_token=$4, ad_account_id=$5, connected_at=NOW()""",
+            tenant_id, "tiktok_content", access_token, refresh_token, open_id,
+        )
+        tenant = await db.fetchrow("SELECT slug FROM tenants WHERE id=$1", tenant_id)
+        slug = tenant["slug"] if tenant else ""
+        return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/social?connected=tiktok")
+
     if platform not in PLATFORMS:
         raise HTTPException(404, "Unknown platform")
 
@@ -123,6 +149,15 @@ async def oauth_callback(
             accounts = await meta_api.get_ad_accounts(access_token)
             if accounts:
                 ad_account_id = accounts[0]["id"]
+            # Also store first page ID for posting
+            pages = await meta_api.get_pages(access_token)
+            if pages:
+                page = pages[0]
+                page_id = page["id"]
+                page_token = page.get("access_token", "")
+                ig_id = await meta_api.get_ig_account_id(page_token, page_id)
+                # Store page token + ig id in refresh_token/ad_account_id fields
+                refresh_token = f"{page_id}:{page_token}:{ig_id or ''}"
         except Exception as e:
             log.warning("Could not fetch Meta ad accounts: %s", e)
     elif platform == "google":

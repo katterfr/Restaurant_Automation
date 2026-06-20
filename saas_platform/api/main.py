@@ -1,8 +1,10 @@
 from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
 from db.database import init_db, close_db
@@ -55,6 +57,10 @@ app.include_router(phone.router)
 app.include_router(creative.router)
 app.include_router(public.router)
 app.include_router(admin_chat.router)
+
+_UPLOAD_DIR = Path("/tmp/uploads")
+_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOAD_DIR)), name="uploads")
 
 
 @app.get("/health")

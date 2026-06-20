@@ -5,6 +5,18 @@ import httpx
 GRAPH = "https://graph.facebook.com/v19.0"
 OAUTH = "https://www.facebook.com/v19.0/dialog/oauth"
 
+# Combined scopes covering ads + page posts + Instagram
+_SCOPES = ",".join([
+    "pages_manage_posts",
+    "pages_read_engagement",
+    "pages_show_list",
+    "instagram_basic",
+    "instagram_content_publish",
+    "business_management",
+    "ads_management",
+    "ads_read",
+])
+
 
 def is_configured() -> bool:
     return bool(os.getenv("META_APP_ID") and os.getenv("META_APP_SECRET"))
@@ -14,7 +26,7 @@ def oauth_start_url(redirect_uri: str, state: str) -> str:
     return (
         f"{OAUTH}?client_id={os.getenv('META_APP_ID')}"
         f"&redirect_uri={redirect_uri}"
-        f"&scope=ads_management,ads_read,business_management"
+        f"&scope={_SCOPES}"
         f"&state={state}&response_type=code"
     )
 
@@ -30,7 +42,6 @@ async def exchange_code(code: str, redirect_uri: str) -> dict:
         r = await c.get(f"{GRAPH}/oauth/access_token", params=params)
         r.raise_for_status()
         short = r.json()
-        # Upgrade to 60-day long-lived token
         r2 = await c.get(f"{GRAPH}/oauth/access_token", params={
             "grant_type": "fb_exchange_token",
             "client_id": os.getenv("META_APP_ID"),
@@ -38,7 +49,7 @@ async def exchange_code(code: str, redirect_uri: str) -> dict:
             "fb_exchange_token": short["access_token"],
         })
         r2.raise_for_status()
-        return r2.json()  # {access_token, token_type, expires_in}
+        return r2.json()
 
 
 async def get_ad_accounts(access_token: str) -> list[dict]:
@@ -51,12 +62,109 @@ async def get_ad_accounts(access_token: str) -> list[dict]:
         return r.json().get("data", [])
 
 
+async def get_pages(access_token: str) -> list[dict]:
+    """Return Facebook pages the user manages, each with its page access token."""
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{GRAPH}/me/accounts", params={
+            "access_token": access_token,
+            "fields": "id,name,access_token,instagram_business_account",
+        })
+        r.raise_for_status()
+        return r.json().get("data", [])
+
+
+async def get_ig_account_id(page_access_token: str, page_id: str) -> str | None:
+    """Return the Instagram business account ID linked to a Facebook page."""
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{GRAPH}/{page_id}", params={
+            "access_token": page_access_token,
+            "fields": "instagram_business_account",
+        })
+        r.raise_for_status()
+        ig = r.json().get("instagram_business_account", {})
+        return ig.get("id")
+
+
+async def create_page_post(
+    access_token: str,
+    page_id: str,
+    content: str,
+    image_url: Optional[str] = None,
+    video_url: Optional[str] = None,
+    link_url: Optional[str] = None,
+) -> str:
+    """Post to a Facebook Page. Returns the post ID."""
+    if not page_id:
+        raise ValueError("page_id is required. Re-connect your Meta account.")
+    async with httpx.AsyncClient(timeout=60) as c:
+        if video_url:
+            r = await c.post(f"{GRAPH}/{page_id}/videos", params={"access_token": access_token}, json={
+                "file_url": video_url,
+                "description": content,
+                "published": True,
+            })
+        elif image_url:
+            r = await c.post(f"{GRAPH}/{page_id}/photos", params={"access_token": access_token}, json={
+                "url": image_url,
+                "caption": content,
+                "published": True,
+            })
+        else:
+            body: dict = {"message": content, "access_token": access_token}
+            if link_url:
+                body["link"] = link_url
+            r = await c.post(f"{GRAPH}/{page_id}/feed", json=body)
+        r.raise_for_status()
+        data = r.json()
+        return data.get("post_id") or data.get("id", "")
+
+
+async def create_ig_post(
+    page_access_token: str,
+    ig_user_id: str,
+    caption: str,
+    image_url: Optional[str] = None,
+    video_url: Optional[str] = None,
+    media_type: str = "feed",  # feed | reel | story
+) -> str:
+    """Publish to Instagram via Content Publishing API. Returns media ID."""
+    if not ig_user_id:
+        raise ValueError("Instagram account not linked to Meta page. Re-connect Meta account.")
+
+    async with httpx.AsyncClient(timeout=60) as c:
+        params: dict = {"access_token": page_access_token}
+
+        if media_type == "reel":
+            container_params = {**params, "media_type": "REELS", "video_url": video_url, "caption": caption, "share_to_feed": "true"}
+        elif media_type == "story":
+            container_params = {**params, "media_type": "STORIES"}
+            if video_url:
+                container_params["video_url"] = video_url
+            else:
+                container_params["image_url"] = image_url
+        else:
+            if video_url:
+                container_params = {**params, "media_type": "VIDEO", "video_url": video_url, "caption": caption}
+            else:
+                container_params = {**params, "image_url": image_url, "caption": caption}
+
+        r = await c.post(f"{GRAPH}/{ig_user_id}/media", params=container_params)
+        r.raise_for_status()
+        creation_id = r.json()["id"]
+
+        r2 = await c.post(f"{GRAPH}/{ig_user_id}/media_publish", params={
+            **params,
+            "creation_id": creation_id,
+        })
+        r2.raise_for_status()
+        return r2.json()["id"]
+
+
 async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict) -> str:
     """Creates campaign → ad set → creative → ad. Returns Meta campaign ID."""
     token_param = {"access_token": access_token}
 
     async with httpx.AsyncClient(timeout=30) as c:
-        # 1 — Campaign
         r = await c.post(f"{GRAPH}/{ad_account_id}/campaigns", params=token_param, json={
             "name": campaign["headline"],
             "objective": "OUTCOME_AWARENESS",
@@ -66,7 +174,6 @@ async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict)
         r.raise_for_status()
         camp_id = r.json()["id"]
 
-        # 2 — Ad Set
         targeting: dict = {"age_min": 18, "age_max": 65}
         if campaign.get("location"):
             targeting["geo_locations"] = {
@@ -98,7 +205,6 @@ async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict)
         r.raise_for_status()
         adset_id = r.json()["id"]
 
-        # 3 — Creative
         link_data: dict = {
             "link": campaign.get("destination_url", ""),
             "message": campaign.get("body", ""),
@@ -122,7 +228,6 @@ async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict)
         r.raise_for_status()
         creative_id = r.json()["id"]
 
-        # 4 — Ad
         r = await c.post(f"{GRAPH}/{ad_account_id}/ads", params=token_param, json={
             "name": campaign["headline"],
             "adset_id": adset_id,
@@ -131,30 +236,3 @@ async def deploy_campaign(access_token: str, ad_account_id: str, campaign: dict)
         })
         r.raise_for_status()
         return camp_id
-
-
-async def create_page_post(
-    access_token: str,
-    page_id: str,
-    content: str,
-    image_url: Optional[str] = None,
-    link_url: Optional[str] = None,
-) -> str:
-    """Post to a Facebook Page. Returns the post ID."""
-    if not page_id:
-        raise ValueError("page_id is required for posting. Re-connect your Meta account.")
-    async with httpx.AsyncClient(timeout=30) as c:
-        if image_url and not link_url:
-            r = await c.post(f"{GRAPH}/{page_id}/photos", params={"access_token": access_token}, json={
-                "url": image_url,
-                "caption": content,
-                "published": True,
-            })
-        else:
-            body: dict = {"message": content, "access_token": access_token}
-            if link_url:
-                body["link"] = link_url
-            r = await c.post(f"{GRAPH}/{page_id}/feed", json=body)
-        r.raise_for_status()
-        data = r.json()
-        return data.get("post_id") or data.get("id", "")
