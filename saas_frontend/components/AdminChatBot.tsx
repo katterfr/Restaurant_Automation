@@ -57,9 +57,6 @@ export default function AdminChatBot() {
   useEffect(() => { if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, open])
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 100) }, [open])
 
-  // Redundant on the full-page /chat
-  if (pathname === '/chat') return null
-
   function openChat() {
     setOpen(true)
     if (msgs.length === 0) {
@@ -142,6 +139,9 @@ export default function AdminChatBot() {
       setLoading(false)
     }
   }, [input, attachment, loading, msgs, router])
+
+  // Not needed as a floating widget on the full-page /chat route
+  if (pathname === '/chat') return null
 
   const w = expanded ? 700 : 400
   const h = expanded ? 680 : 560

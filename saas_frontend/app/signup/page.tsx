@@ -69,7 +69,7 @@ export default function SignupPage() {
         {done ? (
           <div className="px-6 py-8 text-center space-y-4">
             <div className="text-5xl">🎉</div>
-            <p className="text-white text-lg font-bold">You're all set, {form.restaurant_name}!</p>
+            <p className="text-white text-lg font-bold">You&apos;re all set, {form.restaurant_name}!</p>
             <p className="text-slate-400 text-sm">Your portal is ready. Bookmark your unique link:</p>
             <div className="bg-slate-800 rounded-xl px-4 py-3 font-mono text-green-400 text-sm break-all">
               {typeof window !== 'undefined' ? window.location.origin : ''}{done.portal_url}
