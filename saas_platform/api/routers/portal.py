@@ -1,4 +1,5 @@
 from typing import Optional, Any
+import json
 import logging
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
@@ -10,6 +11,12 @@ from db.database import get_db
 from api.routers.auth import get_current_user
 from core.security import hash_password
 from core.config import settings
+from integrations import meta as meta_api
+from integrations import tiktok as tiktok_api
+from integrations import youtube as youtube_api
+from integrations import snapchat as snapchat_api
+from integrations import pinterest as pinterest_api
+from integrations import google_ads as google_api
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
@@ -279,6 +286,17 @@ _TOOLS = [
         },
     },
     {
+        "name": "get_menu",
+        "description": "Get the restaurant's current menu items to know what to promote or reference.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "available_only": {"type": "boolean", "description": "Only return currently available items"},
+                "category": {"type": "string", "description": "Filter by category"},
+            },
+        },
+    },
+    {
         "name": "add_menu_item",
         "description": "Add a new item to the restaurant's menu.",
         "input_schema": {
@@ -313,6 +331,55 @@ _TOOLS = [
                 "limit":  {"type": "integer", "description": "Max orders to return (1–10)"},
                 "status": {"type": "string",  "description": "pending | completed | cancelled"},
             },
+        },
+    },
+    {
+        "name": "get_connected_platforms",
+        "description": "Check which social media and ad platforms are currently connected for this restaurant. Always call this before posting or launching campaigns.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "create_social_post",
+        "description": "Publish a post directly to connected social media platforms (Meta/Instagram, TikTok, YouTube). Generates and posts the content autonomously.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platforms": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["meta", "tiktok_content", "youtube"]},
+                    "description": "Which platforms to post to",
+                },
+                "content": {"type": "string", "description": "The caption or post text to publish"},
+                "image_url": {"type": "string", "description": "Public URL of an image to include"},
+                "video_url": {"type": "string", "description": "Public URL of a video to include"},
+                "link_url":  {"type": "string", "description": "Optional link URL"},
+                "media_type": {
+                    "type": "string",
+                    "enum": ["feed", "reel", "story"],
+                    "description": "Post format — feed (default), reel, or story",
+                },
+            },
+            "required": ["platforms", "content"],
+        },
+    },
+    {
+        "name": "create_ad_campaign",
+        "description": "Launch a paid ad campaign on a connected advertising platform. Creates the campaign, ad group, and ad automatically.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {
+                    "type": "string",
+                    "enum": ["meta", "google", "tiktok", "snapchat", "pinterest"],
+                    "description": "Ad platform to run the campaign on",
+                },
+                "headline":        {"type": "string", "description": "Ad headline / campaign name"},
+                "body":            {"type": "string", "description": "Ad body copy"},
+                "budget_daily":    {"type": "number", "description": "Daily budget in USD (e.g. 10)"},
+                "image_url":       {"type": "string", "description": "Ad image URL"},
+                "destination_url": {"type": "string", "description": "Landing page or menu URL"},
+            },
+            "required": ["platform", "headline", "body", "budget_daily"],
         },
     },
 ]
@@ -417,8 +484,9 @@ async def portal_chat(
         *(["  - Delivery: delivery platform integrations · go to /delivery"] if "delivery" in features else []),
     ])
 
-    system_prompt = f"""You are an AI assistant embedded inside the owner portal for {tenant['name']}, \
-a restaurant using the Careful-Server management platform.
+    system_prompt = f"""You are an autonomous AI assistant inside the owner portal for {tenant['name']}, \
+a restaurant on the Careful-Server platform. You have FULL ability to take action on the owner's behalf — \
+you are not just an advisor, you are an executor. When the owner asks you to do something, DO IT using your tools.
 
 ## Restaurant
 - Name: {tenant['name']}
@@ -435,29 +503,38 @@ a restaurant using the Careful-Server management platform.
 ## Enabled Features
 {enabled_lines}
 
-## Portal Navigation (owner's menu)
+## Portal Navigation
 {nav_lines}
 
-## How to Use Key Features
-- **Add a menu item**: Orders → Menu → click "Add Item"
-- **Create an ad campaign**: Ads page → "New Campaign" → pick platforms, fill details
-- **Post to social media**: Social page → "Create Post" → pick platforms → publish
-- **Generate AI images/videos**: AI Creative page → pick style/ratio → generate
-- **Set up phone ordering**: Phone Agent page → "Activate Agent" → configure greeting
-- **Customize portal look**: Click the 🎨 Customize button in the header
+## What You Can Do Autonomously (Tools)
+- **navigate_to_page** — take owner to any portal page
+- **get_menu** — fetch menu items to know what to promote
+- **add_menu_item** — add new items to the menu
+- **toggle_menu_item** — enable/disable a menu item by name
+- **search_orders** — fetch recent orders
+- **get_connected_platforms** — check which social/ad platforms are connected
+- **create_social_post** — ACTUALLY PUBLISH a post to Meta/Instagram, TikTok, or YouTube right now
+- **create_ad_campaign** — ACTUALLY LAUNCH a paid ad campaign on Meta, Google, TikTok, Snapchat, or Pinterest
+
+## How to Handle Requests
+- "Post [X] to Instagram" → call get_connected_platforms, then create_social_post with a compelling caption you write
+- "Run an ad for [X]" → call get_connected_platforms, then create_ad_campaign with ad copy you write
+- "Add [item] to my menu" → call add_menu_item directly
+- "Show me today's orders" → call search_orders
 
 ## Your Behavior
-- Be concise and practical — answer in 2–4 sentences unless detail is needed
-- Use bullet points for lists
-- When giving navigation directions use the page names shown above
-- You know the restaurant's actual live stats listed above — refer to them naturally
-- If asked something you don't know, say so rather than guessing"""
+- **Take action immediately** — don't ask for permission to proceed on clear requests
+- Write compelling, restaurant-specific captions when posting — use the restaurant name and menu context
+- If platforms are not connected, tell the owner clearly and offer to take them to the connection page
+- Chain multiple tools when needed (e.g. get menu → write caption → post)
+- Be concise in replies — confirm what you did, not what you could do
+- Keep replies under 120 words unless listing results"""
 
     messages = _fmt_messages(body.messages)
     while messages and messages[0]["role"] != "user":
         messages.pop(0)
     if not messages:
-        return {"reply": "Hi! How can I help you?", "navigate": None, "action_result": None}
+        return {"reply": "Hi! I can post to your social media, launch ad campaigns, manage your menu, and more — all automatically. What would you like me to do?", "navigate": None, "action_result": None}
 
     _headers = {
         "x-api-key": settings.anthropic_api_key,
@@ -467,114 +544,257 @@ a restaurant using the Careful-Server management platform.
 
     navigate: Optional[str] = None
     action_result: Optional[dict] = None
+    current_messages = list(messages)
 
     try:
-        async with httpx.AsyncClient(timeout=60) as c:
-            r = await c.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=_headers,
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 1024,
-                    "system": system_prompt,
-                    "messages": messages,
-                    "tools": _TOOLS,
-                },
-            )
-            if not r.is_success:
-                log.error("Anthropic %s: %s", r.status_code, r.text)
-                return {"reply": "Sorry, I ran into an error. Please try again.", "navigate": None, "action_result": None}
+        async with httpx.AsyncClient(timeout=90) as c:
+            # ── Agentic loop — up to 6 rounds of tool use ─────────────────────
+            for _round in range(6):
+                r = await c.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=_headers,
+                    json={
+                        "model": "claude-sonnet-4-6",
+                        "max_tokens": 2048,
+                        "system": system_prompt,
+                        "messages": current_messages,
+                        "tools": _TOOLS,
+                    },
+                )
+                if not r.is_success:
+                    log.error("Anthropic %s: %s", r.status_code, r.text)
+                    return {"reply": "Sorry, I ran into an error. Please try again.", "navigate": None, "action_result": None}
 
-            resp = r.json()
-            tool_uses = [b for b in resp["content"] if b["type"] == "tool_use"]
+                resp = r.json()
+                tool_uses = [b for b in resp["content"] if b["type"] == "tool_use"]
 
-            if not tool_uses:
-                text = "\n".join(b["text"] for b in resp["content"] if b["type"] == "text")
-                return {"reply": text, "navigate": None, "action_result": None}
+                if not tool_uses:
+                    text = "\n".join(b["text"] for b in resp["content"] if b["type"] == "text")
+                    return {"reply": text, "navigate": navigate, "action_result": action_result}
 
-            # ── Execute tools ──────────────────────────────────────────────────
-            tool_results = []
-            for tu in tool_uses:
-                name   = tu["name"]
-                inp    = tu["input"]
-                tid_   = tu["id"]
-                result = ""
+                # ── Execute all tools in this round ────────────────────────────
+                tool_results = []
+                for tu in tool_uses:
+                    name  = tu["name"]
+                    inp   = tu["input"]
+                    tu_id = tu["id"]
+                    result = ""
 
-                if name == "navigate_to_page":
-                    navigate = inp.get("page", "dashboard")
-                    result = f"Navigating to {navigate}."
+                    # ── Navigation ─────────────────────────────────────────────
+                    if name == "navigate_to_page":
+                        navigate = inp.get("page", "dashboard")
+                        result = f"Navigating to {navigate}."
 
-                elif name == "add_menu_item":
-                    try:
+                    # ── Menu: get ──────────────────────────────────────────────
+                    elif name == "get_menu":
+                        q = "SELECT id,name,category,price,description,available FROM menu_items WHERE tenant_id=$1"
+                        args: list = [tid]
+                        if inp.get("available_only"):
+                            q += " AND available=TRUE"
+                        if inp.get("category"):
+                            args.append(inp["category"])
+                            q += f" AND LOWER(category)=LOWER(${len(args)})"
+                        q += " ORDER BY category,name LIMIT 50"
+                        rows = await db.fetch(q, *args)
+                        if rows:
+                            lines = [f"  - {r['name']} (${float(r['price']):.2f}, {r['category']}, {'✓' if r['available'] else '✗'})" for r in rows]
+                            result = f"Menu ({len(rows)} items):\n" + "\n".join(lines)
+                        else:
+                            result = "No menu items found."
+
+                    # ── Menu: add ──────────────────────────────────────────────
+                    elif name == "add_menu_item":
+                        try:
+                            row = await db.fetchrow(
+                                "INSERT INTO menu_items (tenant_id,name,category,price,description,available) "
+                                "VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING *",
+                                tid, inp["name"], inp.get("category", "other"),
+                                float(inp.get("price", 0)), inp.get("description"),
+                            )
+                            action_result = {"type": "menu_item_added", "item": dict(row)}
+                            result = f"Added '{row['name']}' at ${float(row['price']):.2f}."
+                        except Exception as e:
+                            result = f"Failed to add menu item: {e}"
+
+                    # ── Menu: toggle ───────────────────────────────────────────
+                    elif name == "toggle_menu_item":
+                        item_name = inp.get("name", "")
+                        avail = inp.get("available", True)
                         row = await db.fetchrow(
-                            "INSERT INTO menu_items (tenant_id,name,category,price,description,available) "
-                            "VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING *",
-                            tid, inp["name"], inp.get("category","other"),
-                            float(inp.get("price",0)), inp.get("description"),
+                            "UPDATE menu_items SET available=$1 WHERE tenant_id=$2 AND LOWER(name)=LOWER($3) RETURNING *",
+                            avail, tid, item_name,
                         )
-                        action_result = {"type": "menu_item_added", "item": dict(row)}
-                        result = f"Added '{row['name']}' at ${float(row['price']):.2f}."
-                    except Exception as e:
-                        result = f"Failed to add menu item: {e}"
+                        if row:
+                            action_result = {"type": "menu_item_toggled", "item": dict(row)}
+                            result = f"{'Enabled' if avail else 'Disabled'} '{row['name']}'."
+                        else:
+                            result = f"No menu item named '{item_name}' found."
 
-                elif name == "toggle_menu_item":
-                    item_name = inp.get("name","")
-                    avail     = inp.get("available", True)
-                    row = await db.fetchrow(
-                        "UPDATE menu_items SET available=$1 WHERE tenant_id=$2 AND LOWER(name)=LOWER($3) RETURNING *",
-                        avail, tid, item_name,
-                    )
-                    if row:
-                        action_result = {"type": "menu_item_toggled", "item": dict(row)}
-                        result = f"{'Enabled' if avail else 'Disabled'} '{row['name']}'."
-                    else:
-                        result = f"No menu item named '{item_name}' found."
+                    # ── Orders ─────────────────────────────────────────────────
+                    elif name == "search_orders":
+                        limit = min(int(inp.get("limit", 5)), 10)
+                        status = inp.get("status")
+                        if status:
+                            rows = await db.fetch(
+                                "SELECT * FROM tenant_orders WHERE tenant_id=$1 AND status=$2 ORDER BY created_at DESC LIMIT $3",
+                                tid, status, limit,
+                            )
+                        else:
+                            rows = await db.fetch(
+                                "SELECT * FROM tenant_orders WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2",
+                                tid, limit,
+                            )
+                        orders = [dict(r) for r in rows]
+                        if orders:
+                            result = f"Found {len(orders)} orders: " + "; ".join(
+                                f"#{o['id']} {o['status']} ${float(o.get('total') or 0):.2f}" for o in orders
+                            )
+                        else:
+                            result = "No orders found."
 
-                elif name == "search_orders":
-                    limit  = min(int(inp.get("limit", 5)), 10)
-                    status = inp.get("status")
-                    if status:
+                    # ── Platform connections ───────────────────────────────────
+                    elif name == "get_connected_platforms":
                         rows = await db.fetch(
-                            "SELECT * FROM tenant_orders WHERE tenant_id=$1 AND status=$2 ORDER BY created_at DESC LIMIT $3",
-                            tid, status, limit,
+                            "SELECT platform, ad_account_id, connected_at FROM platform_connections WHERE tenant_id=$1",
+                            tid,
                         )
-                    else:
-                        rows = await db.fetch(
-                            "SELECT * FROM tenant_orders WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT $2",
-                            tid, limit,
+                        if rows:
+                            lines = [f"  - {r['platform']}: connected (account: {r['ad_account_id'] or 'n/a'})" for r in rows]
+                            result = "Connected platforms:\n" + "\n".join(lines)
+                        else:
+                            result = "No platforms connected yet. Owner needs to connect them via the Ads or Social pages."
+                        action_result = {"type": "platforms", "platforms": [r["platform"] for r in rows]}
+
+                    # ── Social post ────────────────────────────────────────────
+                    elif name == "create_social_post":
+                        platforms_req = inp.get("platforms", [])
+                        content = inp.get("content", "")
+                        image_url = inp.get("image_url")
+                        video_url = inp.get("video_url")
+                        link_url = inp.get("link_url")
+                        media_type = inp.get("media_type", "feed")
+
+                        row = await db.fetchrow(
+                            "INSERT INTO social_posts (tenant_id,platforms,content,image_url,link_url,status) "
+                            "VALUES ($1,$2,$3,$4,$5,'publishing') RETURNING id",
+                            tid, json.dumps(platforms_req), content, image_url or video_url, link_url,
                         )
-                    orders = [dict(r) for r in rows]
-                    if orders:
-                        result = f"Found {len(orders)} orders: " + "; ".join(
-                            f"#{o['id']} {o['status']} ${float(o.get('total') or 0):.2f}" for o in orders
+                        post_id = row["id"]
+                        post_results: dict = {}
+
+                        for platform in platforms_req:
+                            conn = await db.fetchrow(
+                                "SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform=$2",
+                                tid, platform,
+                            )
+                            if not conn:
+                                post_results[platform] = {"status": "not_connected"}
+                                continue
+                            try:
+                                if platform == "meta":
+                                    raw = (conn.get("refresh_token") or "")
+                                    parts = raw.split(":", 2)
+                                    if len(parts) == 3:
+                                        page_id, page_token, ig_id = parts
+                                    else:
+                                        page_id = conn.get("ad_account_id", "")
+                                        page_token = conn.get("access_token", "")
+                                        ig_id = ""
+                                    if media_type in ("reel", "story") and ig_id:
+                                        pid = await meta_api.create_ig_post(page_token, ig_id, content, image_url=image_url, video_url=video_url, media_type=media_type)
+                                    elif ig_id and (image_url or video_url):
+                                        fb_pid = await meta_api.create_page_post(page_token or conn["access_token"], page_id, content, image_url, video_url, link_url)
+                                        ig_pid = await meta_api.create_ig_post(page_token, ig_id, content, image_url=image_url, video_url=video_url)
+                                        pid = f"fb:{fb_pid},ig:{ig_pid}"
+                                    else:
+                                        pid = await meta_api.create_page_post(page_token or conn["access_token"], page_id, content, image_url, video_url, link_url)
+                                elif platform == "tiktok_content":
+                                    pid = await tiktok_api.create_post(conn["access_token"], conn["ad_account_id"] or "", content, image_url=image_url, video_url=video_url)
+                                elif platform == "youtube":
+                                    pid = await youtube_api.create_post(conn["access_token"], conn["ad_account_id"] or "", content, video_url or image_url)
+                                else:
+                                    post_results[platform] = {"status": "not_supported"}
+                                    continue
+                                post_results[platform] = {"status": "published", "id": pid}
+                            except Exception as e:
+                                log.error("Chat social post failed [%s]: %s", platform, e)
+                                post_results[platform] = {"status": "failed", "error": str(e)[:200]}
+
+                        ok = [p for p, r_ in post_results.items() if r_["status"] == "published"]
+                        final_status = "published" if ok else ("partial" if post_results else "failed")
+                        await db.execute(
+                            "UPDATE social_posts SET status=$1, platform_results=$2 WHERE id=$3",
+                            final_status, json.dumps(post_results), post_id,
                         )
-                    else:
-                        result = "No orders found."
+                        action_result = {"type": "social_post", "post_id": post_id, "results": post_results}
+                        if ok:
+                            result = f"Posted to {', '.join(ok)}. Post ID: {post_id}."
+                            not_ok = [p for p in platforms_req if p not in ok]
+                            if not_ok:
+                                result += f" Failed: {', '.join(not_ok)}."
+                        else:
+                            errors = {p: v.get("error", v.get("status")) for p, v in post_results.items()}
+                            result = f"Post failed on all platforms. Details: {errors}"
 
-                tool_results.append({"type": "tool_result", "tool_use_id": tid_, "content": result})
+                    # ── Ad campaign ────────────────────────────────────────────
+                    elif name == "create_ad_campaign":
+                        platform = inp.get("platform", "")
+                        headline = inp.get("headline", "")
+                        body_text = inp.get("body", "")
+                        budget = float(inp.get("budget_daily", 10))
+                        image_url = inp.get("image_url")
+                        destination_url = inp.get("destination_url", "")
 
-            # ── Second call with tool results ──────────────────────────────────
-            messages2 = messages + [
-                {"role": "assistant", "content": resp["content"]},
-                {"role": "user",      "content": tool_results},
-            ]
-            r2 = await c.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=_headers,
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 400,
-                    "system": system_prompt,
-                    "messages": messages2,
-                    "tools": _TOOLS,
-                },
-            )
-            if not r2.is_success:
-                log.error("Anthropic (2nd) %s: %s", r2.status_code, r2.text)
-                return {"reply": "Action completed.", "navigate": navigate, "action_result": action_result}
+                        conn = await db.fetchrow(
+                            "SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform=$2",
+                            tid, platform,
+                        )
+                        if not conn:
+                            result = f"{platform} is not connected. Owner needs to connect it in the Ads page first."
+                        else:
+                            campaign = {
+                                "headline": headline,
+                                "body": body_text,
+                                "budget_daily": budget,
+                                "image_url": image_url,
+                                "destination_url": destination_url,
+                            }
+                            try:
+                                if platform == "meta":
+                                    camp_id = await meta_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "google":
+                                    camp_id = await google_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "tiktok":
+                                    camp_id = await tiktok_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "snapchat":
+                                    camp_id = await snapchat_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "pinterest":
+                                    camp_id = await pinterest_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                else:
+                                    camp_id = None
 
-            final = "\n".join(b["text"] for b in r2.json()["content"] if b["type"] == "text")
-            return {"reply": final, "navigate": navigate, "action_result": action_result}
+                                if camp_id:
+                                    await db.execute(
+                                        "INSERT INTO ad_campaigns (tenant_id,platform,status,headline,body,image_url,destination_url,cta,budget_daily,location,radius_miles,start_date,end_date,error_message,platform_campaign_id) "
+                                        "VALUES ($1,$2,'active',$3,$4,$5,$6,'LEARN_MORE',$7,NULL,10,NULL,NULL,NULL,$8)",
+                                        tid, platform, headline, body_text, image_url, destination_url, budget, str(camp_id),
+                                    )
+                                    action_result = {"type": "ad_campaign", "platform": platform, "campaign_id": camp_id}
+                                    result = f"Launched {platform} campaign '{headline}' at ${budget}/day. Campaign ID: {camp_id}."
+                                else:
+                                    result = f"Campaign creation returned no ID for {platform}."
+                            except Exception as e:
+                                log.error("Chat ad campaign failed [%s]: %s", platform, e)
+                                result = f"Campaign launch failed on {platform}: {str(e)[:300]}"
+
+                    tool_results.append({"type": "tool_result", "tool_use_id": tu_id, "content": result})
+
+                # ── Append this round and continue ─────────────────────────────
+                current_messages.append({"role": "assistant", "content": resp["content"]})
+                current_messages.append({"role": "user", "content": tool_results})
+
+            # Fallback after max rounds
+            return {"reply": "I've completed the requested actions.", "navigate": navigate, "action_result": action_result}
 
     except Exception as e:
         log.error("Portal chat error: %s", e)

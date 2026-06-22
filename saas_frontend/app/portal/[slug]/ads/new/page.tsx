@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api, PlatformStatus } from '@/lib/api'
@@ -42,6 +42,9 @@ export default function NewCampaignPage() {
   const [submitting, setSubmitting] = useState(false)
   const [results, setResults] = useState<Array<{ platform: string; status: string; error?: string }> | null>(null)
   const [error, setError] = useState('')
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imagePreview, setImagePreview] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api.ads.status().then(setPlatformStatus).catch(() => {})
@@ -85,6 +88,27 @@ export default function NewCampaignPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  async function handleImageFile(file: File) {
+    if (!file.type.startsWith('image/')) return
+    setImagePreview(URL.createObjectURL(file))
+    setImageUploading(true)
+    try {
+      const { url } = await api.social.upload(file)
+      set('image_url', url)
+    } catch {
+      setError('Image upload failed. Try pasting a URL instead.')
+      setImagePreview('')
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  function handleImageDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file) handleImageFile(file)
   }
 
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent'
@@ -204,8 +228,62 @@ export default function NewCampaignPage() {
             <textarea required value={form.body} onChange={e => set('body', e.target.value)} className={`${inputCls} resize-none`} rows={3} placeholder="Order your favourite dishes online or visit us today. Fresh ingredients, great taste." maxLength={500} />
           </div>
           <div>
-            <label className={labelCls}>Image URL <span className="text-gray-400 font-normal">(optional but recommended)</span></label>
-            <input type="url" value={form.image_url} onChange={e => set('image_url', e.target.value)} className={inputCls} placeholder="https://yoursite.com/promo.jpg" />
+            <label className={labelCls}>Ad Image <span className="text-gray-400 font-normal">(optional but recommended)</span></label>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = '' }} />
+
+            {/* Upload area */}
+            {!imagePreview ? (
+              <div
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={handleImageDrop}
+                className="border-2 border-dashed border-gray-300 hover:border-green-400 rounded-xl p-6 text-center cursor-pointer transition-colors group"
+              >
+                <svg className="w-8 h-8 text-gray-300 group-hover:text-green-400 mx-auto mb-2 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 9.75h18M3 7.5h18M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <p className="text-sm text-gray-500 group-hover:text-gray-700">Click to upload or drag & drop</p>
+                <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP</p>
+              </div>
+            ) : (
+              <div className="relative rounded-xl overflow-hidden border border-gray-200">
+                <img src={imagePreview} alt="Ad preview" className="w-full max-h-52 object-cover" />
+                {imageUploading && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="flex items-center gap-2 text-white text-sm">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      Uploading…
+                    </div>
+                  </div>
+                )}
+                {!imageUploading && (
+                  <button
+                    type="button"
+                    onClick={() => { setImagePreview(''); set('image_url', '') }}
+                    className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white text-xs transition-colors"
+                  >✕</button>
+                )}
+                {!imageUploading && form.image_url && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5">
+                    <p className="text-xs text-green-400">✓ Uploaded — ready to use</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* URL fallback */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs text-gray-400">or paste a URL</span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+            <input
+              type="url"
+              value={imagePreview ? '' : form.image_url}
+              onChange={e => { set('image_url', e.target.value); setImagePreview('') }}
+              className={`${inputCls} mt-2`}
+              placeholder="https://yoursite.com/promo.jpg"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

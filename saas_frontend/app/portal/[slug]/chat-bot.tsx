@@ -20,10 +20,10 @@ const EXP_W  = 680
 const EXP_H  = 680
 
 const SUGGESTIONS = [
+  "Post about today's special to Instagram",
+  "Run a $10/day ad on Meta for our lunch menu",
   "How are my sales today?",
-  "Take me to my orders",
   "Add a menu item for me",
-  "What features do I have?",
 ]
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)) }
@@ -124,7 +124,7 @@ export default function ChatBot({ accent }: { accent: string }) {
     if (moved.current) return
     setMode('chat')
     if (msgs.length === 0) {
-      setMsgs([{ role: 'assistant', content: "Hi! I'm your AI assistant. I can answer questions, navigate your portal, add menu items, search orders, and more. You can also paste or upload images for me to analyze. What can I do for you?" }])
+      setMsgs([{ role: 'assistant', content: "Hi! I'm your AI assistant — I can take action for you, not just give advice.\n\nI can post to your social media, launch ad campaigns, manage your menu, and search your orders — all automatically while you focus on other things. What would you like me to do?" }])
     }
   }
 
@@ -243,15 +243,34 @@ export default function ChatBot({ accent }: { accent: string }) {
                       {m.content}
                     </div>
                   )}
-                  {/* Action result badge */}
+                  {/* Action result badges */}
                   {m.action_result?.type === 'menu_item_added' && (
                     <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5">
-                      ✓ Menu item added successfully
+                      ✓ Menu item added
                     </div>
                   )}
                   {m.action_result?.type === 'menu_item_toggled' && (
                     <div className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2.5 py-1.5">
                       ✓ Menu item updated
+                    </div>
+                  )}
+                  {m.action_result?.type === 'social_post' && (
+                    <div className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2.5 py-1.5">
+                      {Object.entries((m.action_result.results as Record<string, {status: string}>) ?? {})
+                        .filter(([, v]) => v.status === 'published')
+                        .length > 0
+                        ? `✓ Posted to ${Object.entries((m.action_result.results as Record<string, {status: string}>) ?? {}).filter(([, v]) => v.status === 'published').map(([p]) => p).join(', ')}`
+                        : '✗ Post failed — check platform connection'}
+                    </div>
+                  )}
+                  {m.action_result?.type === 'ad_campaign' && (
+                    <div className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-2.5 py-1.5">
+                      ✓ Campaign launched on {String(m.action_result.platform)}
+                    </div>
+                  )}
+                  {m.action_result?.type === 'platforms' && (
+                    <div className="text-xs text-slate-400 bg-slate-700/40 border border-slate-600/30 rounded-lg px-2.5 py-1.5">
+                      Connected: {(m.action_result.platforms as string[]).join(', ') || 'none'}
                     </div>
                   )}
                   {/* Navigate badge */}
@@ -264,14 +283,19 @@ export default function ChatBot({ accent }: { accent: string }) {
               </div>
             ))}
 
-            {/* Typing indicator */}
+            {/* Working indicator */}
             {loading && (
               <div className="flex justify-start items-end gap-2">
-                <div className="w-6 h-6 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-                <div className="bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1">
-                  {[0,150,300].map(d => (
-                    <span key={d} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay:`${d}ms` }}/>
-                  ))}
+                <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center" style={{ backgroundColor: accent }}>
+                  <svg viewBox="0 0 24 24" fill="white" className="w-3.5 h-3.5"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l4.93-1.37A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                </div>
+                <div className="bg-slate-800 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[0,150,300].map(d => (
+                      <span key={d} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay:`${d}ms` }}/>
+                    ))}
+                  </div>
+                  <span className="text-xs text-slate-500 animate-pulse">Working on it…</span>
                 </div>
               </div>
             )}
@@ -336,7 +360,7 @@ export default function ChatBot({ accent }: { accent: string }) {
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 rotate-90"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-1.5 text-center">Paste images · attach files · give commands</p>
+            <p className="text-xs text-slate-600 mt-1.5 text-center">Post to social · launch ads · manage menu · attach images</p>
           </div>
         </div>
       )}
