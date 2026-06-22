@@ -63,6 +63,89 @@ export async function login(email: string, password: string): Promise<{ access_t
   return data
 }
 
+export const authApi = {
+  async googleLogin(id_token: string) {
+    const res = await fetch(`${API_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Google login failed')
+    return data as { access_token: string; token_type: string } | { status: 'not_linked'; google_email: string; google_name: string; google_id: string }
+  },
+  async googleLink(id_token: string, email: string, password: string) {
+    const res = await fetch(`${API_URL}/auth/google/link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token, email, password }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Linking failed')
+    return data as { access_token: string }
+  },
+  async sendPhoneOtp(phone: string) {
+    const res = await fetch(`${API_URL}/auth/phone/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Failed to send code')
+    return data as { sent: boolean; phone: string; linked: boolean }
+  },
+  async verifyPhoneOtp(phone: string, otp: string) {
+    const res = await fetch(`${API_URL}/auth/phone/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otp }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Invalid code')
+    return data as { access_token: string; token_type: string } | { status: 'not_linked'; phone: string }
+  },
+  async phoneLink(phone: string, otp: string, email: string, password: string) {
+    const res = await fetch(`${API_URL}/auth/phone/link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otp, email, password }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Linking failed')
+    return data as { access_token: string }
+  },
+  async forgotPassword(email_or_phone: string, slug = '') {
+    const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_or_phone, slug }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Request failed')
+    return data as { sent: boolean; method: string }
+  },
+  async resetPassword(token: string, new_password: string) {
+    const res = await fetch(`${API_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, new_password }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Reset failed')
+    return data
+  },
+  async resetPasswordSms(phone: string, otp: string, new_password: string) {
+    const res = await fetch(`${API_URL}/auth/reset-password/sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otp, new_password }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || 'Reset failed')
+    return data
+  },
+}
+
 export interface Tenant {
   id: number
   name: string

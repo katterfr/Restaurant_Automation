@@ -328,6 +328,42 @@ async def init_db():
         await conn.execute(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT NOT NULL DEFAULT '[]'"
         )
+        await conn.execute(
+            "ALTER TABLE phone_agents ADD COLUMN IF NOT EXISTS stripe_connect_account_id TEXT"
+        )
+        await conn.execute(
+            "ALTER TABLE phone_agents ADD COLUMN IF NOT EXISTS stripe_connect_status TEXT NOT NULL DEFAULT 'not_connected'"
+        )
+        # Auth enhancements: social login, phone, email verification
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT")
+        try:
+            await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_idx ON users(google_id) WHERE google_id IS NOT NULL")
+        except Exception:
+            pass
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_tokens (
+                id         SERIAL PRIMARY KEY,
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token      TEXT NOT NULL UNIQUE,
+                type       VARCHAR(30) NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used       BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS phone_otps (
+                id         SERIAL PRIMARY KEY,
+                phone      TEXT NOT NULL,
+                otp        VARCHAR(6) NOT NULL,
+                user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                expires_at TIMESTAMP NOT NULL,
+                used       BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """)
 
         admin_email = os.getenv("ADMIN_EMAIL", "admin@restaurant.com")
         admin_password = os.getenv("ADMIN_PASSWORD", "admin1234")
