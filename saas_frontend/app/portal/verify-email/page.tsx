@@ -1,9 +1,28 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12">
+        <div className="w-full max-w-sm px-4 text-center">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Verifying your email…</h1>
+          <div className="flex justify-center gap-1.5 mt-4">
+            {[0,150,300].map(d => (
+              <div key={d} className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
+  )
+}
+
+function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
 
