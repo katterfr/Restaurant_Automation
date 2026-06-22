@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login, authApi, api } from '@/lib/api'
@@ -20,7 +20,7 @@ declare global {
 
 type Modal = null | 'phone' | 'otp' | 'link-google' | 'link-phone'
 
-export default function PortalLoginPage() {
+function PortalLoginInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const googleBtnRef = useRef<HTMLDivElement>(null)
@@ -302,6 +302,14 @@ export default function PortalLoginPage() {
         </ModalShell>
       )}
     </div>
+  )
+}
+
+export default function PortalLoginPage() {
+  return (
+    <Suspense>
+      <PortalLoginInner />
+    </Suspense>
   )
 }
 

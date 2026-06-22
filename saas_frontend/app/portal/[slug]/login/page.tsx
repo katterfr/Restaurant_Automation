@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { login, authApi } from '@/lib/api'
@@ -21,7 +21,7 @@ declare global {
 
 type Modal = null | 'phone' | 'otp' | 'link-google' | 'link-phone'
 
-export default function SlugLoginPage() {
+function SlugLoginInner() {
   const params = useParams<{ slug: string }>()
   const slug = params?.slug ?? ''
   const router = useRouter()
@@ -302,6 +302,14 @@ export default function SlugLoginPage() {
         </ModalShell>
       )}
     </div>
+  )
+}
+
+export default function SlugLoginPage() {
+  return (
+    <Suspense>
+      <SlugLoginInner />
+    </Suspense>
   )
 }
 
