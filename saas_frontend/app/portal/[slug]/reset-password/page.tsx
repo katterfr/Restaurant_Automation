@@ -1,10 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { authApi } from '@/lib/api'
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const params = useParams<{ slug: string }>()
   const slug = params?.slug ?? ''
   const searchParams = useSearchParams()
@@ -120,3 +120,19 @@ export default function ResetPasswordPage() {
     </div>
   )
 }
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12">
+        <div className="w-full max-w-sm px-4 text-center">
+          <div className="h-7 bg-gray-200 rounded animate-pulse w-48 mx-auto mb-2" />
+          <div className="h-4 bg-gray-100 rounded animate-pulse w-40 mx-auto" />
+        </div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
+  )
+}
+
