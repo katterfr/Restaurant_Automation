@@ -165,35 +165,8 @@ function PortalLoginInner() {
           </div>
         )}
 
-        {/* Social sign-in */}
-        <div className="space-y-3 mb-5">
-          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-            <div ref={googleBtnRef} className="w-full" style={{ minHeight: 44 }} />
-          ) : (
-            <button disabled className={`${socialBtn} opacity-40 cursor-not-allowed`}>
-              <GoogleIcon /> Continue with Google
-            </button>
-          )}
-          <button onClick={() => { setModal('phone'); setError('') }} className={socialBtn}>
-            <PhoneIcon /> Continue with phone
-          </button>
-          <button
-            onClick={() => setError('Apple Sign-In requires Apple Developer configuration.')}
-            className={socialBtn}
-          >
-            <AppleIcon /> Continue with Apple
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or sign in with email</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
-
-        {/* Email / password form — always visible */}
-        <form onSubmit={handleEmailLogin} className="space-y-4">
+        {/* Email / password form */}
+        <form onSubmit={handleEmailLogin} className="space-y-4 mb-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
             <input
@@ -218,6 +191,33 @@ function PortalLoginInner() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or continue with</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        {/* Social sign-in */}
+        <div className="space-y-3">
+          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
+            <div ref={googleBtnRef} className="w-full" style={{ minHeight: 44 }} />
+          ) : (
+            <button disabled className={`${socialBtn} opacity-40 cursor-not-allowed`}>
+              <GoogleIcon /> Continue with Google
+            </button>
+          )}
+          <button onClick={() => { setModal('phone'); setError('') }} className={socialBtn}>
+            <PhoneIcon /> Continue with phone
+          </button>
+          <button
+            onClick={() => setError('Apple Sign-In requires Apple Developer configuration.')}
+            className={socialBtn}
+          >
+            <AppleIcon /> Continue with Apple
+          </button>
+        </div>
 
         <p className="text-center text-xs text-gray-300 mt-8">Powered by Careful Server</p>
       </div>
