@@ -211,12 +211,6 @@ function SlugLoginInner() {
           <button onClick={() => { setModal('phone'); setError('') }} className={socialBtn}>
             <PhoneIcon /> Continue with phone
           </button>
-          <button
-            onClick={() => setError('Apple Sign-In requires Apple Developer configuration.')}
-            className={socialBtn}
-          >
-            <AppleIcon /> Continue with Apple
-          </button>
         </div>
 
         <p className="text-center text-xs text-gray-300 mt-8">Powered by Careful Server</p>
