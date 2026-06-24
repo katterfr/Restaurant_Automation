@@ -69,10 +69,11 @@ const PLANS = [
     features:['Everything in Growth','AI Phone Agent 24/7','Voice ↔ Text Bridge','Accounting & Bookkeeping','Priority Support','Custom Onboarding'] },
 ]
 
-const TESTIMONIALS = [
-  { quote: 'The AI phone agent alone paid for itself in the first week. We stopped missing after-hours orders completely.', name: 'Carlos M.', place: 'The Taqueria, Austin TX', stars: 5 },
-  { quote: 'Managing ads across 5 platforms used to take hours every day. Now it\'s 10 minutes, and our ROAS doubled.', name: 'Sarah K.', place: 'Urban Bites, Chicago IL', stars: 5 },
-  { quote: 'Our online presence exploded after connecting Google Maps and running AI-generated ad creatives. Revenue up 34%.', name: 'James T.', place: 'Harbor Grill, Miami FL', stars: 5 },
+type LiveTestimonial = { restaurant_name: string; owner_name: string; star_rating: number; comment: string }
+const FALLBACK_TESTIMONIALS: LiveTestimonial[] = [
+  { comment: 'The AI phone agent alone paid for itself in the first week. We stopped missing after-hours orders completely.', owner_name: 'Carlos M.', restaurant_name: 'The Taqueria, Austin TX', star_rating: 5 },
+  { comment: 'Managing ads across 5 platforms used to take hours every day. Now it\'s 10 minutes, and our ROAS doubled.', owner_name: 'Sarah K.', restaurant_name: 'Urban Bites, Chicago IL', star_rating: 5 },
+  { comment: 'Our online presence exploded after connecting Google Maps and running AI-generated ad creatives. Revenue up 34%.', owner_name: 'James T.', restaurant_name: 'Harbor Grill, Miami FL', star_rating: 5 },
 ]
 
 const STEPS = [
@@ -326,8 +327,12 @@ export default function MarketingPage() {
   }, [])
 
   const [publicStats, setPublicStats] = useState<{ restaurant_count: number; order_count: number } | null>(null)
+  const [testimonials, setTestimonials] = useState<LiveTestimonial[]>(FALLBACK_TESTIMONIALS)
   useEffect(() => {
     api.public.stats().then(setPublicStats).catch(() => {})
+    api.public.testimonials().then(data => {
+      if (data && data.length >= 3) setTestimonials(data as LiveTestimonial[])
+    }).catch(() => {})
   }, [])
 
   const restaurantTarget = publicStats?.restaurant_count ?? 0
@@ -672,13 +677,13 @@ export default function MarketingPage() {
             <h2 className="text-4xl font-extrabold text-white mt-3">What Restaurant Owners Say</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map(t => (
-              <div key={t.name} className="glass-card rounded-2xl p-6 space-y-4">
-                <div className="flex gap-0.5">{Array.from({length:t.stars}).map((_,i) => <span key={i} className="text-yellow-400">★</span>)}</div>
-                <p className="text-slate-300 text-sm leading-relaxed">"{t.quote}"</p>
+            {testimonials.slice(0, 6).map((t, idx) => (
+              <div key={idx} className="glass-card rounded-2xl p-6 space-y-4">
+                <div className="flex gap-0.5">{Array.from({length: t.star_rating}).map((_,i) => <span key={i} className="text-yellow-400">★</span>)}</div>
+                <p className="text-slate-300 text-sm leading-relaxed">&quot;{t.comment}&quot;</p>
                 <div>
-                  <p className="text-white font-semibold text-sm">{t.name}</p>
-                  <p className="text-slate-500 text-xs">{t.place}</p>
+                  <p className="text-white font-semibold text-sm">{t.owner_name}</p>
+                  <p className="text-slate-500 text-xs">{t.restaurant_name}</p>
                 </div>
               </div>
             ))}

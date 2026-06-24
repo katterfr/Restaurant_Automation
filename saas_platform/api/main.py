@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
 from db.database import init_db, close_db
-from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat
+from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,6 +57,7 @@ app.include_router(phone.router)
 app.include_router(creative.router)
 app.include_router(public.router)
 app.include_router(admin_chat.router)
+app.include_router(feedback.router)
 
 _UPLOAD_DIR = Path("/tmp/uploads")
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

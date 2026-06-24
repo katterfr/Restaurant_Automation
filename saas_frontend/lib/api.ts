@@ -535,6 +535,7 @@ export const api = {
       request<{ ok: boolean }>('/public/contact', { method: 'POST', body: JSON.stringify(data) }),
     signup: (data: { restaurant_name: string; owner_email: string; owner_password: string; phone?: string; city?: string; plan?: string }) =>
       request<{ ok: boolean; tenant_id: number; slug: string; portal_url: string }>('/public/signup', { method: 'POST', body: JSON.stringify(data) }),
+    testimonials: () => request<Testimonial[]>('/public/testimonials'),
   },
   adminChat: {
     chat: (messages: Array<{ role: string; content: string; image?: string }>) =>
@@ -545,6 +546,16 @@ export const api = {
     toggle: (tenantId: number, feature: string) =>
       request<{ feature: string; enabled: boolean }>(`/features/${tenantId}/${feature}`, { method: 'POST' }),
     list: () => request<Record<string, string>>('/features/list'),
+  },
+  feedback: {
+    submit: (data: { q1_overall?: boolean; q2_easy_to_use?: boolean; q3_effective?: boolean; star_rating: number; comment?: string; owner_name?: string }) =>
+      request<{ id: number; status: string }>('/portal/feedback', { method: 'POST', body: JSON.stringify(data) }),
+    mine: () => request<Testimonial[]>('/portal/feedback/mine'),
+  },
+  adminFeedback: {
+    list: (status?: string) => request<Testimonial[]>(`/admin/feedback${status ? `?status=${status}` : ''}`),
+    approve: (id: number) => request<{ id: number; status: string }>(`/admin/feedback/${id}/approve`, { method: 'PATCH' }),
+    reject: (id: number) => request<{ id: number; status: string }>(`/admin/feedback/${id}/reject`, { method: 'PATCH' }),
   },
   team: {
     list: (tenantId: number) => request<TeamMember[]>(`/portal/tenants/${tenantId}/team`),
@@ -561,6 +572,21 @@ export const api = {
         method: 'PATCH', body: JSON.stringify({ new_password: newPassword }),
       }),
   },
+}
+
+export interface Testimonial {
+  id: number
+  tenant_id: number
+  restaurant_name: string
+  owner_name: string
+  q1_overall: boolean | null
+  q2_easy_to_use: boolean | null
+  q3_effective: boolean | null
+  star_rating: number
+  comment: string | null
+  status: string
+  created_at: string
+  approved_at: string | null
 }
 
 export interface TeamMember {

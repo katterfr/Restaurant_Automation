@@ -354,6 +354,22 @@ async def init_db():
             )
         """)
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_feedback (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                restaurant_name TEXT NOT NULL DEFAULT '',
+                owner_name      TEXT NOT NULL DEFAULT '',
+                q1_overall      BOOLEAN,
+                q2_easy_to_use  BOOLEAN,
+                q3_effective    BOOLEAN,
+                star_rating     INTEGER NOT NULL DEFAULT 5,
+                comment         TEXT,
+                status          VARCHAR(20) NOT NULL DEFAULT 'pending',
+                created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                approved_at     TIMESTAMP
+            )
+        """)
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS phone_otps (
                 id         SERIAL PRIMARY KEY,
                 phone      TEXT NOT NULL,

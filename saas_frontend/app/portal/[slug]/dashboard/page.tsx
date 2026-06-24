@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { api, PortalDashboard, Order, PlatformStatus } from '@/lib/api'
 import { useCustomization } from '../tenant-context'
 import TourOverlay, { TourStep } from '../tour'
+import FeedbackModal from '../feedback-modal'
 import Link from 'next/link'
 import { BarChart, LineChart, DonutChart } from '@/app/components/charts'
 
@@ -219,6 +220,13 @@ export default function SlugDashboardPage() {
 
   return (
     <>
+      {data && (
+        <FeedbackModal
+          tenantId={data.tenant.id}
+          restaurantName={data.tenant.name}
+          accentColor={customization.accent_color}
+        />
+      )}
       {showTour && (
         <TourOverlay
           steps={TOUR_STEPS.filter(s => {
