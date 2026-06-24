@@ -12,6 +12,7 @@ declare global {
         id: {
           initialize: (cfg: object) => void
           renderButton: (el: HTMLElement, cfg: object) => void
+          prompt: () => void
         }
       }
     }
