@@ -81,7 +81,7 @@ export default function FeedbackModal({ tenantId, restaurantName, accentColor = 
             <div className="text-center py-6 space-y-3">
               <div className="text-5xl">🎉</div>
               <p className="text-white font-bold text-lg">Thank you!</p>
-              <p className="text-slate-400 text-sm">Your feedback has been submitted for review. Once approved it may appear on our website.</p>
+              <p className="text-slate-400 text-sm">Your feedback has been submitted.</p>
               <button onClick={() => setShow(false)}
                 className="mt-2 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition-opacity hover:opacity-90"
                 style={{ background: `linear-gradient(135deg,${accentColor},#22c55e)` }}>
