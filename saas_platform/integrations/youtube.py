@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 import httpx
 
 OAUTH = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -27,13 +28,16 @@ def is_configured() -> bool:
 
 
 def oauth_start_url(redirect_uri: str, state: str) -> str:
-    return (
-        f"{OAUTH}?client_id={_client_id()}"
-        f"&redirect_uri={redirect_uri}"
-        f"&response_type=code"
-        f"&scope={SCOPES}"
-        f"&state={state}&access_type=offline&prompt=consent"
-    )
+    params = urlencode({
+        "client_id": _client_id(),
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": SCOPES,
+        "state": state,
+        "access_type": "offline",
+        "prompt": "consent",
+    })
+    return f"{OAUTH}?{params}"
 
 
 async def exchange_code(code: str, redirect_uri: str) -> dict:
