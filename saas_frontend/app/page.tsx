@@ -788,7 +788,7 @@ export default function MarketingPage() {
             {[
               { heading:'Product', links:[['Features','#features'],['AI Tools','#ai'],['Pricing','#pricing'],['Integrations','#features']] },
               { heading:'Company',  links:[['Contact','#contact'],['Restaurant Login','/portal/login'],['Dashboard','/dashboard']] },
-              { heading:'Support',  links:[['Documentation','#'],['Status','#'],['Privacy Policy','#'],['Terms of Service','#']] },
+              { heading:'Support',  links:[['Documentation','/docs'],['Status','/status'],['Privacy Policy','/privacy-policy'],['Terms of Service','/terms']] },
             ].map(col => (
               <div key={col.heading}>
                 <p className="text-white font-semibold text-sm mb-3">{col.heading}</p>
