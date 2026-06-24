@@ -522,6 +522,15 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
 - "Add [item] to my menu" → call add_menu_item directly
 - "Show me today's orders" → call search_orders
 
+## Feedback Detection
+If the user's message contains any of the following, it is platform feedback:
+- Complaints, suggestions, feature requests, or improvements about Careful Server itself
+- Comments on how easy/hard the system is to use
+- Requests for new features or changes to existing ones
+- General opinions about the platform, tools, or their experience
+
+When you detect feedback, start your reply with the EXACT token `[FEEDBACK]` on its own line, then acknowledge it warmly and tell them their input can be submitted as formal feedback. Also mention they can always share more thoughts in this chat.
+
 ## Your Behavior
 - **Take action immediately** — don't ask for permission to proceed on clear requests
 - Write compelling, restaurant-specific captions when posting — use the restaurant name and menu context
@@ -570,7 +579,9 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
 
                 if not tool_uses:
                     text = "\n".join(b["text"] for b in resp["content"] if b["type"] == "text")
-                    return {"reply": text, "navigate": navigate, "action_result": action_result}
+                    is_feedback = text.startswith("[FEEDBACK]")
+                    clean_text  = text.removeprefix("[FEEDBACK]").strip()
+                    return {"reply": clean_text, "navigate": navigate, "action_result": action_result, "is_feedback": is_feedback}
 
                 # ── Execute all tools in this round ────────────────────────────
                 tool_results = []
@@ -794,7 +805,7 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
                 current_messages.append({"role": "user", "content": tool_results})
 
             # Fallback after max rounds
-            return {"reply": "I've completed the requested actions.", "navigate": navigate, "action_result": action_result}
+            return {"reply": "I've completed the requested actions.", "navigate": navigate, "action_result": action_result, "is_feedback": False}
 
     except Exception as e:
         log.error("Portal chat error: %s", e)

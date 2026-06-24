@@ -455,7 +455,7 @@ export const api = {
     saveCustomization: (data: Partial<TenantCustomization>) =>
       request<TenantCustomization>('/portal/customization', { method: 'PUT', body: JSON.stringify(data) }),
     chat: (messages: Array<{ role: string; content: string; image?: string }>) =>
-      request<{ reply: string; navigate: string | null; action_result: Record<string, unknown> | null }>('/portal/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
+      request<{ reply: string; navigate: string | null; action_result: Record<string, unknown> | null; is_feedback?: boolean }>('/portal/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
   },
   social: {
     posts: () => request<SocialPost[]>('/social/posts'),
@@ -548,14 +548,20 @@ export const api = {
     list: () => request<Record<string, string>>('/features/list'),
   },
   feedback: {
-    submit: (data: { q1_overall?: boolean; q2_easy_to_use?: boolean; q3_effective?: boolean; star_rating: number; comment?: string; owner_name?: string }) =>
+    submit: (data: { q1?: boolean; q2?: boolean; q3?: boolean; star_rating: number; comment?: string; owner_name?: string; user_role?: string }) =>
       request<{ id: number; status: string }>('/portal/feedback', { method: 'POST', body: JSON.stringify(data) }),
     mine: () => request<Testimonial[]>('/portal/feedback/mine'),
+    logInteraction: (data: { action: string; page?: string; metadata?: Record<string, unknown> }) =>
+      request<{ ok: boolean }>('/portal/interaction', { method: 'POST', body: JSON.stringify(data) }).catch(() => ({ ok: false })),
   },
   adminFeedback: {
     list: (status?: string) => request<Testimonial[]>(`/admin/feedback${status ? `?status=${status}` : ''}`),
     approve: (id: number) => request<{ id: number; status: string }>(`/admin/feedback/${id}/approve`, { method: 'PATCH' }),
     reject: (id: number) => request<{ id: number; status: string }>(`/admin/feedback/${id}/reject`, { method: 'PATCH' }),
+    suggestions: (status?: string) => request<Suggestion[]>(`/admin/suggestions${status ? `?status=${status}` : ''}`),
+    approveSuggestion: (id: number) => request<{ id: number; status: string }>(`/admin/suggestions/${id}/approve`, { method: 'PATCH' }),
+    rejectSuggestion: (id: number) => request<{ id: number; status: string }>(`/admin/suggestions/${id}/reject`, { method: 'PATCH' }),
+    insights: () => request<{ feedback: Record<string, number>; recent_comments: Testimonial[]; top_interactions: Array<{ action: string; page: string; count: number }> }>('/admin/insights'),
   },
   team: {
     list: (tenantId: number) => request<TeamMember[]>(`/portal/tenants/${tenantId}/team`),
@@ -587,6 +593,19 @@ export interface Testimonial {
   status: string
   created_at: string
   approved_at: string | null
+}
+
+export interface Suggestion {
+  id: number
+  title: string
+  description: string
+  category: string
+  priority: string
+  source: string
+  status: string
+  admin_notes: string | null
+  created_at: string
+  reviewed_at: string | null
 }
 
 export interface TeamMember {

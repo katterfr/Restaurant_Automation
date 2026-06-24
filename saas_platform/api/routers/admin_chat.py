@@ -171,6 +171,35 @@ _TOOLS = [
         },
     },
     {
+        "name": "get_user_feedback_insights",
+        "description": "Retrieve aggregated user feedback stats, recent comments, and top user interactions to identify improvement opportunities.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "create_improvement_suggestion",
+        "description": "Create a new improvement suggestion based on feedback patterns or your analysis. These go to the admin approval queue.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title":       {"type": "string", "description": "Short title for the improvement"},
+                "description": {"type": "string", "description": "Detailed description of what to improve and why"},
+                "category":    {"type": "string", "enum": ["feature", "ease_of_use", "security", "performance", "ui_design", "integration"], "description": "Category of improvement"},
+                "priority":    {"type": "string", "enum": ["low", "medium", "high", "critical"], "description": "Priority level"},
+            },
+            "required": ["title", "description", "category", "priority"],
+        },
+    },
+    {
+        "name": "list_improvement_suggestions",
+        "description": "List all improvement suggestions with their current approval status.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "enum": ["pending", "approved", "rejected"], "description": "Filter by status"},
+            },
+        },
+    },
+    {
         "name": "manage_menu_item",
         "description": "Add, update, or delete a menu item for any tenant.",
         "input_schema": {
@@ -274,6 +303,16 @@ async def admin_chat(
 - **get_saas_analytics** — platform-wide stats and growth data
 - **get_tenant_orders** — view a restaurant's recent orders
 - **manage_menu_item** — add/edit/delete/toggle menu items for any restaurant
+- **get_user_feedback_insights** — fetch aggregated feedback stats, recent comments, and user interaction patterns
+- **create_improvement_suggestion** — log an improvement idea (feature, UX, security, performance, design) to the approval queue
+- **list_improvement_suggestions** — view all pending/approved improvement suggestions
+
+## Platform Improvement System
+You actively monitor user feedback and interaction data to identify patterns and generate improvement suggestions. When analyzing feedback:
+- Look for recurring themes in comments (ease of use, missing features, confusion points)
+- Check which interactions happen most/least to find engagement gaps
+- Propose specific, actionable improvements with clear reasoning
+- All suggestions go to admin approval before any deployment — you create them, admin decides
 
 ## Working With Images
 When the admin pastes, drags, or attaches an image, analyze it and act on it:
@@ -537,6 +576,56 @@ When the admin pastes, drags, or attaches an image, analyze it and act on it:
                     else:
                         result = "No orders found for this tenant."
                     action_result = {"type": "orders", "orders": [dict(r) for r in rows]}
+
+                elif name == "get_user_feedback_insights":
+                    fb = await db.fetchrow(
+                        """SELECT COUNT(*) AS total,
+                             COUNT(*) FILTER (WHERE status='pending') AS pending,
+                             ROUND(AVG(star_rating)::numeric,2) AS avg_rating,
+                             COUNT(*) FILTER (WHERE q1_overall=TRUE) AS satisfied,
+                             COUNT(*) FILTER (WHERE q2_easy_to_use=TRUE) AS easy,
+                             COUNT(*) FILTER (WHERE q3_effective=TRUE) AS effective
+                           FROM tenant_feedback"""
+                    )
+                    recent = await db.fetch(
+                        "SELECT restaurant_name, comment, star_rating FROM tenant_feedback WHERE comment IS NOT NULL AND comment <> '' ORDER BY created_at DESC LIMIT 8"
+                    )
+                    top_actions = await db.fetch(
+                        "SELECT action, page, COUNT(*) AS cnt FROM user_interactions GROUP BY action, page ORDER BY cnt DESC LIMIT 10"
+                    )
+                    result = (
+                        f"Feedback summary:\n"
+                        f"  Total: {fb['total']} | Pending: {fb['pending']} | Avg rating: {fb['avg_rating']}\n"
+                        f"  Satisfied overall: {fb['satisfied']} | Easy to use: {fb['easy']} | Effective: {fb['effective']}\n"
+                        f"\nRecent comments:\n" +
+                        "\n".join(f"  [{r['star_rating']}★] {r['restaurant_name']}: {(r['comment'] or '')[:120]}" for r in recent) +
+                        f"\n\nTop user interactions:\n" +
+                        "\n".join(f"  {r['action']} on {r['page'] or 'n/a'}: {r['cnt']} times" for r in top_actions)
+                    )
+                    action_result = {"type": "insights"}
+
+                elif name == "create_improvement_suggestion":
+                    row = await db.fetchrow(
+                        """INSERT INTO improvement_suggestions (title, description, category, priority, source)
+                           VALUES ($1, $2, $3, $4, 'ai') RETURNING id""",
+                        inp["title"], inp["description"], inp.get("category","feature"), inp.get("priority","medium"),
+                    )
+                    result = f"Improvement suggestion created (ID #{row['id']}): '{inp['title']}' — awaiting admin approval."
+                    action_result = {"type": "suggestion_created", "id": row["id"]}
+
+                elif name == "list_improvement_suggestions":
+                    status_filter = inp.get("status")
+                    if status_filter:
+                        rows = await db.fetch("SELECT * FROM improvement_suggestions WHERE status=$1 ORDER BY created_at DESC LIMIT 20", status_filter)
+                    else:
+                        rows = await db.fetch("SELECT * FROM improvement_suggestions ORDER BY created_at DESC LIMIT 20")
+                    if rows:
+                        result = f"{len(rows)} suggestions:\n" + "\n".join(
+                            f"  #{r['id']} [{r['priority'].upper()}] {r['title']} — {r['status']}" for r in rows
+                        )
+                    else:
+                        result = "No suggestions found."
+                    action_result = {"type": "suggestions_list", "suggestions": [dict(r) for r in rows]}
 
                 elif name == "manage_menu_item":
                     action  = inp["action"]

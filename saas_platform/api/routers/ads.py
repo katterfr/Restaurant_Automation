@@ -1,10 +1,11 @@
 import base64
 import hmac
 import hashlib
+import json
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import BaseModel
 
 from db.database import get_db
@@ -204,6 +205,55 @@ async def oauth_callback(
     tenant = await db.fetchrow("SELECT slug FROM tenants WHERE id = $1", tenant_id)
     slug = tenant["slug"] if tenant else ""
     return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/ads?connected={platform}")
+
+
+# ─── TikTok Webhook ──────────────────────────────────────────────────────────
+
+@router.post("/webhook/tiktok")
+async def tiktok_webhook(request: Request, db=Depends(get_db)):
+    """Receives TikTok webhook events (post status, video processing, etc.)."""
+    # TikTok signs webhooks with HMAC-SHA256 using the client secret
+    raw_body = await request.body()
+
+    client_secret = getattr(settings, "tiktok_client_secret", None)
+    if client_secret:
+        sig_header = request.headers.get("x-tiktok-signature") or request.headers.get("authorization", "")
+        expected = hmac.new(client_secret.encode(), raw_body, hashlib.sha256).hexdigest()
+        if sig_header and not hmac.compare_digest(sig_header.lstrip("sha256="), expected):
+            log.warning("TikTok webhook signature mismatch")
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        payload = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_type = payload.get("event", payload.get("type", "unknown"))
+    log.info("TikTok webhook event: %s | data: %s", event_type, str(payload)[:300])
+
+    # Handle video/post status updates
+    data = payload.get("data", {})
+    publish_id = data.get("publish_id") or data.get("video_id")
+    status     = data.get("status", "").lower()
+
+    if publish_id and status:
+        # Update the matching social_post record if we can find it
+        await db.execute(
+            """UPDATE social_posts
+                  SET status = $1
+                WHERE platform_results::text LIKE $2
+                  AND status NOT IN ('failed', 'deleted')""",
+            "published" if status in ("success", "published", "complete") else status,
+            f"%{publish_id}%",
+        )
+        log.info("TikTok webhook: updated post status publish_id=%s -> %s", publish_id, status)
+
+    # TikTok expects a 200 with challenge echo for URL verification
+    challenge = payload.get("challenge")
+    if challenge:
+        return JSONResponse({"challenge": challenge})
+
+    return {"ok": True}
 
 
 # ─── Manual credentials (owner pastes their own tokens) ─────────────────────

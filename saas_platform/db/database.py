@@ -354,6 +354,30 @@ async def init_db():
             )
         """)
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_interactions (
+                id          SERIAL PRIMARY KEY,
+                tenant_id   INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                user_role   VARCHAR(50) NOT NULL DEFAULT 'owner',
+                action      VARCHAR(100) NOT NULL,
+                page        VARCHAR(100),
+                metadata    TEXT NOT NULL DEFAULT '{}',
+                created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS improvement_suggestions (
+                id          SERIAL PRIMARY KEY,
+                title       TEXT NOT NULL,
+                description TEXT NOT NULL,
+                category    VARCHAR(50) NOT NULL DEFAULT 'feature',
+                priority    VARCHAR(20) NOT NULL DEFAULT 'medium',
+                source      VARCHAR(50) NOT NULL DEFAULT 'ai',
+                status      VARCHAR(20) NOT NULL DEFAULT 'pending',
+                admin_notes TEXT,
+                created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+                reviewed_at TIMESTAMP
+            );
+        """)
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS tenant_feedback (
                 id              SERIAL PRIMARY KEY,
                 tenant_id       INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
