@@ -251,6 +251,34 @@ async def start_stripe_connect(current_user=Depends(_require_owner), db=Depends(
             return_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=return",
             refresh_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=refresh",
         )
+    except stripe.error.InvalidRequestError as e:
+        # Stored account is from test mode or doesn't exist — reset and create a fresh live account
+        if "not connected to your platform" in str(e) or "does not exist" in str(e):
+            await db.execute(
+                "UPDATE phone_agents SET stripe_connect_account_id=NULL, stripe_connect_status='not_connected' WHERE tenant_id=$1",
+                tid,
+            )
+            try:
+                account = stripe.Account.create(
+                    type="express",
+                    email=current_user["email"],
+                    business_profile={"name": tenant["name"]},
+                )
+                account_id = account.id
+                await db.execute(
+                    "UPDATE phone_agents SET stripe_connect_account_id=$2, stripe_connect_status='pending' WHERE tenant_id=$1",
+                    tid, account_id,
+                )
+                link = stripe.AccountLink.create(
+                    account=account_id,
+                    type="account_onboarding",
+                    return_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=return",
+                    refresh_url=f"{settings.frontend_url}/portal/{tenant['slug']}/phone?stripe=refresh",
+                )
+            except Exception as e2:
+                raise HTTPException(502, f"Failed to create Stripe account: {e2}")
+        else:
+            raise HTTPException(502, f"Failed to create onboarding link: {e}")
     except Exception as e:
         raise HTTPException(502, f"Failed to create onboarding link: {e}")
 
