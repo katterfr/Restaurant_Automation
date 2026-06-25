@@ -102,6 +102,9 @@ const ALL_NAV: { label: string; href: string; feature: null | string | string[] 
   { label: 'Listings',    href: 'business',   feature: ['listings_google','listings_apple'] },
   { label: 'Phone Agent', href: 'phone',      feature: 'phone_agent' },
   { label: 'AI Creative', href: 'creative',   feature: 'ai_creative' },
+  { label: 'Staff',    href: 'staff',    feature: 'staff_tools' },
+  { label: 'Goals',    href: 'goals',    feature: 'staff_tools' },
+  { label: 'Messages', href: 'messages', feature: 'staff_tools' },
 ]
 
 const COLOR_PRESETS = [

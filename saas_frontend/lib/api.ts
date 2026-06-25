@@ -359,6 +359,42 @@ export interface BusinessStatus {
   apple:  { configured: boolean; submitted: boolean; apple_status: string; portal_url: string }
 }
 
+export interface StaffPolicy {
+  enabled: boolean
+  emergency_contacts: { name: string; phone: string; relation: string }[]
+}
+export interface EmployeeShift {
+  id: number
+  user_id: number
+  tenant_id: number
+  clocked_in_at: string
+  clocked_out_at: string | null
+  duration_minutes: number | null
+  focus_exits: number
+  notes: string | null
+}
+export interface BusinessGoal {
+  id: number
+  title: string
+  description: string | null
+  metric: string
+  target_value: number
+  current_value: number
+  period: string
+  period_start: string
+  period_end: string
+  is_active: boolean
+}
+export interface StaffMessage {
+  id: number
+  from_user_id: number
+  from_name: string
+  content: string
+  is_broadcast: boolean
+  to_user_id: number | null
+  created_at: string
+}
+
 export const api = {
   auth: {
     changePassword: (currentPassword: string, newPassword: string) =>
@@ -577,6 +613,21 @@ export const api = {
       request<{ ok: boolean }>(`/portal/tenants/${tenantId}/users/${userId}/password`, {
         method: 'PATCH', body: JSON.stringify({ new_password: newPassword }),
       }),
+  },
+  staff: {
+    getPolicy: () => request<StaffPolicy>('/staff/policy'),
+    updatePolicy: (body: Partial<StaffPolicy>) => request<StaffPolicy>('/staff/policy', { method: 'PUT', body: JSON.stringify(body) }),
+    clockIn: () => request<EmployeeShift>('/staff/clock-in', { method: 'POST', body: '{}' }),
+    clockOut: () => request<EmployeeShift>('/staff/clock-out', { method: 'POST', body: '{}' }),
+    focusExit: () => request<void>('/staff/focus-exit', { method: 'POST', body: '{}' }),
+    currentShift: () => request<EmployeeShift | null>('/staff/shift/current'),
+    shifts: () => request<EmployeeShift[]>('/staff/shifts'),
+    getGoals: () => request<BusinessGoal[]>('/staff/goals'),
+    createGoal: (body: Partial<BusinessGoal>) => request<BusinessGoal>('/staff/goals', { method: 'POST', body: JSON.stringify(body) }),
+    updateGoal: (id: number, body: Partial<BusinessGoal>) => request<BusinessGoal>(`/staff/goals/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteGoal: (id: number) => request<void>(`/staff/goals/${id}`, { method: 'DELETE' }),
+    getMessages: () => request<StaffMessage[]>('/staff/messages'),
+    sendMessage: (content: string, to_user_id?: number) => request<StaffMessage>('/staff/messages', { method: 'POST', body: JSON.stringify({ content, to_user_id, is_broadcast: !to_user_id }) }),
   },
 }
 
