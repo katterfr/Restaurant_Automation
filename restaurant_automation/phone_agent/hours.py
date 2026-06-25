@@ -34,7 +34,7 @@ def hours_message() -> str:
 def after_hours_message() -> str:
     return (
         f"Thank you for calling {settings.restaurant_name}. "
-        f"We are currently closed. {hours_message()} "
-        "Please leave your name and number and we'll call you back, "
-        "or visit our website to place an order online. Goodbye!"
+        "Our demo line is currently unavailable. "
+        "To learn more about Careful Server's AI Phone Agent and get it for your restaurant, "
+        "visit carefulserver dot com. We look forward to hearing from you. Goodbye!"
     )

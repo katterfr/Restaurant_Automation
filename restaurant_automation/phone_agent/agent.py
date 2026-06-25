@@ -85,10 +85,11 @@ async def incoming_call(
     _sessions[CallSid] = ConversationManager(call_sid=CallSid, menu=menu)
 
     greeting = (
-        f"Thank you for calling {settings.restaurant_name}! "
-        "I'm your AI order assistant. How can I help you today? "
-        "You can tell me what you'd like to order, ask about our menu, "
-        "or inquire about our hours."
+        f"Thank you for calling {settings.restaurant_name}. "
+        "You have reached a live demo of Careful Server's AI Phone Agent — "
+        "the same technology that can answer your restaurant's calls 24 hours a day, take orders, "
+        "and send them directly to your dashboard. "
+        "I will walk you through a sample order right now. What would you like to try?"
     )
 
     base_url = str(request.base_url).rstrip("/")
