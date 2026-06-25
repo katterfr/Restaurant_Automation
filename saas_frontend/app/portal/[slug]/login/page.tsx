@@ -213,7 +213,11 @@ function SlugLoginInner() {
           </button>
         </div>
 
-        <p className="text-center text-xs text-gray-300 mt-8">Powered by Careful Server</p>
+        <p className="text-center text-xs text-gray-400 mt-6">
+          By signing in you agree to our{' '}
+          <Link href="/terms" className="text-green-600 hover:underline font-medium">Terms and Conditions</Link>
+        </p>
+        <p className="text-center text-xs text-gray-300 mt-2">Powered by Careful Server</p>
       </div>
 
       {/* ── Phone modal ────────────────────────────────────────────────────── */}

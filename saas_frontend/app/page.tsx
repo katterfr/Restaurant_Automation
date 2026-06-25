@@ -167,14 +167,22 @@ function VisitorChat() {
         </div>
       )}
       {/* bubble */}
-      <button onClick={() => setOpen(o => !o)}
-        className="w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center transition-transform hover:scale-110 cs-glow overflow-hidden"
-        title="Chat with us">
-        {open
-          ? <span className="text-white text-2xl" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
-          : <img src="/logo.svg" alt="Chat" className="w-full h-full object-cover" />
-        }
-      </button>
+      <div className="relative flex flex-col items-end gap-2">
+        {!open && (
+          <div className="flex items-center gap-2 bg-white text-gray-800 text-sm font-medium px-4 py-2 rounded-2xl shadow-lg border border-gray-100 whitespace-nowrap animate-bounce-slow">
+            <span>💬</span> Chat with Us
+            <div className="absolute -bottom-2 right-6 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
+          </div>
+        )}
+        <button onClick={() => setOpen(o => !o)}
+          className="w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center transition-transform hover:scale-110 cs-glow overflow-hidden"
+          title="Chat with us">
+          {open
+            ? <span className="text-white text-2xl" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
+            : <img src="/logo.svg" alt="Chat" className="w-full h-full object-cover" />
+          }
+        </button>
+      </div>
     </div>
   )
 }
