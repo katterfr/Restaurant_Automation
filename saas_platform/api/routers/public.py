@@ -19,7 +19,7 @@ _GROWTH_FEATURES = [
     "social_meta", "social_youtube", "social_tiktok",
     "delivery", "listings_google", "listings_apple", "ai_creative",
 ]
-_PRO_FEATURES = _GROWTH_FEATURES + ["phone_agent", "accounting"]
+_PRO_FEATURES = _GROWTH_FEATURES + ["phone_agent", "accounting", "staff_tools"]
 
 PLAN_FEATURES: dict[str, list[str]] = {
     "starter":    ["menu_management"],
