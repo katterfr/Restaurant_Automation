@@ -349,8 +349,8 @@ function GeneratePanel({ mode, accent, onGenerated }: {
           : (mode === 'image' ? '✨ Generate Image' : '🎬 Generate Video')}
       </button>
 
-      {mode === 'image' && <p className="text-xs text-gray-400 text-center">~15 seconds · powered by fal.ai Flux Pro</p>}
-      {mode === 'video' && <p className="text-xs text-gray-400 text-center">~60–120 seconds · powered by fal.ai Kling · auto-refresh when ready</p>}
+      {mode === 'image' && <p className="text-xs text-gray-400 text-center">~5–15 seconds · Flux Schnell · high-quality AI images</p>}
+      {mode === 'video' && <p className="text-xs text-gray-400 text-center">~60–120 seconds · AI video generation · auto-refresh when ready</p>}
     </div>
   )
 }
@@ -425,12 +425,12 @@ export default function CreativePage() {
       <div className="max-w-lg">
         <h1 className="text-xl font-bold text-gray-900 mb-6">AI Creative Studio</h1>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-          <p className="text-sm font-semibold text-amber-800">fal.ai API key required</p>
+          <p className="text-sm font-semibold text-amber-800">Replicate API token required</p>
           <p className="text-sm text-amber-700 mt-1">
-            Add <span className="font-mono bg-white px-1 rounded">FAL_API_KEY</span> to your Railway environment variables to enable AI image and video generation.
+            Add <span className="font-mono bg-white px-1 rounded">REPLICATE_API_TOKEN</span> to your Railway environment variables to enable AI image and video generation.
           </p>
           <p className="text-xs text-amber-600 mt-3">
-            Get your key at <strong>fal.ai</strong> → Dashboard → API Keys. One key enables both image and video generation.
+            Get your token at <strong>replicate.com</strong> → Account Settings → API Tokens.
           </p>
         </div>
       </div>

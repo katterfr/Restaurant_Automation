@@ -1,27 +1,28 @@
 """
-AI image and video generation via fal.ai.
-Images: fal-ai/flux-pro (Flux Pro — photorealistic, great for food)
-Videos: fal-ai/kling-video/v1.6/standard (text-to-video + image-to-video)
+AI image and video generation via Replicate.
+Images : black-forest-labs/flux-schnell  (~$0.003/image, ~4s)
+Videos : minimax/video-01 (text-to-video) + stability-ai/stable-video-diffusion (image-to-video)
 """
+import asyncio
 import httpx
 from core.config import settings
 
-FAL_BASE = "https://fal.run"
-FAL_QUEUE = "https://queue.fal.run"
+REPLICATE_BASE = "https://api.replicate.com/v1"
 
-IMAGE_MODEL = "fal-ai/flux-pro"
-VIDEO_MODEL_T2V = "fal-ai/kling-video/v1.6/standard/text-to-video"
-VIDEO_MODEL_I2V = "fal-ai/kling-video/v1.6/standard/image-to-video"
+IMAGE_MODEL  = "black-forest-labs/flux-schnell"
+VIDEO_T2V    = "minimax/video-01"
+VIDEO_I2V    = "stability-ai/stable-video-diffusion"
 
 
 def is_configured() -> bool:
-    return bool(settings.fal_api_key)
+    return bool(settings.replicate_api_key)
 
 
 def _headers() -> dict:
     return {
-        "Authorization": f"Key {settings.fal_api_key}",
+        "Authorization": f"Token {settings.replicate_api_key}",
         "Content-Type": "application/json",
+        "Prefer": "wait",  # synchronous mode for fast models
     }
 
 
@@ -42,42 +43,46 @@ def enhance_image_prompt(user_prompt: str, restaurant_name: str, style: str) -> 
 def enhance_video_prompt(user_prompt: str, restaurant_name: str) -> str:
     return (
         f"{user_prompt}, cinematic food advertising video for {restaurant_name}, "
-        "smooth camera movement, professional lighting, appetizing, high quality, 4K"
+        "smooth camera movement, professional lighting, appetizing, high quality"
     )
 
 
-# ── Image generation (synchronous — fal.ai runs Flux in ~10s) ────────────────
+# ── Image generation ─────────────────────────────────────────────────────────
 
 async def generate_image(prompt: str, aspect_ratio: str = "1:1") -> dict:
     """Returns {"url": "...", "width": n, "height": n}"""
-    # fal.ai Flux Pro uses image_size string format
-    size_map = {
-        "1:1":   "square_hd",
-        "16:9":  "landscape_16_9",
-        "9:16":  "portrait_16_9",
-        "4:5":   "portrait_4_5",
-    }
-    image_size = size_map.get(aspect_ratio, "square_hd")
-
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
-            f"{FAL_BASE}/{IMAGE_MODEL}",
+            f"{REPLICATE_BASE}/models/{IMAGE_MODEL}/predictions",
             headers=_headers(),
             json={
-                "prompt": prompt,
-                "image_size": image_size,
-                "num_images": 1,
-                "enable_safety_checker": True,
-                "safety_tolerance": "2",
+                "input": {
+                    "prompt": prompt,
+                    "aspect_ratio": aspect_ratio,
+                    "num_outputs": 1,
+                    "output_format": "webp",
+                    "output_quality": 90,
+                    "go_fast": True,
+                }
             },
         )
         resp.raise_for_status()
         data = resp.json()
-        img = data["images"][0]
-        return {"url": img["url"], "width": img.get("width", 1024), "height": img.get("height", 1024)}
+
+    # With Prefer: wait, the prediction is already complete
+    if data.get("status") == "succeeded" and data.get("output"):
+        url = data["output"][0] if isinstance(data["output"], list) else data["output"]
+        return {"url": url, "width": 1024, "height": 1024}
+
+    # If still processing, poll until done
+    prediction_id = data.get("id")
+    if not prediction_id:
+        raise Exception("No prediction ID returned from Replicate")
+
+    return await _poll_prediction(prediction_id, is_video=False)
 
 
-# ── Video generation (async queue — Kling takes 60-120s) ─────────────────────
+# ── Video generation ──────────────────────────────────────────────────────────
 
 async def submit_video(
     prompt: str,
@@ -85,52 +90,99 @@ async def submit_video(
     duration: int = 5,
     aspect_ratio: str = "16:9",
 ) -> dict:
-    """
-    Submits video to fal.ai queue.
-    Returns {"request_id": "...", "status_url": "...", "response_url": "..."}
-    """
-    model = VIDEO_MODEL_I2V if image_url else VIDEO_MODEL_T2V
-    payload: dict = {
-        "prompt": prompt,
-        "duration": str(duration),
-        "aspect_ratio": aspect_ratio,
-    }
+    """Submit video job. Returns {"request_id", "status_url"}"""
+    headers = _headers()
+    headers.pop("Prefer", None)  # video generation is always async
+
     if image_url:
-        payload["image_url"] = image_url
+        model = VIDEO_I2V
+        payload = {
+            "input": {
+                "input_image": image_url,
+                "sizing_strategy": "maintain_aspect_ratio",
+                "frames_per_second": 6,
+                "motion_bucket_id": 127,
+            }
+        }
+    else:
+        model = VIDEO_T2V
+        payload = {
+            "input": {
+                "prompt": prompt,
+                "prompt_optimizer": True,
+            }
+        }
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            f"{FAL_QUEUE}/{model}",
-            headers=_headers(),
+            f"{REPLICATE_BASE}/models/{model}/predictions",
+            headers=headers,
             json=payload,
         )
         resp.raise_for_status()
         data = resp.json()
-        return {
-            "request_id": data["request_id"],
-            "status_url":   data["status_url"],
-            "response_url": data["response_url"],
-        }
+
+    prediction_id = data.get("id")
+    if not prediction_id:
+        raise Exception("No prediction ID returned")
+
+    status_url = f"{REPLICATE_BASE}/predictions/{prediction_id}"
+    return {
+        "request_id": prediction_id,
+        "status_url": status_url,
+        "response_url": status_url,
+    }
 
 
 async def poll_video_status(status_url: str) -> dict:
-    """
-    Returns {"status": "IN_QUEUE"|"IN_PROGRESS"|"COMPLETED"|"FAILED", "video_url": str|None}
-    """
+    """Returns {"status": "COMPLETED"|"FAILED"|"IN_PROGRESS", "video_url": str|None}"""
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(status_url, headers=_headers())
+        resp = await client.get(status_url, headers={
+            "Authorization": f"Token {settings.replicate_api_key}",
+        })
         resp.raise_for_status()
         data = resp.json()
 
-    status = data.get("status", "IN_QUEUE")
+    replicate_status = data.get("status", "starting")
     video_url = None
 
-    if status == "COMPLETED":
-        output = data.get("output") or {}
-        videos = output.get("video") or output.get("videos") or []
-        if isinstance(videos, list) and videos:
-            video_url = videos[0].get("url") if isinstance(videos[0], dict) else videos[0]
-        elif isinstance(videos, dict):
-            video_url = videos.get("url")
+    if replicate_status == "succeeded":
+        output = data.get("output")
+        if isinstance(output, list) and output:
+            video_url = output[0]
+        elif isinstance(output, str):
+            video_url = output
+        return {"status": "COMPLETED", "video_url": video_url}
 
-    return {"status": status, "video_url": video_url, "raw": data}
+    if replicate_status == "failed":
+        return {"status": "FAILED", "video_url": None}
+
+    return {"status": "IN_PROGRESS", "video_url": None}
+
+
+# ── Internal polling helper ───────────────────────────────────────────────────
+
+async def _poll_prediction(prediction_id: str, is_video: bool, max_wait: int = 120) -> dict:
+    url = f"{REPLICATE_BASE}/predictions/{prediction_id}"
+    headers = {"Authorization": f"Token {settings.replicate_api_key}"}
+    deadline = asyncio.get_event_loop().time() + max_wait
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        while asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(3)
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            status = data.get("status")
+
+            if status == "succeeded":
+                output = data.get("output")
+                result_url = (output[0] if isinstance(output, list) else output) or ""
+                if is_video:
+                    return {"status": "COMPLETED", "video_url": result_url}
+                return {"url": result_url, "width": 1024, "height": 1024}
+
+            if status == "failed":
+                raise Exception(data.get("error") or "Replicate generation failed")
+
+    raise Exception("Generation timed out")

@@ -41,7 +41,7 @@ class ImageRequest(BaseModel):
 @router.post("/image")
 async def generate_image(body: ImageRequest, current_user=Depends(_require_owner), db=Depends(get_db)):
     if not ai_creative.is_configured():
-        raise HTTPException(503, "FAL_API_KEY not configured")
+        raise HTTPException(503, "REPLICATE_API_TOKEN not configured")
 
     tid = current_user["tenant_id"]
     tenant = await db.fetchrow("SELECT name FROM tenants WHERE id=$1", tid)
@@ -87,7 +87,7 @@ class VideoRequest(BaseModel):
 @router.post("/video")
 async def generate_video(body: VideoRequest, current_user=Depends(_require_owner), db=Depends(get_db)):
     if not ai_creative.is_configured():
-        raise HTTPException(503, "FAL_API_KEY not configured")
+        raise HTTPException(503, "REPLICATE_API_TOKEN not configured")
 
     tid = current_user["tenant_id"]
     tenant = await db.fetchrow("SELECT name FROM tenants WHERE id=$1", tid)
