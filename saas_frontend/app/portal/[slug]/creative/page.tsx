@@ -164,10 +164,11 @@ function AssetCard({ asset, accent, onDelete, onUseInAd }: {
 
 // ── Generate panel ────────────────────────────────────────────────────────────
 
-function GeneratePanel({ mode, accent, onGenerated }: {
+function GeneratePanel({ mode, accent, onGenerated, atLimit }: {
   mode: 'image' | 'video'
   accent: string
   onGenerated: (asset: CreativeAsset) => void
+  atLimit?: boolean
 }) {
   const [prompt, setPrompt] = useState('')
   const [style, setStyle] = useState('photorealistic')
@@ -338,16 +339,23 @@ function GeneratePanel({ mode, accent, onGenerated }: {
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
-      <button
-        onClick={generate}
-        disabled={loading || !prompt.trim()}
-        className="w-full text-white py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
-        style={{ backgroundColor: accent }}
-      >
-        {loading
-          ? (mode === 'image' ? 'Generating image…' : 'Submitting video job…')
-          : (mode === 'image' ? '✨ Generate Image' : '🎬 Generate Video')}
-      </button>
+      {atLimit ? (
+        <div className="w-full text-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <p className="text-sm font-semibold text-amber-800">Monthly limit reached</p>
+          <p className="text-xs text-amber-600 mt-0.5">Resets on the 1st · Upgrade your plan for more</p>
+        </div>
+      ) : (
+        <button
+          onClick={generate}
+          disabled={loading || !prompt.trim()}
+          className="w-full text-white py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{ backgroundColor: accent }}
+        >
+          {loading
+            ? (mode === 'image' ? 'Generating image…' : 'Submitting video job…')
+            : (mode === 'image' ? '✨ Generate Image' : '🎬 Generate Video')}
+        </button>
+      )}
 
       {mode === 'image' && <p className="text-xs text-gray-400 text-center">~5–15 seconds · Flux Schnell · high-quality AI images</p>}
       {mode === 'video' && <p className="text-xs text-gray-400 text-center">~60–120 seconds · AI video generation · auto-refresh when ready</p>}
@@ -363,11 +371,14 @@ export default function CreativePage() {
   const customization = useCustomization()
   const accent = customization.accent_color || '#16a34a'
 
+  type UsageInfo = { used: number; limit: number }
   const [assets, setAssets] = useState<CreativeAsset[]>([])
   const [configured, setConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState<'image' | 'video'>('image')
   const [filter, setFilter] = useState<'all' | 'image' | 'video'>('all')
+  const [plan, setPlan] = useState('starter')
+  const [usage, setUsage] = useState<{ images: UsageInfo; videos: UsageInfo }>({ images: { used: 0, limit: 10 }, videos: { used: 0, limit: 0 } })
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
 
   const load = useCallback(async () => {
@@ -375,6 +386,8 @@ export default function CreativePage() {
       const lib = await api.creative.library()
       setConfigured(lib.configured)
       setAssets(lib.assets)
+      if (lib.plan) setPlan(lib.plan)
+      if (lib.usage) setUsage(lib.usage as { images: UsageInfo; videos: UsageInfo })
     } catch { /* ignored */ }
     finally { setLoading(false) }
   }, [])
@@ -457,6 +470,31 @@ export default function CreativePage() {
       <div className="grid lg:grid-cols-[360px_1fr] gap-6">
         {/* Left: Generate panel */}
         <div className="space-y-3">
+          {/* Usage meters */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Usage · <span className="capitalize">{plan}</span> Plan</p>
+            {[
+              { label: '🖼 Images', u: usage.images },
+              { label: '🎬 Videos', u: usage.videos },
+            ].map(({ label, u }) => {
+              const pct = u.limit === 0 ? 100 : Math.min(100, Math.round((u.used / u.limit) * 100))
+              const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : accent
+              return (
+                <div key={label}>
+                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <span>{label}</span>
+                    <span>{u.limit === 0 ? 'Not included' : `${u.used} / ${u.limit}`}</span>
+                  </div>
+                  {u.limit > 0 && (
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
           {/* Mode tabs */}
           <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
             {(['image', 'video'] as const).map(m => (
@@ -470,7 +508,9 @@ export default function CreativePage() {
               </button>
             ))}
           </div>
-          <GeneratePanel key={mode} mode={mode} accent={accent} onGenerated={handleGenerated} />
+          <GeneratePanel key={mode} mode={mode} accent={accent} onGenerated={asset => { handleGenerated(asset); load() }}
+            atLimit={mode === 'image' ? usage.images.used >= usage.images.limit : usage.videos.used >= usage.videos.limit || usage.videos.limit === 0}
+          />
         </div>
 
         {/* Right: Library */}

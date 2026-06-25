@@ -502,7 +502,7 @@ export const api = {
     appleSubmit: () => request<{ status: string; message: string; portal_url: string }>('/business/apple/submit', { method: 'POST' }),
   },
   creative: {
-    library: () => request<{ configured: boolean; assets: CreativeAsset[] }>('/creative/library'),
+    library: () => request<{ configured: boolean; assets: CreativeAsset[]; plan: string; usage: { images: { used: number; limit: number }; videos: { used: number; limit: number } } }>('/creative/library'),
     generateImage: (data: { prompt: string; style: string; aspect_ratio: string }) =>
       request<{ id: number; status: string; url: string }>('/creative/image', { method: 'POST', body: JSON.stringify(data) }),
     generateVideo: (data: { prompt: string; image_url?: string; duration?: number; aspect_ratio?: string; style?: string }) =>
