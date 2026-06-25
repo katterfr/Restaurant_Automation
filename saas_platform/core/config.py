@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     fal_api_key: Optional[str] = None
     # Replicate — AI image + video generation
     replicate_api_key: Optional[str] = None
+    replicate_api_token: Optional[str] = None
     # Delivery platform — platform-level credentials (set once in Railway)
     doordash_developer_id: Optional[str] = None
     doordash_key_id: Optional[str] = None

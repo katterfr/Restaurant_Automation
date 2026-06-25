@@ -14,13 +14,17 @@ VIDEO_T2V    = "minimax/video-01"
 VIDEO_I2V    = "stability-ai/stable-video-diffusion"
 
 
+def _token() -> str:
+    return settings.replicate_api_token or settings.replicate_api_key or ""
+
+
 def is_configured() -> bool:
-    return bool(settings.replicate_api_key)
+    return bool(_token())
 
 
 def _headers() -> dict:
     return {
-        "Authorization": f"Token {settings.replicate_api_key}",
+        "Authorization": f"Token {_token()}",
         "Content-Type": "application/json",
         "Prefer": "wait",  # synchronous mode for fast models
     }
@@ -138,7 +142,7 @@ async def poll_video_status(status_url: str) -> dict:
     """Returns {"status": "COMPLETED"|"FAILED"|"IN_PROGRESS", "video_url": str|None}"""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(status_url, headers={
-            "Authorization": f"Token {settings.replicate_api_key}",
+            "Authorization": f"Token {_token()}",
         })
         resp.raise_for_status()
         data = resp.json()
@@ -164,7 +168,7 @@ async def poll_video_status(status_url: str) -> dict:
 
 async def _poll_prediction(prediction_id: str, is_video: bool, max_wait: int = 120) -> dict:
     url = f"{REPLICATE_BASE}/predictions/{prediction_id}"
-    headers = {"Authorization": f"Token {settings.replicate_api_key}"}
+    headers = {"Authorization": f"Token {_token()}"}
     deadline = asyncio.get_event_loop().time() + max_wait
 
     async with httpx.AsyncClient(timeout=30) as client:
