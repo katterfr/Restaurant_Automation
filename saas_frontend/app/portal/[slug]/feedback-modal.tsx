@@ -120,7 +120,7 @@ export default function FeedbackModal({ tenantId, restaurantName, accentColor = 
               <p className="text-slate-400 text-sm">Your feedback has been submitted.</p>
               <p className="text-slate-500 text-xs mt-2 leading-relaxed">
                 If you have further input on how the portal and its tools can be more simple, efficient, and effective for you — share it with the{' '}
-                <span className="text-green-400 font-medium">AI Chat Assistant</span> at any time.
+                <span className="text-green-400 font-medium">Joyce</span> at any time.
               </p>
               <button onClick={() => setShow(false)}
                 className="mt-2 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition-opacity hover:opacity-90"

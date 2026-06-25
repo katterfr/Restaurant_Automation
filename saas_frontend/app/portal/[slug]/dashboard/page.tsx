@@ -70,8 +70,8 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     targetId:  'chatbot-bubble',
-    title:     'Your AI Assistant',
-    body:      "This floating bubble is your AI chat assistant. It knows your live stats and can answer any question about the platform. Click it anytime to get help.",
+    title:     'Joyce — Your Portal Assistant',
+    body:      "This floating bubble is Joyce, your portal assistant. She knows your live stats and can take action for you — posting to social, launching ads, managing your menu, and more. Click her anytime.",
     placement: 'top',
   },
 ]

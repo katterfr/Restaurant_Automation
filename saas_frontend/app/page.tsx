@@ -90,7 +90,7 @@ function VisitorChat() {
   const inputRef  = useRef<HTMLInputElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
-  useEffect(() => { if (open && msgs.length === 0) setMsgs([{ role: 'assistant', content: "I'm Alex, your Careful Server guide. Ask me anything about features, pricing, or how to get started." }]) }, [open])
+  useEffect(() => { if (open && msgs.length === 0) setMsgs([{ role: 'assistant', content: "I'm Alice, your Careful Server guide. Ask me anything about features, pricing, or how to get started." }]) }, [open])
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 120) }, [open])
 
   async function send(text?: string) {
@@ -113,7 +113,7 @@ function VisitorChat() {
           <div className="px-4 py-3 flex items-center gap-2.5 shrink-0" style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}>
             <img src="/logo.svg" alt="Careful Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
             <div className="flex-1">
-              <p className="text-white text-sm font-semibold leading-none">Alex</p>
+              <p className="text-white text-sm font-semibold leading-none">Alice</p>
               <p className="text-white/70 text-xs mt-0.5">Careful Server Assistant</p>
             </div>
             <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white text-lg leading-none">✕</button>

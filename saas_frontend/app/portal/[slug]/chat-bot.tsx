@@ -134,7 +134,7 @@ export default function ChatBot({ accent }: { accent: string }) {
     if (moved.current) return
     setMode('chat')
     if (msgs.length === 0) {
-      setMsgs([{ role: 'assistant', content: "Hi! I'm your AI assistant — I can take action for you, not just give advice.\n\nI can post to your social media, launch ad campaigns, manage your menu, and search your orders — all automatically while you focus on other things. What would you like me to do?" }])
+      setMsgs([{ role: 'assistant', content: "Hi! I'm Joyce, your portal assistant — I can take action for you, not just give advice.\n\nI can post to your social media, launch ad campaigns, manage your menu, and search your orders — all automatically while you focus on other things. What would you like me to do?" }])
     }
   }
 
@@ -216,7 +216,7 @@ export default function ChatBot({ accent }: { accent: string }) {
           data-tour-id="chatbot-bubble"
           onMouseDown={startDrag}
           onClick={openChat}
-          title="AI Assistant"
+          title="Joyce"
           className="fixed z-50 flex items-center justify-center rounded-full shadow-2xl text-white select-none cursor-grab active:cursor-grabbing transition-transform hover:scale-110"
           style={{ left: pos.x - R, top: pos.y - R, width: R * 2, height: R * 2, backgroundColor: accent }}
         >
@@ -241,7 +241,7 @@ export default function ChatBot({ accent }: { accent: string }) {
             <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 shrink-0">
               <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l4.93-1.37A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V8h2v4zm4 4h-2v-2h2v2zm0-4h-2V8h2v4z"/>
             </svg>
-            <p className="text-sm font-semibold text-white flex-1 leading-none">AI Assistant</p>
+            <p className="text-sm font-semibold text-white flex-1 leading-none">Joyce</p>
             <div className="flex items-center gap-0.5">
               {mode === 'expanded'
                 ? <button onClick={() => setMode('chat')}    title="Shrink"    className="w-7 h-7 flex items-center justify-center rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors text-sm">⊡</button>
