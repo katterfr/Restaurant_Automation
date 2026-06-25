@@ -74,6 +74,11 @@ CREATE TABLE IF NOT EXISTS staff_messages (
 """
 
 
+async def _ensure_extra_columns(db: Any) -> None:
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS kiosk_pin TEXT DEFAULT '1234'")
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS chat_salt TEXT DEFAULT ''")
+
+
 async def _ensure_tables(db: Any) -> None:
     global _tables_ready
     if _tables_ready:
@@ -83,6 +88,7 @@ async def _ensure_tables(db: Any) -> None:
             stmt = statement.strip()
             if stmt:
                 await db.execute(stmt)
+        await _ensure_extra_columns(db)
         _tables_ready = True
     except Exception as exc:  # pragma: no cover
         log.warning("staff: could not create tables: %s", exc)
@@ -131,6 +137,8 @@ class EmergencyContact(BaseModel):
 class PolicyUpdate(BaseModel):
     enabled: Optional[bool] = None
     emergency_contacts: Optional[List[EmergencyContact]] = None
+    kiosk_pin: Optional[str] = None
+    chat_salt: Optional[str] = None
 
 
 class ClockOutBody(BaseModel):
@@ -174,15 +182,20 @@ async def get_policy(current_user=Depends(_require_portal), db=Depends(get_db)):
     await _ensure_tables(db)
     tenant_id = current_user["tenant_id"]
     row = await db.fetchrow(
-        "SELECT enabled, emergency_contacts FROM shift_policies WHERE tenant_id=$1",
+        "SELECT enabled, emergency_contacts, kiosk_pin, chat_salt FROM shift_policies WHERE tenant_id=$1",
         tenant_id,
     )
     if row is None:
-        return {"enabled": False, "emergency_contacts": []}
+        return {"enabled": False, "emergency_contacts": [], "kiosk_pin": "1234", "chat_salt": ""}
     contacts = row["emergency_contacts"]
     if isinstance(contacts, str):
         contacts = json.loads(contacts)
-    return {"enabled": row["enabled"], "emergency_contacts": contacts or []}
+    return {
+        "enabled": row["enabled"],
+        "emergency_contacts": contacts or [],
+        "kiosk_pin": row["kiosk_pin"] or "1234",
+        "chat_salt": row["chat_salt"] or "",
+    }
 
 
 @router.put("/policy")
@@ -200,10 +213,12 @@ async def update_policy(body: PolicyUpdate, current_user=Depends(_require_portal
     if existing is None:
         enabled = body.enabled if body.enabled is not None else False
         contacts = [c.model_dump() for c in body.emergency_contacts] if body.emergency_contacts is not None else []
+        kiosk_pin = body.kiosk_pin if body.kiosk_pin is not None else "1234"
+        chat_salt = body.chat_salt if body.chat_salt is not None else ""
         await db.execute(
-            """INSERT INTO shift_policies (tenant_id, enabled, emergency_contacts, updated_at)
-               VALUES ($1, $2, $3::jsonb, NOW())""",
-            tenant_id, enabled, json.dumps(contacts),
+            """INSERT INTO shift_policies (tenant_id, enabled, emergency_contacts, kiosk_pin, chat_salt, updated_at)
+               VALUES ($1, $2, $3::jsonb, $4, $5, NOW())""",
+            tenant_id, enabled, json.dumps(contacts), kiosk_pin, chat_salt,
         )
     else:
         enabled = body.enabled if body.enabled is not None else existing["enabled"]
@@ -212,14 +227,16 @@ async def update_policy(body: PolicyUpdate, current_user=Depends(_require_portal
         else:
             raw = existing["emergency_contacts"]
             contacts = json.loads(raw) if isinstance(raw, str) else (raw or [])
+        kiosk_pin = body.kiosk_pin if body.kiosk_pin is not None else (existing.get("kiosk_pin") or "1234")
+        chat_salt = body.chat_salt if body.chat_salt is not None else (existing.get("chat_salt") or "")
         await db.execute(
             """UPDATE shift_policies
-               SET enabled=$2, emergency_contacts=$3::jsonb, updated_at=NOW()
+               SET enabled=$2, emergency_contacts=$3::jsonb, kiosk_pin=$4, chat_salt=$5, updated_at=NOW()
                WHERE tenant_id=$1""",
-            tenant_id, enabled, json.dumps(contacts),
+            tenant_id, enabled, json.dumps(contacts), kiosk_pin, chat_salt,
         )
 
-    return {"enabled": enabled, "emergency_contacts": contacts}
+    return {"enabled": enabled, "emergency_contacts": contacts, "kiosk_pin": kiosk_pin, "chat_salt": chat_salt}
 
 
 # ─── Clock-in / out / focus ───────────────────────────────────────────────────
@@ -288,6 +305,59 @@ async def focus_exit(current_user=Depends(_require_portal), db=Depends(get_db)):
         tenant_id, user_id,
     )
     return {"ok": True}
+
+
+@router.get("/live")
+async def get_live_data(current_user=Depends(_require_portal), db=Depends(get_db)):
+    """Live kiosk dashboard data: today's orders, revenue, goals, who's on shift."""
+    tid = current_user["tenant_id"]
+    await _ensure_tables(db)
+
+    # Today's orders and revenue
+    orders = await db.fetchrow(
+        "SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM tenant_orders WHERE tenant_id=$1 AND created_at::date=CURRENT_DATE",
+        tid
+    )
+
+    # Active goals for today
+    goals = await db.fetch(
+        "SELECT * FROM business_goals WHERE tenant_id=$1 AND is_active=TRUE AND period='daily' AND period_start<=CURRENT_DATE AND period_end>=CURRENT_DATE",
+        tid
+    )
+
+    # Who's currently on shift
+    on_shift = await db.fetch(
+        """SELECT es.id, es.user_id, es.clocked_in_at, es.focus_exits,
+                  u.email as user_email
+           FROM employee_shifts es
+           JOIN users u ON u.id=es.user_id
+           WHERE es.tenant_id=$1 AND es.clocked_out_at IS NULL""",
+        tid
+    )
+
+    # Recent orders (last 5) for live feed
+    recent_orders = await db.fetch(
+        "SELECT id, order_source, total, status, created_at FROM tenant_orders WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 5",
+        tid
+    )
+
+    def _serialize(row: dict) -> dict:
+        out = {}
+        for k, v in row.items():
+            if hasattr(v, "isoformat"):
+                out[k] = v.isoformat()
+            else:
+                out[k] = v
+        return out
+
+    return {
+        "today_orders": orders["cnt"],
+        "today_revenue": float(orders["rev"]),
+        "goals": [_serialize(dict(g)) for g in goals],
+        "on_shift_count": len(on_shift),
+        "on_shift": [_serialize(dict(s)) for s in on_shift],
+        "recent_orders": [_serialize(dict(o)) for o in recent_orders],
+    }
 
 
 @router.get("/shift/current")

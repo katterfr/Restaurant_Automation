@@ -28,7 +28,17 @@ function elapsedMinutes(iso: string): number {
 
 // ─── Owner view ───────────────────────────────────────────────────────────────
 
+function generatePassphrase(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let result = ''
+  const arr = crypto.getRandomValues(new Uint8Array(12))
+  for (const b of arr) result += chars[b % chars.length]
+  return result
+}
+
 function OwnerView({ accent }: { accent: string }) {
+  const params = useParams<{ slug: string }>()
+  const slug = params?.slug ?? ''
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [shifts, setShifts] = useState<EmployeeShift[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,11 +49,25 @@ function OwnerView({ accent }: { accent: string }) {
   const [contactForm, setContactForm] = useState({ name: '', phone: '', relation: '' })
   const [addingContact, setAddingContact] = useState(false)
 
+  // Kiosk PIN
+  const [kioskPinInput, setKioskPinInput] = useState('')
+  const [savingPin, setSavingPin] = useState(false)
+
+  // Chat passphrase
+  const [passphraseInput, setPassphraseInput] = useState('')
+  const [savingPassphrase, setSavingPassphrase] = useState(false)
+  const [passphraseCopied, setPassphraseCopied] = useState(false)
+
+  // Kiosk guide open/close
+  const [guideOpen, setGuideOpen] = useState(false)
+
   const load = useCallback(async () => {
     try {
       const [p, s] = await Promise.all([api.staff.getPolicy(), api.staff.shifts()])
       setPolicy(p)
       setShifts(s)
+      setKioskPinInput(p.kiosk_pin ?? '1234')
+      setPassphraseInput(p.chat_salt ?? '')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -90,6 +114,43 @@ function OwnerView({ accent }: { accent: string }) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to remove contact')
     }
+  }
+
+  async function saveKioskPin() {
+    if (!kioskPinInput.trim()) return
+    setSavingPin(true)
+    try {
+      const updated = await api.staff.updatePolicy({ kiosk_pin: kioskPinInput.trim() })
+      setPolicy(updated)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save PIN')
+    } finally {
+      setSavingPin(false)
+    }
+  }
+
+  async function savePassphrase() {
+    setSavingPassphrase(true)
+    try {
+      const updated = await api.staff.updatePolicy({ chat_salt: passphraseInput.trim() })
+      setPolicy(updated)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save passphrase')
+    } finally {
+      setSavingPassphrase(false)
+    }
+  }
+
+  function generateAndSetPassphrase() {
+    setPassphraseInput(generatePassphrase())
+  }
+
+  async function copyPassphrase() {
+    try {
+      await navigator.clipboard.writeText(passphraseInput)
+      setPassphraseCopied(true)
+      setTimeout(() => setPassphraseCopied(false), 2000)
+    } catch {}
   }
 
   const activeShifts = shifts.filter(s => !s.clocked_out_at)
@@ -189,6 +250,78 @@ function OwnerView({ accent }: { accent: string }) {
         </div>
       </div>
 
+      {/* Kiosk PIN */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Kiosk Exit PIN</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Employees must enter this PIN to exit Focus Mode</p>
+        </div>
+        <div className="px-5 py-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <input
+            type="text"
+            placeholder="1234"
+            value={kioskPinInput}
+            onChange={e => setKioskPinInput(e.target.value)}
+            maxLength={8}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 w-32 font-mono"
+          />
+          <button
+            onClick={saveKioskPin}
+            disabled={savingPin || !kioskPinInput.trim()}
+            className="px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-opacity hover:opacity-90"
+            style={{ backgroundColor: accent }}
+          >
+            {savingPin ? 'Saving...' : 'Save PIN'}
+          </button>
+        </div>
+      </div>
+
+      {/* Team Chat Passphrase */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Team Chat Passphrase</h2>
+          <p className="text-xs text-gray-400 mt-0.5">All employees must enter this passphrase once to access encrypted team chat. Share it with your staff when they set up the work app.</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              placeholder="Enter or generate passphrase"
+              value={passphraseInput}
+              onChange={e => setPassphraseInput(e.target.value)}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 font-mono"
+            />
+            <button
+              onClick={generateAndSetPassphrase}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
+            >
+              Generate New
+            </button>
+            <button
+              onClick={savePassphrase}
+              disabled={savingPassphrase}
+              className="px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-opacity hover:opacity-90"
+              style={{ backgroundColor: accent }}
+            >
+              {savingPassphrase ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+          {passphraseInput && (
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 break-all">
+                {passphraseInput}
+              </code>
+              <button
+                onClick={copyPassphrase}
+                className="shrink-0 px-3 py-2 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {passphraseCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Currently on shift */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -252,6 +385,76 @@ function OwnerView({ accent }: { accent: string }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Kiosk Setup Guide */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <button
+          onClick={() => setGuideOpen(o => !o)}
+          className="w-full px-5 py-4 flex items-center justify-between text-left"
+        >
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Kiosk Setup Guide</h2>
+            <p className="text-xs text-gray-400 mt-0.5">How to set up Focus Mode on an employee&apos;s phone</p>
+          </div>
+          <span className="text-gray-400 text-lg">{guideOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {guideOpen && (
+          <div className="px-5 pb-6 space-y-5 border-t border-gray-100">
+            {/* Kiosk URL */}
+            <div className="pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Kiosk URL</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 break-all">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/portal/${slug}/kiosk` : `/portal/${slug}/kiosk`}
+                </code>
+                <button
+                  onClick={() => {
+                    const url = typeof window !== 'undefined' ? `${window.location.origin}/portal/${slug}/kiosk` : `/portal/${slug}/kiosk`
+                    navigator.clipboard.writeText(url).catch(() => {})
+                  }}
+                  className="shrink-0 px-3 py-2 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            {/* iPhone */}
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-2">iPhone (iOS)</p>
+              <ol className="space-y-1 text-sm text-gray-600 list-decimal list-inside">
+                <li>Open Safari on the employee&apos;s phone</li>
+                <li>Go to the Kiosk URL above</li>
+                <li>Tap the Share button &rarr; &ldquo;Add to Home Screen&rdquo; &rarr; Add</li>
+                <li>Open the app from the Home Screen</li>
+                <li>Go to Settings &rarr; Accessibility &rarr; Guided Access &rarr; Turn On</li>
+                <li>Open the Careful Server work app</li>
+                <li>Triple-click the side button to start Guided Access</li>
+                <li>Set a Guided Access PIN &mdash; this locks the phone to the app</li>
+              </ol>
+            </div>
+
+            {/* Android */}
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-2">Android</p>
+              <ol className="space-y-1 text-sm text-gray-600 list-decimal list-inside">
+                <li>Open Chrome on the employee&apos;s phone</li>
+                <li>Go to the Kiosk URL above</li>
+                <li>Tap Menu &rarr; &ldquo;Add to Home Screen&rdquo;</li>
+                <li>Open the app from the Home Screen</li>
+                <li>Go to Settings &rarr; Biometrics and Security &rarr; Pin Windows (or Screen Pinning)</li>
+                <li>Enable Screen Pinning</li>
+                <li>Open the app &rarr; tap Recent Apps &rarr; tap the pin icon on the app card</li>
+              </ol>
+            </div>
+
+            <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+              To unlock at end of shift: use the Guided Access PIN (iPhone) or Screen Pin PIN (Android)
+            </p>
           </div>
         )}
       </div>

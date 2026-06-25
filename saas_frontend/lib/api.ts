@@ -362,6 +362,17 @@ export interface BusinessStatus {
 export interface StaffPolicy {
   enabled: boolean
   emergency_contacts: { name: string; phone: string; relation: string }[]
+  kiosk_pin?: string
+  chat_salt?: string
+}
+
+export interface LiveData {
+  today_orders: number
+  today_revenue: number
+  goals: BusinessGoal[]
+  on_shift_count: number
+  on_shift: { id: number; user_id: number; clocked_in_at: string; focus_exits: number; user_email: string }[]
+  recent_orders: { id: number; order_source: string; total: number; status: string; created_at: string }[]
 }
 export interface EmployeeShift {
   id: number
@@ -628,6 +639,7 @@ export const api = {
     deleteGoal: (id: number) => request<void>(`/staff/goals/${id}`, { method: 'DELETE' }),
     getMessages: () => request<StaffMessage[]>('/staff/messages'),
     sendMessage: (content: string, to_user_id?: number) => request<StaffMessage>('/staff/messages', { method: 'POST', body: JSON.stringify({ content, to_user_id, is_broadcast: !to_user_id }) }),
+    getLive: () => request<LiveData>('/staff/live'),
   },
 }
 

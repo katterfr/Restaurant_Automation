@@ -171,6 +171,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
   const isLoginPage   = pathname.endsWith('/login')
   const isWelcomePage = pathname.endsWith('/welcome')
+  const isKioskPage   = pathname.endsWith('/kiosk')
 
   useEffect(() => {
     if (!slug) return
@@ -187,7 +188,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   }, [isLoginPage, slug])
 
   useEffect(() => {
-    if (isLoginPage || isWelcomePage || !slug) return
+    if (isLoginPage || isWelcomePage || isKioskPage || !slug) return
     // Require a portal (tenant) token — admin tokens have no tenant claim
     if (!isLoggedIn() || !getTenantId()) { router.replace(`/portal/${slug}/login`); return }
     // redirect to welcome on every fresh login (sessionStorage clears when tab closes)
@@ -195,7 +196,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
       sessionStorage.removeItem(`cs_show_welcome_${slug}`)
       router.replace(`/portal/${slug}/welcome`)
     }
-  }, [isLoginPage, isWelcomePage, router, slug])
+  }, [isLoginPage, isWelcomePage, isKioskPage, router, slug])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -241,6 +242,10 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
 
   if (isLoginPage) {
     return <TenantContext.Provider value={tenant}>{children}</TenantContext.Provider>
+  }
+
+  if (isKioskPage) {
+    return <>{children}</>
   }
 
   if (isWelcomePage) {

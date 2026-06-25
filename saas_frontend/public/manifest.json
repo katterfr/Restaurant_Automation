@@ -1,0 +1,13 @@
+{
+  "name": "Careful Server",
+  "short_name": "CarefulServer",
+  "description": "Restaurant management platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#16a34a",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -5,6 +5,39 @@ import { api, StaffMessage } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 import { CustomizationContext } from '../tenant-context'
 
+// ─── E2E Crypto helpers ───────────────────────────────────────────────────────
+
+async function deriveKey(passphrase: string, salt: string): Promise<CryptoKey> {
+  const enc = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey'])
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode(salt || 'careful-server-salt'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  )
+}
+
+async function encryptMsg(text: string, key: CryptoKey): Promise<string> {
+  const enc = new TextEncoder()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text))
+  const buf = new Uint8Array(iv.byteLength + ct.byteLength)
+  buf.set(iv, 0); buf.set(new Uint8Array(ct), iv.byteLength)
+  return btoa(String.fromCharCode(...buf))
+}
+
+async function decryptMsg(b64: string, key: CryptoKey): Promise<string> {
+  try {
+    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+    const iv = buf.slice(0, 12)
+    const ct = buf.slice(12)
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
+    return new TextDecoder().decode(pt)
+  } catch { return '[encrypted]' }
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -34,50 +67,99 @@ function groupByDate(messages: StaffMessage[]): { date: string; msgs: StaffMessa
 }
 
 export default function MessagesPage() {
-  useParams<{ slug: string }>()
+  const params = useParams<{ slug: string }>()
+  const slug = params?.slug ?? ''
   const customization = useContext(CustomizationContext)
   const accent = customization.accent_color || '#16a34a'
   const role = getRole()
   const dark = customization.dark_mode
 
   const [messages, setMessages] = useState<StaffMessage[]>([])
+  const [decryptedMsgs, setDecryptedMsgs] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
 
-  // We need a stable "current user" identifier — use from_user_id of own messages
-  // (the server decodes it from the JWT, so we can't easily know it here without
-  //  calling an endpoint; instead we track by from_name or use a heuristic:
-  //  compare against the most recent message from "me" — but since we don't have
-  //  a /me endpoint, we store our own user_id from the first send)
-  const myUserIdRef = useRef<number | null>(null)
+  // Crypto
+  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
+  const [chatSalt, setChatSalt] = useState<string>('')
+  const [passphrasePrompt, setPassphrasePrompt] = useState(false)
+  const [passphraseInput, setPassphraseInput] = useState('')
+  const [passphraseError, setPassphraseError] = useState('')
 
+  const myUserIdRef = useRef<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Decrypt messages when key or messages change
+  useEffect(() => {
+    if (!cryptoKey) return
+    const decrypt = async () => {
+      const results: Record<number, string> = {}
+      for (const m of messages) {
+        results[m.id] = await decryptMsg(m.content, cryptoKey)
+      }
+      setDecryptedMsgs(results)
+    }
+    decrypt()
+  }, [messages, cryptoKey])
 
   const load = useCallback(async () => {
     try {
-      const m = await api.staff.getMessages()
+      const [m, p] = await Promise.all([api.staff.getMessages(), api.staff.getPolicy()])
       setMessages(m)
+      const salt = p.chat_salt || 'careful-server-salt'
+      setChatSalt(salt)
+
+      // Try to get stored passphrase
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(`cs_kiosk_passphrase_${slug}`) : null
+      if (stored) {
+        try {
+          const key = await deriveKey(stored, salt)
+          setCryptoKey(key)
+        } catch {
+          setPassphrasePrompt(true)
+        }
+      } else {
+        setPassphrasePrompt(true)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load messages')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [slug])
 
   useEffect(() => { load() }, [load])
 
   // Auto-refresh every 20 seconds
   useEffect(() => {
-    const iv = setInterval(load, 20000)
+    const iv = setInterval(async () => {
+      try {
+        const m = await api.staff.getMessages()
+        setMessages(m)
+      } catch {}
+    }, 20000)
     return () => clearInterval(iv)
-  }, [load])
+  }, [])
 
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [decryptedMsgs])
+
+  async function submitPassphrase() {
+    if (!passphraseInput.trim()) return
+    setPassphraseError('')
+    try {
+      const key = await deriveKey(passphraseInput.trim(), chatSalt)
+      localStorage.setItem(`cs_kiosk_passphrase_${slug}`, passphraseInput.trim())
+      setCryptoKey(key)
+      setPassphrasePrompt(false)
+    } catch (e: unknown) {
+      setPassphraseError(e instanceof Error ? e.message : 'Invalid passphrase')
+    }
+  }
 
   async function sendMessage() {
     const text = input.trim()
@@ -85,12 +167,18 @@ export default function MessagesPage() {
     setSending(true)
     setError('')
     try {
-      const msg = await api.staff.sendMessage(text)
+      let content = text
+      if (cryptoKey) {
+        content = await encryptMsg(text, cryptoKey)
+      }
+      const msg = await api.staff.sendMessage(content)
       // Store our own user ID from first successful send
       if (myUserIdRef.current === null) {
         myUserIdRef.current = msg.from_user_id
       }
+      // Show plaintext immediately for own message
       setMessages(prev => [msg, ...prev])
+      setDecryptedMsgs(prev => ({ ...prev, [msg.id]: text }))
       setInput('')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send message')
@@ -104,10 +192,14 @@ export default function MessagesPage() {
     return false
   }
 
+  function displayContent(m: StaffMessage): string {
+    if (cryptoKey && decryptedMsgs[m.id] !== undefined) return decryptedMsgs[m.id]
+    return m.content
+  }
+
   const grouped = groupByDate(messages)
 
   const bgCard = dark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-  const bgMine = accent
   const bgOther = dark ? '#273447' : '#f3f4f6'
   const textOther = dark ? '#f1f5f9' : '#111827'
 
@@ -124,10 +216,38 @@ export default function MessagesPage() {
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            Encrypted
+            End-to-end encrypted
           </span>
         </div>
       </div>
+
+      {/* Passphrase prompt */}
+      {passphrasePrompt && (
+        <div className={`flex-none border-x border-b px-5 py-4 ${bgCard}`}>
+          <p className="text-sm font-medium text-gray-700 mb-2">Enter team passphrase to read encrypted messages</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Team passphrase"
+              value={passphraseInput}
+              onChange={e => { setPassphraseInput(e.target.value); setPassphraseError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') submitPassphrase() }}
+              autoCapitalize="none"
+              autoCorrect="off"
+              className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${dark ? 'bg-gray-800 border-gray-600 text-gray-100' : 'border-gray-300'}`}
+            />
+            <button
+              onClick={submitPassphrase}
+              disabled={!passphraseInput.trim()}
+              className="px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-opacity hover:opacity-90"
+              style={{ backgroundColor: accent }}
+            >
+              Unlock
+            </button>
+          </div>
+          {passphraseError && <p className="text-red-500 text-xs mt-1">{passphraseError}</p>}
+        </div>
+      )}
 
       {error && (
         <div className="flex-none mx-0 mt-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">{error}</div>
@@ -181,7 +301,7 @@ export default function MessagesPage() {
                           : { backgroundColor: bgOther, color: textOther }
                         }
                       >
-                        {m.content}
+                        {displayContent(m)}
                       </div>
                       {m.is_broadcast && !mine && (
                         <span className="text-xs text-gray-400">broadcast</span>
