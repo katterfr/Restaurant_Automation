@@ -15,7 +15,7 @@ const AD_PLATFORMS = [
   { key: 'google',    label: 'Google',    icon: 'G',  color: '#ea4335', desc: 'Search & Display Ads' },
   { key: 'youtube',   label: 'YouTube',   icon: '▶',  color: '#ff0000', desc: 'YouTube Video Ads' },
   { key: 'tiktok',    label: 'TikTok',    icon: '♪',  color: '#111',    desc: 'In-Feed Video Ads' },
-  { key: 'snapchat',  label: 'Snapchat',  icon: '👻', color: '#fffc00', fgDark: true, desc: 'Story & Snap Ads' },
+  { key: 'snapchat',  label: 'Snapchat',  icon: 'S',  color: '#fffc00', fgDark: true, desc: 'Story & Snap Ads' },
   { key: 'pinterest', label: 'Pinterest', icon: 'P',  color: '#e60023', desc: 'Promoted Pins' },
 ] as const
 
@@ -28,49 +28,49 @@ const SOCIAL_PLATFORMS = [
 const TOUR_STEPS: TourStep[] = [
   {
     targetId:  'dashboard-title',
-    title:     'Your Command Center 🏠',
+    title:     'Your Command Center',
     body:      'This is your main dashboard. Everything you need to run your restaurant is accessible from here — stats, orders, platforms, and navigation above.',
     placement: 'bottom',
   },
   {
     targetId:  'stats-grid',
-    title:     'Live Business Stats 📊',
+    title:     'Live Business Stats',
     body:      'These numbers update in real time. See how many orders came in today, your revenue, all-time totals, and how many menu items are active.',
     placement: 'bottom',
   },
   {
     targetId:  'quick-actions',
-    title:     'Quick Actions ⚡',
+    title:     'Quick Actions',
     body:      'Jump directly to your orders list or menu management with these buttons. More shortcuts will appear as you enable more features.',
     placement: 'bottom',
   },
   {
     targetId:  'platform-connections',
-    title:     'Platform Connections 🔗',
+    title:     'Platform Connections',
     body:      'Connect your ad accounts and social media pages here. Once connected, you can run campaigns and publish posts without leaving your portal.',
     placement: 'top',
   },
   {
     targetId:  'recent-orders',
-    title:     'Recent Orders 📦',
+    title:     'Recent Orders',
     body:      'All incoming orders — phone, delivery, online — show up here automatically. Click "View All Orders" to see the full list and manage order statuses.',
     placement: 'top',
   },
   {
     targetId:  'portal-nav',
-    title:     'Navigation Menu 🗺️',
+    title:     'Navigation Menu',
     body:      'All your tools are in the top navigation bar. Ads, Social Media, Accounting, Delivery, AI Creative — each section gets its own dedicated page.',
     placement: 'bottom',
   },
   {
     targetId:  'customize-btn',
-    title:     'Customize Your Portal 🎨',
+    title:     'Customize Your Portal',
     body:      'Click here to change your accent color, upload a logo, set a banner image, add a welcome message, or enable dark mode.',
     placement: 'bottom',
   },
   {
     targetId:  'chatbot-bubble',
-    title:     'Your AI Assistant 🤖',
+    title:     'Your AI Assistant',
     body:      "This floating bubble is your AI chat assistant. It knows your live stats and can answer any question about the platform. Click it anytime to get help.",
     placement: 'top',
   },

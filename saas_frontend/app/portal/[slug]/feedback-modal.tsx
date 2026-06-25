@@ -102,7 +102,7 @@ export default function FeedbackModal({ tenantId, restaurantName, accentColor = 
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between" style={{ background: `linear-gradient(135deg,${accentColor}33,rgba(99,102,241,0.2))`, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div>
-            <p className="text-white font-bold text-base">Quick Feedback 🌟</p>
+            <p className="text-white font-bold text-base">Quick Feedback</p>
             <p className="text-slate-400 text-xs mt-0.5">
               {isOwner ? 'Share your experience as a restaurant owner' : 'How are the tools working for your day?'}
             </p>
@@ -113,7 +113,9 @@ export default function FeedbackModal({ tenantId, restaurantName, accentColor = 
         <div className="px-6 py-5">
           {step === 'done' ? (
             <div className="text-center py-6 space-y-3">
-              <div className="text-5xl">🎉</div>
+              <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center" style={{ background: 'rgba(22,163,74,0.15)', border: '1px solid rgba(22,163,74,0.3)' }}>
+                <svg className="w-7 h-7 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+              </div>
               <p className="text-white font-bold text-lg">Thank you!</p>
               <p className="text-slate-400 text-sm">Your feedback has been submitted.</p>
               <p className="text-slate-500 text-xs mt-2 leading-relaxed">
@@ -132,7 +134,7 @@ export default function FeedbackModal({ tenantId, restaurantName, accentColor = 
                 <div key={q.key}>
                   <p className="text-white text-sm font-medium mb-2.5">{q.label}</p>
                   <div className="flex gap-3">
-                    {[{ val: true, label: 'Yes ✓' }, { val: false, label: 'No ✗' }].map(opt => (
+                    {[{ val: true, label: 'Yes' }, { val: false, label: 'No' }].map(opt => (
                       <button
                         key={String(opt.val)}
                         onClick={() => setAnswers(a => ({ ...a, [q.key]: opt.val }))}

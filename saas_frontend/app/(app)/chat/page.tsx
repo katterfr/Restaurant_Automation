@@ -197,12 +197,12 @@ function BotAvatar({ size = 8 }: { size?: number }) {
 // ── Suggestions ───────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
-  { icon: '📊', label: 'Show platform analytics' },
-  { icon: '🏢', label: 'List all tenants' },
-  { icon: '➕', label: 'Create a new restaurant' },
-  { icon: '🔧', label: 'Toggle a feature for a tenant' },
-  { icon: '📋', label: 'Show recent orders for a tenant' },
-  { icon: '💳', label: 'Change a tenant\'s plan' },
+  { label: 'Show platform analytics' },
+  { label: 'List all tenants' },
+  { label: 'Create a new restaurant' },
+  { label: 'Toggle a feature for a tenant' },
+  { label: 'Show recent orders for a tenant' },
+  { label: 'Change a tenant\'s plan' },
 ]
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -445,7 +445,6 @@ export default function AdminChatFullPage() {
                     onClick={() => send(s.label)}
                     className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm text-slate-300 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 transition-all text-left group"
                   >
-                    <span className="text-base shrink-0">{s.icon}</span>
                     <span className="group-hover:text-white transition-colors">{s.label}</span>
                   </button>
                 ))}
@@ -463,7 +462,7 @@ export default function AdminChatFullPage() {
           <div className="max-w-3xl mx-auto py-3 flex items-center gap-3">
             {attachment.isImage
               ? <img src={attachment.data} alt="" className="h-16 w-16 rounded-xl object-cover border border-slate-700 shrink-0" />
-              : <div className="h-16 w-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-2xl">📄</div>
+              : <div className="h-16 w-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0"><svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
             }
             <div className="flex-1 min-w-0">
               <p className="text-sm text-slate-200 font-medium truncate">{attachment.name}</p>

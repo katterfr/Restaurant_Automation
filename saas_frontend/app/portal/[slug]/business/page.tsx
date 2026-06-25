@@ -302,7 +302,7 @@ export default function BusinessPage() {
                         disabled={syncing}
                         className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
-                        {syncing ? 'Syncing…' : status?.google.location_id ? '🔄 Sync Changes' : '🚀 Create Google Listing'}
+                        {syncing ? 'Syncing…' : status?.google.location_id ? 'Sync Changes' : 'Create Google Listing'}
                       </button>
                       <button
                         onClick={disconnectGoogle}
@@ -376,7 +376,7 @@ export default function BusinessPage() {
                       disabled={appleSubmitting}
                       className="bg-gray-900 hover:bg-gray-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
-                      {appleSubmitting ? 'Updating…' : '🔄 Resubmit Changes'}
+                      {appleSubmitting ? 'Updating…' : 'Resubmit Changes'}
                     </button>
                   </div>
                 ) : (

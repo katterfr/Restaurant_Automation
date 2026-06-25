@@ -130,7 +130,7 @@ export default function MenuPage() {
 
       {!loading && !error && items.length === 0 && editingId === null && (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-2xl mb-3">🍽️</p>
+          <svg className="w-8 h-8 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg>
           <p className="text-gray-600 font-medium">No menu items yet</p>
           <p className="text-gray-400 text-sm mt-1">Add your first item to start building your menu.</p>
           <button onClick={startNew} className="inline-block mt-4 text-green-600 hover:underline text-sm font-medium">Add first item →</button>

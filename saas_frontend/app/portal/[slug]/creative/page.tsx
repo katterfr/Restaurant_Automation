@@ -29,12 +29,12 @@ const VIDEO_RATIOS = [
 ]
 
 const PROMPT_TEMPLATES = [
-  { label: '🍔 Food hero shot',    prompt: 'A mouth-watering close-up hero shot of our signature dish, perfectly plated, steam rising, garnished with fresh herbs' },
-  { label: '🏮 Restaurant ambiance', prompt: 'Warm inviting restaurant interior, cozy lighting, happy guests dining, elegant table settings' },
-  { label: '🎉 Special offer banner', prompt: 'Vibrant promotional image showcasing a weekend special deal, festive atmosphere, delicious food spread' },
-  { label: '🌿 Fresh ingredients',    prompt: 'Fresh colorful ingredients artfully arranged, farm-to-table feel, natural lighting, top-down flat lay' },
-  { label: '👨‍🍳 Chef in action',       prompt: 'Professional chef preparing a dish in a modern kitchen, action shot, culinary artistry, dramatic lighting' },
-  { label: '🥂 Dining experience',    prompt: 'Elegant dining table setup with beautifully plated food, wine glasses, warm candlelight, romantic atmosphere' },
+  { label: 'Food hero shot',      prompt: 'A mouth-watering close-up hero shot of our signature dish, perfectly plated, steam rising, garnished with fresh herbs' },
+  { label: 'Restaurant ambiance', prompt: 'Warm inviting restaurant interior, cozy lighting, happy guests dining, elegant table settings' },
+  { label: 'Special offer',       prompt: 'Vibrant promotional image showcasing a weekend special deal, festive atmosphere, delicious food spread' },
+  { label: 'Fresh ingredients',   prompt: 'Fresh colorful ingredients artfully arranged, farm-to-table feel, natural lighting, top-down flat lay' },
+  { label: 'Chef in action',      prompt: 'Professional chef preparing a dish in a modern kitchen, action shot, culinary artistry, dramatic lighting' },
+  { label: 'Dining experience',   prompt: 'Elegant dining table setup with beautifully plated food, wine glasses, warm candlelight, romantic atmosphere' },
 ]
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ function AssetCard({ asset, accent, onDelete, onUseInAd }: {
         ) : failed ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center px-4">
-              <span className="text-3xl">🔄</span>
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
               <p className="text-xs text-gray-500 mt-2 font-medium">
                 {asset.error_message?.includes('fal.run') || asset.error_message?.includes('fal-ai')
                   ? 'Generated with old service — regenerate below'
@@ -216,7 +216,7 @@ function GeneratePanel({ mode, accent, onGenerated, atLimit }: {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
       <h3 className="text-sm font-semibold text-gray-900">
-        {mode === 'image' ? '🖼 Generate Image' : '🎬 Generate Video'}
+        {mode === 'image' ? 'Generate Image' : 'Generate Video'}
       </h3>
 
       {/* Prompt templates */}
@@ -259,7 +259,7 @@ function GeneratePanel({ mode, accent, onGenerated, atLimit }: {
         <div>
           <p className="text-xs font-medium text-gray-600 mb-2">Video type</p>
           <div className="flex gap-2">
-            {([['text', '✏️ Text to Video'], ['image', '🖼 Animate an Image']] as const).map(([k, l]) => (
+            {([['text', 'Text to Video'], ['image', 'Animate an Image']] as const).map(([k, l]) => (
               <button
                 key={k}
                 onClick={() => setVideoMode(k)}
@@ -357,7 +357,7 @@ function GeneratePanel({ mode, accent, onGenerated, atLimit }: {
         >
           {loading
             ? (mode === 'image' ? 'Generating image…' : 'Submitting video job…')
-            : (mode === 'image' ? '✨ Generate Image' : '🎬 Generate Video')}
+            : (mode === 'image' ? 'Generate Image' : 'Generate Video')}
         </button>
       )}
 
@@ -478,8 +478,8 @@ export default function CreativePage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Usage · <span className="capitalize">{plan}</span> Plan</p>
             {[
-              { label: '🖼 Images', u: usage.images },
-              { label: '🎬 Videos', u: usage.videos },
+              { label: 'Images', u: usage.images },
+              { label: 'Videos', u: usage.videos },
             ].map(({ label, u }) => {
               const pct = u.limit === 0 ? 100 : Math.min(100, Math.round((u.used / u.limit) * 100))
               const color = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : accent
@@ -508,7 +508,7 @@ export default function CreativePage() {
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === m ? 'bg-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                 style={mode === m ? { color: accent } : {}}
               >
-                {m === 'image' ? '🖼 Image' : '🎬 Video'}
+                {m === 'image' ? 'Image' : 'Video'}
               </button>
             ))}
           </div>
@@ -537,7 +537,7 @@ export default function CreativePage() {
 
           {filtered.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
-              <p className="text-4xl mb-3">✨</p>
+              <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
               <p className="text-gray-500 text-sm font-medium">No creatives yet</p>
               <p className="text-gray-400 text-xs mt-1">
                 Use the panel on the left to generate your first ad image or video.

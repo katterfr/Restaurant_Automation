@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import Simulator from './components/simulator'
 
-// ─── count-up animation hook ──────────────────────────────────────────────────
 function useCountUp(target: number, active: boolean, duration = 1800) {
   const [val, setVal] = useState(0)
   useEffect(() => {
@@ -26,7 +25,6 @@ function fmtCount(n: number) {
   return `${n}+`
 }
 
-// ─── scroll-reveal hook ────────────────────────────────────────────────────────
 function useInView(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
@@ -39,20 +37,19 @@ function useInView(threshold = 0.12) {
   return [ref, visible] as const
 }
 
-// ─── data ─────────────────────────────────────────────────────────────────────
 const FEATURES = [
-  { icon: '🤖', color: '#22c55e', cat: 'AI',        title: 'AI Phone Agent',        desc: 'AI answers every call 24/7, takes orders and submits them to your dashboard automatically.' },
-  { icon: '🔄', color: '#22c55e', cat: 'AI',        title: 'Voice ↔ Text Bridge',   desc: 'Callers switch to SMS mid-call. Text customers switch to voice. AI handles both directions.' },
-  { icon: '✨', color: '#818cf8', cat: 'AI',        title: 'AI Creative Studio',     desc: 'Generate professional ad images and videos in seconds. No designer needed.' },
-  { icon: '🧠', color: '#818cf8', cat: 'AI',        title: 'AI Portal Assistant',   desc: 'Built-in chatbot inside your dashboard that knows your live stats and answers any question.' },
-  { icon: '📣', color: '#f59e0b', cat: 'Marketing', title: 'Ad Campaign Manager',    desc: 'Run ads on Meta, Google, YouTube, TikTok, Snapchat, and Pinterest from one dashboard.' },
-  { icon: '💬', color: '#f59e0b', cat: 'Marketing', title: 'Social Media Posting',  desc: 'Publish to Facebook, Instagram, YouTube, and TikTok simultaneously with one click.' },
-  { icon: '📋', color: '#38bdf8', cat: 'Operations',title: 'Order Management',       desc: 'All orders — phone, delivery, online — appear in one unified real-time dashboard.' },
-  { icon: '🍽️', color: '#38bdf8', cat: 'Operations',title: 'Menu Management',        desc: 'Digital menu with live availability toggles, pricing, categories and descriptions.' },
-  { icon: '💰', color: '#38bdf8', cat: 'Operations',title: 'Accounting',             desc: 'Track revenue and expenses, view profit reports, and categorize entries automatically.' },
-  { icon: '🚚', color: '#fb923c', cat: 'Presence',  title: 'Delivery Integrations', desc: 'Connect DoorDash, Uber Eats, and more. Orders flow straight into your dashboard.' },
-  { icon: '📍', color: '#fb923c', cat: 'Presence',  title: 'Maps & Listings',        desc: 'Manage your Google Business Profile and Apple Maps listing from one place.' },
-  { icon: '🎨', color: '#fb923c', cat: 'Presence',  title: 'Custom Branded Portal',  desc: 'Your own portal with custom colors, logo, welcome message and dark mode.' },
+  { icon: 'AI',  color: '#22c55e', cat: 'AI',         title: 'AI Phone Agent',        desc: 'AI answers every call 24/7, takes orders and submits them to your dashboard automatically.' },
+  { icon: 'AI',  color: '#22c55e', cat: 'AI',         title: 'Voice & Text Bridge',   desc: 'Callers switch to SMS mid-call. Text customers switch to voice. AI handles both directions.' },
+  { icon: 'AI',  color: '#818cf8', cat: 'AI',         title: 'AI Creative Studio',    desc: 'Generate professional ad images and videos in seconds. No designer needed.' },
+  { icon: 'AI',  color: '#818cf8', cat: 'AI',         title: 'AI Portal Assistant',   desc: 'Built-in assistant inside your dashboard that knows your live stats and answers any question.' },
+  { icon: 'Ads', color: '#f59e0b', cat: 'Marketing',  title: 'Ad Campaign Manager',   desc: 'Run ads on Meta, Google, YouTube, TikTok, Snapchat, and Pinterest from one dashboard.' },
+  { icon: 'Soc', color: '#f59e0b', cat: 'Marketing',  title: 'Social Media Posting',  desc: 'Publish to Facebook, Instagram, YouTube, and TikTok simultaneously with one click.' },
+  { icon: 'Ord', color: '#38bdf8', cat: 'Operations', title: 'Order Management',      desc: 'All orders — phone, delivery, online — appear in one unified real-time dashboard.' },
+  { icon: 'Men', color: '#38bdf8', cat: 'Operations', title: 'Menu Management',       desc: 'Digital menu with live availability toggles, pricing, categories and descriptions.' },
+  { icon: 'Acc', color: '#38bdf8', cat: 'Operations', title: 'Accounting',            desc: 'Track revenue and expenses, view profit reports, and categorize entries automatically.' },
+  { icon: 'Del', color: '#fb923c', cat: 'Presence',   title: 'Delivery Integrations', desc: 'Connect DoorDash, Uber Eats, and more. Orders flow straight into your dashboard.' },
+  { icon: 'Map', color: '#fb923c', cat: 'Presence',   title: 'Maps & Listings',       desc: 'Manage your Google Business Profile and Apple Maps listing from one place.' },
+  { icon: 'Brd', color: '#fb923c', cat: 'Presence',   title: 'Custom Branded Portal', desc: 'Your own portal with custom colors, logo, welcome message and dark mode.' },
 ]
 
 const PLATFORMS = ['Meta Ads','Google Ads','YouTube Ads','TikTok Ads','Snapchat Ads','Pinterest Ads',
@@ -61,40 +58,39 @@ const PLATFORMS = ['Meta Ads','Google Ads','YouTube Ads','TikTok Ads','Snapchat 
   'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps','Stripe']
 
 const PLANS = [
-  { id:'starter', name:'Starter', monthly:49, yearly:39, tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(255,255,255,0.08)', locations:'1 Location',
+  { id:'starter', name:'Starter', monthly:49,  yearly:39,  tag:'',            color:'rgba(30,41,59,0.8)',  border:'rgba(255,255,255,0.08)', locations:'1 Location',
     features:['Order Management','Menu Management','Basic Reporting','Owner Portal','AI Chat Assistant'] },
-  { id:'growth',  name:'Growth',  monthly:149,yearly:119,tag:'Most Popular',color:'rgba(15,23,42,0.9)',border:'rgba(34,197,94,0.5)',   locations:'Up to 3 Locations',
+  { id:'growth',  name:'Growth',  monthly:149, yearly:119, tag:'Most Popular', color:'rgba(15,23,42,0.9)',  border:'rgba(34,197,94,0.5)',    locations:'Up to 3 Locations',
     features:['Everything in Starter','6-Platform Ad Campaigns','Social Media Posting','Delivery Integrations','Google & Apple Maps Listings','AI Creative Studio'] },
-  { id:'pro',     name:'Pro',     monthly:299,yearly:239,tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(129,140,248,0.4)', locations:'Unlimited Locations',
-    features:['Everything in Growth','AI Phone Agent 24/7','Voice ↔ Text Bridge','Accounting & Bookkeeping','Priority Support','Custom Onboarding'] },
+  { id:'pro',     name:'Pro',     monthly:299, yearly:239, tag:'',             color:'rgba(30,41,59,0.8)',  border:'rgba(129,140,248,0.4)', locations:'Unlimited Locations',
+    features:['Everything in Growth','AI Phone Agent 24/7','Voice & Text Bridge','Accounting & Bookkeeping','Priority Support','Custom Onboarding'] },
 ]
 
 type LiveTestimonial = { restaurant_name: string; owner_name: string; star_rating: number; comment: string }
 const FALLBACK_TESTIMONIALS: LiveTestimonial[] = [
   { comment: 'The AI phone agent alone paid for itself in the first week. We stopped missing after-hours orders completely.', owner_name: 'Carlos M.', restaurant_name: 'The Taqueria, Austin TX', star_rating: 5 },
-  { comment: 'Managing ads across 5 platforms used to take hours every day. Now it\'s 10 minutes, and our ROAS doubled.', owner_name: 'Sarah K.', restaurant_name: 'Urban Bites, Chicago IL', star_rating: 5 },
+  { comment: "Managing ads across 5 platforms used to take hours every day. Now it's 10 minutes, and our ROAS doubled.", owner_name: 'Sarah K.', restaurant_name: 'Urban Bites, Chicago IL', star_rating: 5 },
   { comment: 'Our online presence exploded after connecting Google Maps and running AI-generated ad creatives. Revenue up 34%.', owner_name: 'James T.', restaurant_name: 'Harbor Grill, Miami FL', star_rating: 5 },
 ]
 
 const STEPS = [
-  { n:'01', icon:'📝', title:'Sign Up & Configure', time:'2 minutes', desc:'Create your account, enter your restaurant details, and choose your plan. Your portal is ready instantly.' },
-  { n:'02', icon:'🔗', title:'Connect Your Platforms', time:'5 minutes', desc:'Link your ad accounts, social media pages, and delivery platforms with one-click OAuth connections.' },
-  { n:'03', icon:'🚀', title:'Start Automating', time:'Immediate', desc:'AI takes your calls, your ads run, orders flow in. Your dashboard updates in real time — you\'re live.' },
+  { n:'01', title:'Sign Up & Configure',   time:'2 minutes',  desc:'Create your account, enter your restaurant details, and choose your plan. Your portal is ready instantly.' },
+  { n:'02', title:'Connect Your Platforms', time:'5 minutes',  desc:'Link your ad accounts, social media pages, and delivery platforms with one-click OAuth connections.' },
+  { n:'03', title:'Start Automating',       time:'Immediate',  desc:"AI takes your calls, your ads run, orders flow in. Your dashboard updates in real time — you're live." },
 ]
 
-// ─── visitor chatbot ───────────────────────────────────────────────────────────
 type ChatMsg = { role: 'user' | 'assistant'; content: string; navigate?: string }
 
 function VisitorChat() {
-  const [open, setOpen]     = useState(false)
-  const [msgs, setMsgs]     = useState<ChatMsg[]>([])
-  const [input, setInput]   = useState('')
+  const [open, setOpen]       = useState(false)
+  const [msgs, setMsgs]       = useState<ChatMsg[]>([])
+  const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
-  useEffect(() => { if (open && msgs.length === 0) setMsgs([{ role: 'assistant', content: "Hey! 👋 I'm Alex, your guide to Careful-Server. Ask me anything about features, pricing, or how to get started!" }]) }, [open])
+  useEffect(() => { if (open && msgs.length === 0) setMsgs([{ role: 'assistant', content: "I'm Alex, your Careful Server guide. Ask me anything about features, pricing, or how to get started." }]) }, [open])
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 120) }, [open])
 
   async function send(text?: string) {
@@ -108,22 +104,20 @@ function VisitorChat() {
     finally { setLoading(false) }
   }
 
-  const QUICK = ['What does Careful-Server do?','Tell me about AI Phone Agent','What are the pricing plans?','How do I get started?']
+  const QUICK = ['What does Careful Server do?', 'Tell me about AI Phone Agent', 'What are the pricing plans?', 'How do I get started?']
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       {open && (
         <div className="w-80 sm:w-96 rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ height: 480, background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }}>
-          {/* header */}
           <div className="px-4 py-3 flex items-center gap-2.5 shrink-0" style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}>
-            <img src="/logo.svg" alt="Careful-Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+            <img src="/logo.svg" alt="Careful Server" className="w-9 h-9 rounded-xl object-cover shrink-0" />
             <div className="flex-1">
               <p className="text-white text-sm font-semibold leading-none">Alex</p>
-              <p className="text-white/70 text-xs mt-0.5">Careful-Server Assistant</p>
+              <p className="text-white/70 text-xs mt-0.5">Careful Server Assistant</p>
             </div>
             <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white text-lg leading-none">✕</button>
           </div>
-          {/* messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
             {msgs.map((m, i) => (
               <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -132,12 +126,9 @@ function VisitorChat() {
                   {m.content}
                 </div>
                 {m.navigate && (
-                  <a
-                    href={m.navigate}
-                    className="mt-1.5 text-xs font-semibold text-white px-4 py-2 rounded-xl flex items-center gap-1.5 hover:opacity-90 transition-opacity"
-                    style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}
-                  >
-                    {m.navigate === '/signup' ? '🚀 Get Started' : '🔑 Go to Owner Portal'} →
+                  <a href={m.navigate} className="mt-1.5 text-xs font-semibold text-white px-4 py-2 rounded-xl flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                    style={{ background: 'linear-gradient(135deg,#16a34a,#6366f1)' }}>
+                    {m.navigate === '/signup' ? 'Get Started' : 'Go to Owner Portal'} →
                   </a>
                 )}
               </div>
@@ -150,14 +141,13 @@ function VisitorChat() {
             )}
             <div ref={bottomRef}/>
           </div>
-          {/* input */}
           <div className="px-3 pb-3 pt-2 border-t border-slate-800 shrink-0">
             <div className="flex gap-2">
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
                 placeholder="Ask anything…" disabled={loading}
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500"/>
-              <button onClick={() => send()} disabled={!input.trim()||loading}
+              <button onClick={() => send()} disabled={!input.trim() || loading}
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-white disabled:opacity-30 shrink-0"
                 style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)' }}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 rotate-90"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -166,19 +156,12 @@ function VisitorChat() {
           </div>
         </div>
       )}
-      {/* bubble */}
       <div className="relative flex flex-col items-end gap-2">
-        {!open && (
-          <div className="flex items-center gap-2 bg-white text-gray-800 text-sm font-medium px-4 py-2 rounded-2xl shadow-lg border border-gray-100 whitespace-nowrap animate-bounce-slow">
-            <span>💬</span> Chat with Us
-            <div className="absolute -bottom-2 right-6 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
-          </div>
-        )}
         <button onClick={() => setOpen(o => !o)}
           className="w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center transition-transform hover:scale-110 cs-glow overflow-hidden"
           title="Chat with us">
           {open
-            ? <span className="text-white text-2xl" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
+            ? <span className="text-white text-xl font-light" style={{ background:'linear-gradient(135deg,#16a34a,#6366f1)', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</span>
             : <img src="/logo.svg" alt="Chat" className="w-full h-full object-cover" />
           }
         </button>
@@ -187,14 +170,13 @@ function VisitorChat() {
   )
 }
 
-// ─── signup modal ─────────────────────────────────────────────────────────────
 function SignupModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep]     = useState(0)
-  const [plan, setPlan]     = useState('growth')
-  const [form, setForm]     = useState({ restaurant_name:'', city:'', phone:'', owner_email:'', owner_password:'', confirm:'' })
+  const [step, setStep]       = useState(0)
+  const [plan, setPlan]       = useState('growth')
+  const [form, setForm]       = useState({ restaurant_name:'', city:'', phone:'', owner_email:'', owner_password:'', confirm:'' })
   const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
-  const [done, setDone]     = useState<{ slug: string; portal_url: string } | null>(null)
+  const [error, setError]     = useState('')
+  const [done, setDone]       = useState<{ slug: string; portal_url: string } | null>(null)
 
   function f(k: keyof typeof form) { return (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value })) }
 
@@ -215,7 +197,6 @@ function SignupModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
       <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ background:'#0f172a', border:'1px solid rgba(255,255,255,0.1)' }}>
-        {/* header bar */}
         <div className="px-6 py-4 flex items-center justify-between" style={{ background:'linear-gradient(135deg,rgba(22,163,74,0.2),rgba(99,102,241,0.2))', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
           <p className="text-white font-semibold">Get Started Free</p>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">✕</button>
@@ -223,7 +204,9 @@ function SignupModal({ onClose }: { onClose: () => void }) {
 
         {done ? (
           <div className="px-6 py-8 text-center space-y-4">
-            <div className="text-5xl">🎉</div>
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style={{ background:'rgba(22,163,74,0.15)', border:'1px solid rgba(22,163,74,0.3)' }}>
+              <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+            </div>
             <p className="text-white text-lg font-bold">You're all set, {form.restaurant_name}!</p>
             <p className="text-slate-400 text-sm">Your portal is ready. Bookmark your unique link:</p>
             <div className="bg-slate-800 rounded-xl px-4 py-3 font-mono text-green-400 text-sm break-all">{typeof window !== 'undefined' ? window.location.origin : ''}{done.portal_url}</div>
@@ -233,7 +216,6 @@ function SignupModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div className="px-6 py-5 space-y-5">
-            {/* step dots */}
             <div className="flex gap-2 justify-center">
               {['Restaurant','Account','Plan'].map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
@@ -264,7 +246,7 @@ function SignupModal({ onClose }: { onClose: () => void }) {
                 <input className={inp} placeholder="Confirm password *" value={form.confirm} onChange={f('confirm')} type="password" required/>
                 <div className="flex gap-3">
                   <button onClick={() => { setError(''); setStep(0) }} className="flex-1 text-slate-400 hover:text-white border border-slate-700 py-2.5 rounded-xl text-sm transition-colors">← Back</button>
-                  <button onClick={() => { if (!form.owner_email||!form.owner_password) { setError('Fill in all fields'); return }; if (form.owner_password!==form.confirm) { setError("Passwords don't match"); return }; setError(''); setStep(2) }}
+                  <button onClick={() => { if (!form.owner_email || !form.owner_password) { setError('Fill in all fields'); return }; if (form.owner_password !== form.confirm) { setError("Passwords don't match"); return }; setError(''); setStep(2) }}
                     className="flex-1 text-white font-semibold py-2.5 rounded-xl transition-opacity hover:opacity-90" style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)' }}>
                     Continue →
                   </button>
@@ -294,7 +276,7 @@ function SignupModal({ onClose }: { onClose: () => void }) {
                   <button onClick={() => { setError(''); setStep(1) }} className="flex-1 text-slate-400 hover:text-white border border-slate-700 py-2.5 rounded-xl text-sm transition-colors">← Back</button>
                   <button onClick={submit} disabled={loading}
                     className="flex-1 text-white font-semibold py-2.5 rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)' }}>
-                    {loading ? 'Creating…' : '🚀 Create Account'}
+                    {loading ? 'Creating…' : 'Create Account'}
                   </button>
                 </div>
               </div>
@@ -309,24 +291,22 @@ function SignupModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── page ──────────────────────────────────────────────────────────────────────
 export default function MarketingPage() {
-  const [showSignup, setShowSignup] = useState(false)
-  const [mobileNav,  setMobileNav]  = useState(false)
-  const [scrolled,   setScrolled]   = useState(false)
-  const [yearly,     setYearly]     = useState(false)
-  const [contactForm, setContactForm] = useState({ name:'', email:'', restaurant_name:'', phone:'', plan_interest:'', message:'' })
-  const [contactSent,  setContactSent]  = useState(false)
+  const [showSignup, setShowSignup]         = useState(false)
+  const [mobileNav,  setMobileNav]          = useState(false)
+  const [scrolled,   setScrolled]           = useState(false)
+  const [yearly,     setYearly]             = useState(false)
+  const [contactForm, setContactForm]       = useState({ name:'', email:'', restaurant_name:'', phone:'', plan_interest:'', message:'' })
+  const [contactSent,  setContactSent]      = useState(false)
   const [contactLoading, setContactLoading] = useState(false)
 
-  // section visibility
-  const [statsRef,    statsVis]    = useInView()
-  const [featRef,     featVis]     = useInView()
-  const [aiRef,       aiVis]       = useInView()
-  const [howRef,      howVis]      = useInView()
-  const [priceRef,    priceVis]    = useInView()
-  const [testRef,     testVis]     = useInView()
-  const [contactRef,  contactVis]  = useInView()
+  const [statsRef,   statsVis]   = useInView()
+  const [featRef,    featVis]    = useInView()
+  const [aiRef,      aiVis]      = useInView()
+  const [howRef,     howVis]     = useInView()
+  const [priceRef,   priceVis]   = useInView()
+  const [testRef,    testVis]    = useInView()
+  const [contactRef, contactVis] = useInView()
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40)
@@ -334,7 +314,7 @@ export default function MarketingPage() {
     return () => window.removeEventListener('scroll', fn)
   }, [])
 
-  const [publicStats, setPublicStats] = useState<{ restaurant_count: number; order_count: number } | null>(null)
+  const [publicStats, setPublicStats]   = useState<{ restaurant_count: number; order_count: number } | null>(null)
   const [testimonials, setTestimonials] = useState<LiveTestimonial[]>(FALLBACK_TESTIMONIALS)
   useEffect(() => {
     api.public.stats().then(setPublicStats).catch(() => {})
@@ -347,46 +327,42 @@ export default function MarketingPage() {
   const orderTarget      = publicStats?.order_count ?? 0
   const animRestaurants  = useCountUp(restaurantTarget, statsVis)
   const animOrders       = useCountUp(orderTarget, statsVis)
-
-  const restaurantVal = !publicStats || restaurantTarget < 100 ? '—' : fmtCount(animRestaurants)
-  const orderVal      = !publicStats || orderTarget < 100      ? '—' : fmtCount(animOrders)
+  const restaurantVal    = !publicStats || restaurantTarget < 100 ? '—' : fmtCount(animRestaurants)
+  const orderVal         = !publicStats || orderTarget < 100      ? '—' : fmtCount(animOrders)
 
   async function sendContact(e: React.FormEvent) {
     e.preventDefault()
     setContactLoading(true)
-    try {
-      await api.public.contact(contactForm)
-      setContactSent(true)
-    } catch { /* best-effort */ }
+    try { await api.public.contact(contactForm); setContactSent(true) }
+    catch { /* best-effort */ }
     finally { setContactLoading(false) }
   }
 
   const navLinks = [
-    { label:'Features',  href:'#features' },
-    { label:'AI Tools',  href:'#ai' },
-    { label:'Try Demo',  href:'#simulator' },
-    { label:'Pricing',   href:'#pricing' },
-    { label:'Contact',   href:'#contact' },
+    { label:'Features', href:'#features' },
+    { label:'AI Tools', href:'#ai' },
+    { label:'Try Demo', href:'#simulator' },
+    { label:'Pricing',  href:'#pricing' },
+    { label:'Contact',  href:'#contact' },
   ]
 
   const inp = 'w-full bg-slate-800/60 border border-slate-700/70 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-green-500 transition-colors'
 
   return (
     <div className="min-h-screen text-white" style={{ background:'#020617' }}>
-      {/* ── NAV ── */}
+
+      {/* NAV */}
       <header className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${scrolled ? 'glass border-b border-white/5 shadow-xl' : 'bg-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <a href="#" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base shadow-lg" style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)' }}>🍽️</div>
-            <span className="font-bold text-lg text-white group-hover:text-green-400 transition-colors">Careful-Server</span>
+            <img src="/logo.svg" alt="Careful Server" className="w-8 h-8 rounded-lg object-cover shadow-lg" />
+            <span className="font-bold text-lg text-white group-hover:text-green-400 transition-colors">Careful Server</span>
           </a>
-
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map(n => (
               <a key={n.href} href={n.href} className="px-4 py-2 text-sm text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all">{n.label}</a>
             ))}
           </nav>
-
           <div className="hidden md:flex items-center gap-3">
             <Link href="/portal/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2">Restaurant Login</Link>
             <button onClick={() => setShowSignup(true)}
@@ -395,12 +371,10 @@ export default function MarketingPage() {
               Get Started Free
             </button>
           </div>
-
           <button className="md:hidden text-slate-400 hover:text-white p-2" onClick={() => setMobileNav(o => !o)}>
             {mobileNav ? '✕' : '☰'}
           </button>
         </div>
-
         {mobileNav && (
           <div className="md:hidden glass border-t border-white/5 px-4 pb-4 space-y-1">
             {navLinks.map(n => <a key={n.href} href={n.href} onClick={() => setMobileNav(false)} className="block px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg">{n.label}</a>)}
@@ -412,9 +386,8 @@ export default function MarketingPage() {
         )}
       </header>
 
-      {/* ── HERO ── */}
+      {/* HERO */}
       <section className="relative hero-bg dot-grid min-h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden pt-20">
-        {/* orbs */}
         <div className="absolute top-1/4 left-1/5 w-96 h-96 rounded-full cs-float" style={{ background:'radial-gradient(circle,rgba(22,163,74,0.14) 0%,transparent 70%)', filter:'blur(40px)', pointerEvents:'none' }}/>
         <div className="absolute bottom-1/4 right-1/5 w-80 h-80 rounded-full cs-float-delay" style={{ background:'radial-gradient(circle,rgba(99,102,241,0.14) 0%,transparent 70%)', filter:'blur(40px)', pointerEvents:'none' }}/>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full cs-float-slow" style={{ background:'radial-gradient(circle,rgba(22,163,74,0.05) 0%,transparent 70%)', filter:'blur(60px)', pointerEvents:'none' }}/>
@@ -424,16 +397,13 @@ export default function MarketingPage() {
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"/>
             AI-powered restaurant management is here
           </div>
-
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-tight cs-up-1">
             Restaurant Management,<br/>
             <span className="cs-grad-text">Reimagined with AI</span>
           </h1>
-
           <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto cs-up-2">
             The all-in-one platform that automates your phone orders, runs your ads across 6 platforms, generates AI creative, and manages every part of your restaurant — all from one dashboard.
           </p>
-
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center cs-up-3">
             <button onClick={() => setShowSignup(true)}
               className="px-8 py-4 text-base font-bold text-white rounded-2xl shadow-2xl transition-all hover:opacity-90 hover:scale-105 cs-glow"
@@ -444,39 +414,35 @@ export default function MarketingPage() {
               See All Features ↓
             </a>
           </div>
-
-          {/* badge row */}
           <div className="flex flex-wrap justify-center gap-2 pt-2 cs-up-4">
-            {['🤖 AI Phone Agent','📣 6 Ad Platforms','24/7 Orders','✨ AI Creative','🎯 Social Media','📍 Maps Listings'].map(b => (
+            {['AI Phone Agent','6 Ad Platforms','24/7 Coverage','AI Creative Studio','Social Media Automation','Maps & Listings'].map(b => (
               <span key={b} className="glass-card px-3.5 py-1.5 rounded-full text-xs text-slate-300">{b}</span>
             ))}
           </div>
         </div>
 
-        {/* floating dashboard preview */}
+        {/* dashboard preview */}
         <div className="relative z-10 mt-16 max-w-4xl mx-auto w-full cs-float-slow">
           <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ background:'#0f172a', border:'1px solid rgba(255,255,255,0.08)' }}>
-            {/* fake window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5" style={{ background:'rgba(30,41,59,0.8)' }}>
               <div className="w-3 h-3 rounded-full bg-red-500/70"/>
               <div className="w-3 h-3 rounded-full bg-yellow-500/70"/>
               <div className="w-3 h-3 rounded-full bg-green-500/70"/>
               <div className="flex-1 mx-4 h-6 rounded-lg bg-slate-800 flex items-center px-3">
-                <span className="text-xs text-slate-500">portal.careful-server.com/your-restaurant</span>
+                <span className="text-xs text-slate-500">portal.carefulserver.com/your-restaurant</span>
               </div>
             </div>
-            {/* dashboard mockup */}
             <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[['📦','47','Orders Today'],['💰','$2,840','Revenue'],['📱','12','Active Ads'],['🤖','3','AI Calls']].map(([icon, val, label]) => (
+              {[['47','Orders Today','#22c55e'],['$2,840','Revenue','#818cf8'],['12','Active Ads','#f59e0b'],['3','AI Calls','#38bdf8']].map(([val, label, color]) => (
                 <div key={label} className="glass-card rounded-xl p-3.5">
-                  <div className="text-xl mb-1">{icon}</div>
+                  <div className="w-2 h-2 rounded-full mb-2" style={{ backgroundColor: color }}/>
                   <div className="text-lg font-bold text-white">{val}</div>
                   <div className="text-xs text-slate-500">{label}</div>
                 </div>
               ))}
             </div>
             <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[['Meta Ads','Connected ✓','#1877f2'],['Google Ads','Connected ✓','#ea4335'],['AI Agent','Active ✓','#16a34a']].map(([p,s,c]) => (
+              {[['Meta Ads','Connected','#1877f2'],['Google Ads','Connected','#ea4335'],['AI Agent','Active','#16a34a']].map(([p,s,c]) => (
                 <div key={p} className="glass-card rounded-xl px-4 py-3 flex items-center justify-between">
                   <span className="text-sm text-slate-300">{p}</span>
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color:c, background:`${c}20` }}>{s}</span>
@@ -486,13 +452,12 @@ export default function MarketingPage() {
           </div>
         </div>
 
-        {/* scroll arrow */}
         <a href="#stats" className="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-500 hover:text-slate-300 transition-colors animate-bounce">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
         </a>
       </section>
 
-      {/* ── STATS ── */}
+      {/* STATS */}
       <section id="stats" className="py-16 border-y border-white/5" style={{ background:'rgba(15,23,42,0.8)' }}>
         <div ref={statsRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center transition-all duration-700 ${statsVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div>
@@ -514,18 +479,18 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
+      {/* FEATURES */}
       <section id="features" className="py-24 px-4">
         <div ref={featRef as React.RefObject<HTMLDivElement>} className={`max-w-7xl mx-auto transition-all duration-700 ${featVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-14">
             <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">Everything You Need</span>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">Your Restaurant's Command Center</h2>
-            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">From AI-powered phone ordering to multi-platform advertising — every tool you need, in one dashboard. No switching between 10 different apps.</p>
+            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">From AI-powered phone ordering to multi-platform advertising — every tool you need, in one dashboard. No switching between apps.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {FEATURES.map((f, i) => (
               <div key={f.title} className="feature-card glass-card rounded-2xl p-5 cursor-default" style={{ animationDelay:`${i*0.05}s` }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3" style={{ background:`${f.color}18` }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold mb-3" style={{ background:`${f.color}18`, color: f.color }}>
                   {f.icon}
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full mb-2 inline-block" style={{ color:f.color, background:`${f.color}15` }}>{f.cat}</span>
@@ -537,22 +502,22 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── AI SPOTLIGHT ── */}
+      {/* AI SPOTLIGHT */}
       <section id="ai" className="py-24 px-4 relative overflow-hidden" style={{ background:'rgba(15,23,42,0.6)' }}>
         <div className="absolute inset-0 pointer-events-none" style={{ background:'radial-gradient(ellipse 60% 80% at 10% 50%, rgba(22,163,74,0.08) 0%, transparent 70%)' }}/>
         <div ref={aiRef as React.RefObject<HTMLDivElement>} className={`max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center transition-all duration-700 ${aiVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="space-y-6">
             <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">AI-Powered Core</span>
             <h2 className="text-4xl font-extrabold text-white">AI Built Into Every Layer</h2>
-            <p className="text-slate-400">Careful-Server isn't just software with an AI bolt-on. AI is at the core of every workflow — from the moment a customer calls to the ad creative that brings them back.</p>
+            <p className="text-slate-400">Careful Server isn't software with an AI bolt-on. AI is at the core of every workflow — from the moment a customer calls to the ad creative that brings them back.</p>
             <div className="space-y-4">
               {[
-                { icon:'📞', title:'Always-On Phone Agent', desc:'Never miss an order. AI answers calls instantly, guides customers through your menu, and submits orders automatically — even at 2 AM.' },
-                { icon:'🎨', title:'AI Ad Creative Generation', desc:'Describe your promotion and get professional-quality images and videos in seconds. No design budget needed.' },
-                { icon:'🔄', title:'Voice ↔ Text Handoff', desc:'A customer can say "text me instead" and seamlessly continue ordering via SMS. Or text "CALL ME" and AI calls them back. ' },
+                { title:'Always-On Phone Agent', desc:'Never miss an order. AI answers calls instantly, guides customers through your menu, and submits orders automatically — even at 2 AM.' },
+                { title:'AI Ad Creative Generation', desc:'Describe your promotion and get professional-quality images and videos in seconds. No design budget needed.' },
+                { title:'Voice & Text Handoff', desc:'A customer can say "text me instead" and seamlessly continue ordering via SMS. Or text "CALL ME" and AI calls them back.' },
               ].map(a => (
                 <div key={a.title} className="flex gap-4 glass-card rounded-xl p-4">
-                  <span className="text-2xl shrink-0">{a.icon}</span>
+                  <div className="w-0.5 rounded-full shrink-0 self-stretch" style={{ background:'linear-gradient(180deg,#16a34a,#6366f1)' }}/>
                   <div>
                     <p className="text-white font-semibold text-sm">{a.title}</p>
                     <p className="text-slate-400 text-xs mt-1 leading-relaxed">{a.desc}</p>
@@ -561,7 +526,6 @@ export default function MarketingPage() {
               ))}
             </div>
           </div>
-          {/* animated visual */}
           <div className="relative">
             <div className="glass-card rounded-2xl p-6 space-y-3 cs-float">
               <div className="flex items-center gap-3 mb-4">
@@ -569,10 +533,10 @@ export default function MarketingPage() {
                 <span className="text-green-400 text-sm font-semibold">AI Phone Agent — Live</span>
               </div>
               {[
-                { from:'📞 Customer', msg:'Hi, I\'d like to order a large pepperoni pizza and two Cokes.', align:'left' },
-                { from:'🤖 AI Agent', msg:'Great choice! That\'s $24.50. Can I get your name for the order?', align:'right' },
-                { from:'📞 Customer', msg:'Actually, can you text me the confirmation?', align:'left' },
-                { from:'🤖 AI Agent', msg:'Sure! Switching you to SMS now. Order #847 has been submitted to the kitchen ✅', align:'right' },
+                { from:'Customer', msg:"Hi, I'd like to order a large pepperoni pizza and two Cokes.", align:'left' },
+                { from:'AI Agent', msg:"Great choice! That's $24.50. Can I get your name for the order?", align:'right' },
+                { from:'Customer', msg:'Actually, can you text me the confirmation?', align:'left' },
+                { from:'AI Agent', msg:'Sure — switching you to SMS now. Order #847 has been submitted to the kitchen.', align:'right' },
               ].map((m, i) => (
                 <div key={i} className={`flex ${m.align === 'right' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${m.align === 'right' ? 'text-white rounded-br-sm' : 'bg-slate-700 text-slate-200 rounded-bl-sm'}`}
@@ -587,7 +551,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── PLATFORM TICKER ── */}
+      {/* PLATFORM TICKER */}
       <section className="py-10 border-y border-white/5 overflow-hidden" style={{ background:'rgba(2,6,23,0.8)' }}>
         <p className="text-center text-xs text-slate-600 uppercase tracking-widest mb-6">Integrates With Every Platform You Use</p>
         <div className="flex cs-tick whitespace-nowrap gap-0">
@@ -600,7 +564,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
+      {/* HOW IT WORKS */}
       <section className="py-24 px-4">
         <div ref={howRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto transition-all duration-700 ${howVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-14">
@@ -608,12 +572,11 @@ export default function MarketingPage() {
             <h2 className="text-4xl font-extrabold text-white mt-3">Up and Running in Minutes</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 relative">
-            {/* connecting line */}
             <div className="absolute top-12 left-1/6 right-1/6 h-px hidden md:block" style={{ background:'linear-gradient(90deg,rgba(22,163,74,0.4),rgba(99,102,241,0.4))' }}/>
-            {STEPS.map((s, i) => (
+            {STEPS.map(s => (
               <div key={s.n} className="glass-card rounded-2xl p-6 text-center relative">
-                <div className="w-12 h-12 rounded-2xl text-2xl flex items-center justify-center mx-auto mb-4" style={{ background:'linear-gradient(135deg,rgba(22,163,74,0.2),rgba(99,102,241,0.2))', border:'1px solid rgba(255,255,255,0.07)' }}>
-                  {s.icon}
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 text-lg font-bold" style={{ background:'linear-gradient(135deg,rgba(22,163,74,0.2),rgba(99,102,241,0.2))', border:'1px solid rgba(255,255,255,0.07)', color:'#22c55e' }}>
+                  {s.n}
                 </div>
                 <div className="absolute top-4 right-4 text-2xl font-black text-white/5">{s.n}</div>
                 <p className="text-xs text-green-400 font-semibold mb-1">{s.time}</p>
@@ -625,14 +588,13 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
+      {/* PRICING */}
       <section id="pricing" className="py-24 px-4" style={{ background:'rgba(15,23,42,0.5)' }}>
         <div ref={priceRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto transition-all duration-700 ${priceVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-12">
             <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">Pricing</span>
             <h2 className="text-4xl font-extrabold text-white mt-3">Simple, Transparent Pricing</h2>
             <p className="text-slate-400 mt-3">Start free, scale as you grow. No hidden fees. Cancel anytime.</p>
-            {/* toggle */}
             <div className="flex items-center justify-center gap-3 mt-6">
               <span className={`text-sm ${!yearly ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
               <button onClick={() => setYearly(y => !y)} className={`w-12 h-6 rounded-full relative transition-colors ${yearly ? 'bg-green-500' : 'bg-slate-700'}`}>
@@ -653,9 +615,8 @@ export default function MarketingPage() {
                     <span className="text-slate-400 text-sm mb-1">/month</span>
                   </div>
                   {yearly && <p className="text-green-400 text-xs mt-0.5">Billed annually</p>}
-                  <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)' }}>
-                    <span>📍</span>
-                    <span className="text-slate-200">{p.locations}</span>
+                  <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold text-slate-200" style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)' }}>
+                    {p.locations}
                   </div>
                 </div>
                 <ul className="space-y-2.5 flex-1">
@@ -677,7 +638,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ── */}
+      {/* TESTIMONIALS */}
       <section className="py-24 px-4">
         <div ref={testRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto transition-all duration-700 ${testVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-12">
@@ -699,7 +660,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── SIMULATOR ── */}
+      {/* SIMULATOR */}
       <section id="simulator" className="py-24 px-4" style={{ background:'rgba(2,6,23,0.95)' }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-10">
@@ -710,7 +671,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── CONTACT ── */}
+      {/* CONTACT */}
       <section id="contact" className="py-24 px-4" style={{ background:'rgba(15,23,42,0.5)' }}>
         <div ref={contactRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto transition-all duration-700 ${contactVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="grid md:grid-cols-2 gap-12 items-start">
@@ -720,23 +681,27 @@ export default function MarketingPage() {
               <p className="text-slate-400">Have questions? Want a demo? Need a custom plan for multiple locations? Our team responds within 24 hours.</p>
               <div className="space-y-4">
                 {[
-                  { icon:'📧', title:'Email Us', sub:'hello@careful-server.com' },
-                  { icon:'📞', title:'Call Us', sub:'+1 (800) CAREFUL' },
-                  { icon:'⏱️', title:'Response Time', sub:'Within 24 hours guaranteed' },
+                  { title:'Email Us',       sub:'hello@carefulserver.com' },
+                  { title:'Call Us',        sub:'+1 (800) CAREFUL' },
+                  { title:'Response Time',  sub:'Within 24 hours guaranteed' },
                 ].map(c => (
                   <div key={c.title} className="flex items-center gap-4 glass-card rounded-xl px-4 py-3">
-                    <span className="text-xl">{c.icon}</span>
-                    <div><p className="text-white text-sm font-medium">{c.title}</p><p className="text-slate-400 text-xs">{c.sub}</p></div>
+                    <div className="w-0.5 h-8 rounded-full shrink-0" style={{ background:'linear-gradient(180deg,#16a34a,#6366f1)' }}/>
+                    <div>
+                      <p className="text-white text-sm font-medium">{c.title}</p>
+                      <p className="text-slate-400 text-xs">{c.sub}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-
             <div className="glass-card rounded-2xl p-6">
               {contactSent ? (
                 <div className="text-center py-8 space-y-3">
-                  <div className="text-5xl">✅</div>
-                  <p className="text-white font-bold text-lg">Message Sent!</p>
+                  <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style={{ background:'rgba(22,163,74,0.15)', border:'1px solid rgba(22,163,74,0.3)' }}>
+                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  </div>
+                  <p className="text-white font-bold text-lg">Message Sent</p>
                   <p className="text-slate-400 text-sm">We'll get back to you within 24 hours.</p>
                 </div>
               ) : (
@@ -769,11 +734,11 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── CTA BANNER ── */}
+      {/* CTA BANNER */}
       <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center glass-card rounded-3xl p-12 space-y-6" style={{ background:'rgba(22,163,74,0.06)', border:'1px solid rgba(22,163,74,0.2)' }}>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white">Ready to Transform Your Restaurant?</h2>
-          <p className="text-slate-400 text-lg max-w-xl mx-auto">Join hundreds of restaurants already saving time, reducing missed calls, and growing revenue with Careful-Server.</p>
+          <p className="text-slate-400 text-lg max-w-xl mx-auto">Join hundreds of restaurants already saving time, reducing missed calls, and growing revenue with Careful Server.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button onClick={() => setShowSignup(true)}
               className="px-10 py-4 text-base font-bold text-white rounded-2xl shadow-2xl transition-all hover:opacity-90 hover:scale-105 cs-glow"
@@ -787,21 +752,21 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
+      {/* FOOTER */}
       <footer className="border-t border-white/5 py-12 px-4" style={{ background:'rgba(2,6,23,0.9)' }}>
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-10">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{ background:'linear-gradient(135deg,#16a34a,#22c55e)' }}>🍽️</div>
-                <span className="font-bold text-white">Careful-Server</span>
+                <img src="/logo.svg" alt="Careful Server" className="w-7 h-7 rounded-lg object-cover" />
+                <span className="font-bold text-white">Careful Server</span>
               </div>
               <p className="text-slate-500 text-sm">The AI-powered restaurant management platform built for the modern operator.</p>
             </div>
             {[
               { heading:'Product', links:[['Features','#features'],['AI Tools','#ai'],['Pricing','#pricing'],['Integrations','#features']] },
-              { heading:'Company',  links:[['Contact','#contact'],['Restaurant Login','/portal/login'],['Dashboard','/dashboard']] },
-              { heading:'Support',  links:[['Documentation','/docs'],['Status','/status'],['Privacy Policy','/privacy-policy'],['Terms of Service','/terms']] },
+              { heading:'Company', links:[['Contact','#contact'],['Restaurant Login','/portal/login'],['Dashboard','/dashboard']] },
+              { heading:'Support', links:[['Documentation','/docs'],['Status','/status'],['Privacy Policy','/privacy-policy'],['Terms of Service','/terms']] },
             ].map(col => (
               <div key={col.heading}>
                 <p className="text-white font-semibold text-sm mb-3">{col.heading}</p>
@@ -814,13 +779,12 @@ export default function MarketingPage() {
             ))}
           </div>
           <div className="border-t border-white/5 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-slate-600 text-sm">© {new Date().getFullYear()} Careful-Server. All rights reserved.</p>
+            <p className="text-slate-600 text-sm">© {new Date().getFullYear()} Careful Server. All rights reserved.</p>
             <p className="text-slate-600 text-sm">Built for restaurants, powered by AI.</p>
           </div>
         </div>
       </footer>
 
-      {/* ── MODALS & CHATBOT ── */}
       {showSignup && <SignupModal onClose={() => setShowSignup(false)}/>}
       <VisitorChat/>
     </div>

@@ -171,7 +171,7 @@ export default function TourOverlay({ steps, accent, onDone }: Props) {
               <button onClick={advance}
                 className="text-xs px-4 py-1.5 rounded-lg font-semibold text-white transition-all hover:opacity-90"
                 style={{ background: accent }}>
-                {step < steps.length - 1 ? 'Next →' : 'Done 🎉'}
+                {step < steps.length - 1 ? 'Next →' : 'Done'}
               </button>
             </div>
           </div>

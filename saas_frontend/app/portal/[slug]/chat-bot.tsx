@@ -296,7 +296,7 @@ export default function ChatBot({ accent }: { accent: string }) {
                           className="text-xs font-semibold text-white rounded-lg px-2.5 py-1.5 text-left transition-opacity hover:opacity-90 disabled:opacity-50"
                           style={{ background: `linear-gradient(135deg,${accent},#22c55e)` }}
                         >
-                          {submitingFbIdx === i ? '⏳ Submitting…' : '📝 Submit as formal feedback'}
+                          {submitingFbIdx === i ? 'Submitting…' : 'Submit as formal feedback'}
                         </button>
                       )
                     )}
@@ -377,7 +377,7 @@ export default function ChatBot({ accent }: { accent: string }) {
             <div className="px-3 pb-2 flex items-center gap-2 border-t border-slate-800 pt-2">
               {attachment.isImage
                 ? <img src={attachment.data} alt="" className="h-12 w-12 rounded-lg object-cover border border-slate-700 shrink-0" />
-                : <div className="h-12 w-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-xs text-slate-400">📄</div>
+                : <div className="h-12 w-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0"><svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
               }
               <span className="text-xs text-slate-400 truncate flex-1">{attachment.name}</span>
               <button onClick={() => setAttachment(null)} className="text-slate-500 hover:text-red-400 text-sm shrink-0 transition-colors">✕</button>

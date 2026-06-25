@@ -134,7 +134,9 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
       <div className="max-w-2xl">
         <div className="bg-white rounded-2xl border border-gray-200 p-8">
           <div className="flex items-start gap-5 mb-6">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${accent}18` }}>📞</div>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}18` }}>
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{ color: accent }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+            </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">AI Voice + Text Agent</h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -144,13 +146,13 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
           </div>
           <div className="grid sm:grid-cols-2 gap-3 mb-8">
             {[
-              { icon: '📞', title: 'Voice ordering', desc: 'AI answers calls, takes orders by voice' },
-              { icon: '💬', title: 'Text ordering', desc: 'Customers can text to order — AI responds instantly' },
-              { icon: '🔄', title: 'Voice ↔ Text handoff', desc: 'Switch mid-interaction without losing context' },
-              { icon: '🔔', title: 'Instant dashboard orders', desc: 'Every order — voice or text — appears in real time' },
+              { title: 'Voice ordering', desc: 'AI answers calls, takes orders by voice' },
+              { title: 'Text ordering', desc: 'Customers can text to order — AI responds instantly' },
+              { title: 'Voice & Text handoff', desc: 'Switch mid-interaction without losing context' },
+              { title: 'Instant dashboard orders', desc: 'Every order — voice or text — appears in real time' },
             ].map(f => (
               <div key={f.title} className="flex gap-3 p-4 bg-gray-50 rounded-xl">
-                <span className="text-xl shrink-0">{f.icon}</span>
+                <div className="w-0.5 rounded-full shrink-0 self-stretch" style={{ background: `linear-gradient(180deg,${accent},#6366f1)` }}/>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{f.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{f.desc}</p>
@@ -198,7 +200,6 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
               }`}
               style={numberMode === 'new' ? { backgroundColor: accent } : {}}
             >
-              <span className="text-lg shrink-0">🔢</span>
               <div>
                 <p className="text-xs font-semibold">Get a new number</p>
                 <p className={`text-xs mt-0.5 ${numberMode === 'new' ? 'opacity-80' : 'text-gray-400'}`}>AI gets a dedicated local number</p>
@@ -214,7 +215,6 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
               }`}
               style={numberMode === 'existing' ? { backgroundColor: accent } : {}}
             >
-              <span className="text-lg shrink-0">📱</span>
               <div>
                 <p className="text-xs font-semibold">Use existing number</p>
                 <p className={`text-xs mt-0.5 ${numberMode === 'existing' ? 'opacity-80' : 'text-gray-400'}`}>Forward your current line to AI</p>
@@ -223,9 +223,8 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
           </div>
 
           {numberMode === 'new' ? (
-            <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
-              <span className="shrink-0 mt-0.5">ℹ️</span>
-              <span>VAPI will automatically assign you a dedicated US phone number. No configuration needed — just activate and your number will appear instantly.</span>
+            <div className="p-3 bg-gray-50 rounded-xl text-xs text-gray-600">
+              VAPI will automatically assign you a dedicated US phone number. No configuration needed — just activate and your number will appear instantly.
             </div>
           ) : (
             <div>
@@ -371,7 +370,9 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: `${accent}18` }}>📞</div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${accent}18` }}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{ color: accent }}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+            </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full" />
@@ -410,16 +411,16 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                 <>
                   <div className="mt-3 grid sm:grid-cols-2 gap-3">
                     <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                      <p className="text-xs font-semibold text-blue-700 mb-1">📞 For voice calls</p>
+                      <p className="text-xs font-semibold text-blue-700 mb-1">For voice calls</p>
                       <p className="text-xs text-blue-600">Give customers <strong>{agent.phone_number}</strong> — the AI answers and takes the order.</p>
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                      <p className="text-xs font-semibold text-green-700 mb-1">💬 For text orders</p>
+                      <p className="text-xs font-semibold text-green-700 mb-1">For text orders</p>
                       <p className="text-xs text-green-600">Customers can text <strong>{agent.phone_number}</strong> directly. The AI responds and takes their order.</p>
                     </div>
                   </div>
                   <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                    <p className="text-xs font-semibold text-amber-700 mb-1">🔄 Seamless handoff</p>
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Seamless handoff</p>
                     <p className="text-xs text-amber-600">
                       During a voice call, customers can say <em>&ldquo;I&apos;d rather text&rdquo;</em> — the AI sends them an SMS and they continue by text.
                       During an SMS session, customers can text <em>&ldquo;CALL ME&rdquo;</em> — the AI calls them back.
@@ -430,7 +431,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                 /* Linked existing number: show forwarding instructions */
                 <div className="mt-3 space-y-3">
                   <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                    <p className="text-xs font-semibold text-blue-700 mb-1">📞 Set up call forwarding</p>
+                    <p className="text-xs font-semibold text-blue-700 mb-1">Set up call forwarding</p>
                     <p className="text-xs text-blue-600 mb-2">To have your AI answer calls to <strong>{agent.phone_number}</strong>, enable call forwarding on your carrier or VoIP system:</p>
                     <ol className="text-xs text-blue-600 space-y-1 list-decimal list-inside">
                       <li>Log into your phone carrier or VoIP portal (e.g., Google Voice, RingCentral, AT&amp;T)</li>
@@ -440,7 +441,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                     </ol>
                   </div>
                   <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                    <p className="text-xs font-semibold text-green-700 mb-1">💬 Text ordering is separate</p>
+                    <p className="text-xs font-semibold text-green-700 mb-1">Text ordering is separate</p>
                     <p className="text-xs text-green-600">SMS ordering runs through your Twilio number independently of call forwarding. Customers can text your Twilio number to place orders now.</p>
                   </div>
                 </div>
@@ -461,7 +462,6 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                       style={{ borderColor: accent }}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-base">📱</span>
                         <div>
                           <p className="text-xs font-semibold text-gray-900">Link my existing number</p>
                           <p className="text-xs font-mono text-gray-500 mt-0.5">{businessPhone}</p>
@@ -476,7 +476,6 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                     onClick={() => setNumMode('new')}
                     className="w-full flex items-center gap-3 p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-xl text-left transition-colors"
                   >
-                    <span className="text-base">🔢</span>
                     <div>
                       <p className="text-xs font-semibold text-gray-800">Get a new dedicated number</p>
                       <p className="text-xs text-gray-400 mt-0.5">VAPI provisions a local number automatically</p>
@@ -488,7 +487,6 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                       onClick={() => setNumMode('existing')}
                       className="w-full flex items-center gap-3 p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-xl text-left transition-colors"
                     >
-                      <span className="text-base">📱</span>
                       <div>
                         <p className="text-xs font-semibold text-gray-800">Link my existing business number</p>
                         <p className="text-xs text-gray-400 mt-0.5">Enter your number and set up forwarding</p>
@@ -608,7 +606,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
               className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'border-b-2 text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
               style={activeTab === tab ? { borderBottomColor: accent, color: accent } : {}}
             >
-              {tab === 'voice' ? `📞 Voice Calls (${calls.length})` : `💬 Text Sessions (${smsSessions.length})`}
+              {tab === 'voice' ? `Voice Calls (${calls.length})` : `Text Sessions (${smsSessions.length})`}
             </button>
           ))}
         </div>
@@ -626,7 +624,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                     <div key={call.id} className="py-3">
                       <div className="flex items-center gap-4 cursor-pointer" onClick={() => setExpandedCall(isOpen ? null : call.id)}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${call.order_created ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {call.order_created ? '✓' : '📞'}
+                          {call.order_created ? '✓' : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -678,7 +676,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
                       session.status === 'active'  ? 'bg-blue-100 text-blue-600' :
                       'bg-gray-100 text-gray-500'
                     }`}>
-                      {session.status === 'ordered' ? '✓' : '💬'}
+                      {session.status === 'ordered' ? '✓' : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

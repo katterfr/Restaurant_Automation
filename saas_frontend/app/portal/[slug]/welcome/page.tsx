@@ -5,22 +5,22 @@ import { api } from '@/lib/api'
 import { useTenant, useCustomization } from '../tenant-context'
 
 const FEATURE_META: Record<string, { icon: string; label: string }> = {
-  ads_meta:         { icon: '📣', label: 'Meta Ads' },
-  ads_google:       { icon: '🔍', label: 'Google Ads' },
-  ads_youtube:      { icon: '▶️', label: 'YouTube Ads' },
-  ads_tiktok:       { icon: '🎵', label: 'TikTok Ads' },
-  ads_snapchat:     { icon: '👻', label: 'Snapchat' },
-  ads_pinterest:    { icon: '📌', label: 'Pinterest' },
-  social_meta:      { icon: '💬', label: 'Meta Social' },
-  social_youtube:   { icon: '📹', label: 'YouTube' },
-  social_tiktok:    { icon: '🎶', label: 'TikTok' },
-  listings_google:  { icon: '📍', label: 'Google Maps' },
-  listings_apple:   { icon: '🗺️', label: 'Apple Maps' },
-  phone_agent:      { icon: '🤖', label: 'AI Phone Agent' },
-  ai_creative:      { icon: '✨', label: 'AI Creative' },
-  accounting:       { icon: '💰', label: 'Accounting' },
-  menu_management:  { icon: '🍽️', label: 'Menu Mgmt' },
-  delivery:         { icon: '🚚', label: 'Delivery' },
+  ads_meta:         { icon: 'f',   label: 'Meta Ads' },
+  ads_google:       { icon: 'G',   label: 'Google Ads' },
+  ads_youtube:      { icon: '▶',   label: 'YouTube Ads' },
+  ads_tiktok:       { icon: '♪',   label: 'TikTok Ads' },
+  ads_snapchat:     { icon: 'S',   label: 'Snapchat' },
+  ads_pinterest:    { icon: 'P',   label: 'Pinterest' },
+  social_meta:      { icon: 'f',   label: 'Meta Social' },
+  social_youtube:   { icon: '▶',   label: 'YouTube' },
+  social_tiktok:    { icon: '♪',   label: 'TikTok' },
+  listings_google:  { icon: 'G',   label: 'Google Maps' },
+  listings_apple:   { icon: 'A',   label: 'Apple Maps' },
+  phone_agent:      { icon: 'AI',  label: 'AI Phone Agent' },
+  ai_creative:      { icon: 'AI',  label: 'AI Creative' },
+  accounting:       { icon: '$',   label: 'Accounting' },
+  menu_management:  { icon: 'Mn',  label: 'Menu Mgmt' },
+  delivery:         { icon: 'Del', label: 'Delivery' },
 }
 
 function greeting() {
@@ -123,7 +123,7 @@ export default function WelcomePage() {
 
         {/* greeting */}
         <div className="text-center space-y-2 mb-6">
-          <p className="text-slate-400 text-sm font-medium">{greeting()} 👋</p>
+          <p className="text-slate-400 text-sm font-medium">{greeting()}</p>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight">
             Welcome to<br/>
             <span style={{ color: accent }}>{tenant?.name ?? '…'}</span>
@@ -161,7 +161,7 @@ export default function WelcomePage() {
                 return (
                   <span key={f} className="glass-card flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-slate-300 cs-up"
                     style={{ animationDelay: `${0.05 * i}s`, opacity: 0 }}>
-                    <span>{m.icon}</span> {m.label}
+                    <span className="text-xs font-bold opacity-70">{m.icon}</span> {m.label}
                   </span>
                 )
               })}
@@ -174,7 +174,7 @@ export default function WelcomePage() {
           <button onClick={() => go(true)}
             className="flex items-center justify-center gap-2.5 px-8 py-3.5 text-sm font-bold text-white rounded-2xl shadow-2xl transition-all hover:opacity-90 hover:scale-105 cs-glow"
             style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}>
-            <span>🗺️</span> Start the Tour
+            Start the Tour
           </button>
           <button onClick={() => go(false)}
             className="flex items-center justify-center gap-2 px-8 py-3.5 text-sm font-semibold text-slate-300 hover:text-white rounded-2xl transition-all border border-white/10 hover:bg-white/5">

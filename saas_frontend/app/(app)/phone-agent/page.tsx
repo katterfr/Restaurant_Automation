@@ -56,8 +56,7 @@ export default function PhoneAgentPage() {
 
   const steps = [
     { done: !!config?.twilio_phone && config.twilio_phone !== 'not configured', label: 'Twilio phone number configured' },
-    { done: false, label: 'Webhook URL set in Twilio console' },
-    { done: false, label: 'Stripe account connected' },
+    { done: false, label: 'Webhook URL set in Twilio console (see below)' },
   ]
 
   return (

@@ -2,7 +2,7 @@ export default function DocsPage() {
   const sections = [
     {
       title: 'Getting Started',
-      icon: '🚀',
+      icon: '',
       items: [
         {
           q: 'What is Careful Server?',
@@ -32,7 +32,7 @@ export default function DocsPage() {
     },
     {
       title: 'AI Phone Agent',
-      icon: '📞',
+      icon: '',
       items: [
         {
           q: 'How does the AI Phone Agent work?',
@@ -62,7 +62,7 @@ export default function DocsPage() {
     },
     {
       title: 'Advertising & Marketing',
-      icon: '📣',
+      icon: '',
       items: [
         {
           q: 'Which ad platforms are supported?',
@@ -88,7 +88,7 @@ export default function DocsPage() {
     },
     {
       title: 'Orders & Delivery',
-      icon: '🛵',
+      icon: '',
       items: [
         {
           q: 'How does the order dashboard work?',
@@ -114,7 +114,7 @@ export default function DocsPage() {
     },
     {
       title: 'Google & Maps Integrations',
-      icon: '📍',
+      icon: '',
       items: [
         {
           q: 'What can I do with the Google Business Profile integration?',
@@ -132,7 +132,7 @@ export default function DocsPage() {
     },
     {
       title: 'Billing & Account Management',
-      icon: '💳',
+      icon: '',
       items: [
         {
           q: 'How do I update my payment method?',
@@ -158,7 +158,7 @@ export default function DocsPage() {
     },
     {
       title: 'Security & Privacy',
-      icon: '🔒',
+      icon: '',
       items: [
         {
           q: 'How does Careful Server protect my data?',
@@ -193,7 +193,7 @@ export default function DocsPage() {
           {sections.map(s => (
             <a key={s.title} href={`#${s.title.toLowerCase().replace(/\s+/g, '-').replace(/[&]/g, '').replace(/--/g, '-')}`}
               className="text-xs bg-gray-100 hover:bg-green-50 hover:text-green-700 text-gray-600 px-3 py-1.5 rounded-full transition-colors font-medium">
-              {s.icon} {s.title}
+              {s.title}
             </a>
           ))}
         </div>
@@ -203,8 +203,7 @@ export default function DocsPage() {
         {sections.map(section => (
           <div key={section.title} id={section.title.toLowerCase().replace(/\s+/g, '-').replace(/[&]/g, '').replace(/--/g, '-')}>
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">{section.icon}</span>
-              <h2 className="text-2xl font-bold text-gray-800">{section.title}</h2>
+                  <h2 className="text-2xl font-bold text-gray-800">{section.title}</h2>
             </div>
             <div className="space-y-4">
               {section.items.map(item => (
@@ -219,7 +218,6 @@ export default function DocsPage() {
 
         {/* Contact CTA */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl px-6 py-8 text-center">
-          <p className="text-2xl mb-2">💬</p>
           <p className="font-bold text-green-900 text-lg mb-1">Still have questions?</p>
           <p className="text-green-700 text-sm mb-5">Our support team responds to all inquiries within 24 hours.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

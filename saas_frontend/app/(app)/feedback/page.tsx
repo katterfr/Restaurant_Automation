@@ -102,7 +102,6 @@ function FeedbackTab() {
         <div className="text-center py-20 text-gray-400">Loading…</div>
       ) : items.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
-          <p className="text-4xl mb-3">📭</p>
           <p className="text-gray-500 font-medium">No {filter === 'all' ? '' : filter} feedback yet</p>
           <p className="text-gray-400 text-sm mt-1">Feedback appears here once restaurant owners submit it from their portals.</p>
         </div>
@@ -245,7 +244,6 @@ function SuggestionsTab() {
         <div className="text-center py-20 text-gray-400">Loading…</div>
       ) : items.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
-          <p className="text-4xl mb-3">🤖</p>
           <p className="text-gray-500 font-medium">No {filter === 'all' ? '' : filter} suggestions yet</p>
           <p className="text-gray-400 text-sm mt-1">Ask the Admin AI to analyze feedback and generate improvement ideas.</p>
         </div>
@@ -267,7 +265,7 @@ function SuggestionsTab() {
                       s.status === 'rejected' ? 'bg-red-50 text-red-600' :
                       'bg-amber-50 text-amber-700'
                     }`}>{s.status}</span>
-                    <span className="text-gray-400 text-xs">{s.source === 'ai' ? '🤖 AI' : '👤 Admin'} · {new Date(s.created_at).toLocaleDateString()}</span>
+                    <span className="text-gray-400 text-xs">{s.source === 'ai' ? 'AI' : 'Admin'} · {new Date(s.created_at).toLocaleDateString()}</span>
                   </div>
                   <p className="font-bold text-gray-900 text-base mb-2">{s.title}</p>
                   <p className="text-gray-600 text-sm leading-relaxed">{s.description}</p>
@@ -330,7 +328,7 @@ export default function FeedbackPage() {
           onClick={() => setTab('suggestions')}
           className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${tab === 'suggestions' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          🤖 AI Suggestions
+          AI Suggestions
         </button>
       </div>
 

@@ -321,7 +321,6 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                 className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
                 title="Customize portal"
               >
-                <span>🎨</span>
                 <span>Customize</span>
               </button>
               <button
@@ -365,10 +364,10 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                 </Link>
               ))}
               <button onClick={openDrawer} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
-                🎨 Customize
+                Customize
               </button>
               <button onClick={() => { setShowPasswordModal(true); setMobileOpen(false) }} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
-                🔒 Change Password
+                Change Password
               </button>
               <button onClick={logout} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-100">
                 Sign out
