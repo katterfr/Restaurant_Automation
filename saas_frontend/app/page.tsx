@@ -56,9 +56,9 @@ const FEATURES = [
 ]
 
 const PLATFORMS = ['Meta Ads','Google Ads','YouTube Ads','TikTok Ads','Snapchat Ads','Pinterest Ads',
-  'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps',
+  'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps','Stripe',
   'Meta Ads','Google Ads','YouTube Ads','TikTok Ads','Snapchat Ads','Pinterest Ads',
-  'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps']
+  'Facebook','Instagram','YouTube','TikTok','DoorDash','Uber Eats','Google Maps','Apple Maps','Stripe']
 
 const PLANS = [
   { id:'starter', name:'Starter', monthly:49, yearly:39, tag:'',         color:'rgba(30,41,59,0.8)',  border:'rgba(255,255,255,0.08)', locations:'1 Location',
