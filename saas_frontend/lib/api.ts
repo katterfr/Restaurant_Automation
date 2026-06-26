@@ -2,7 +2,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-production-731b.
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem('token')
+  // Portal tabs store their token in sessionStorage (tab-isolated).
+  // Employee PWA pages write directly to localStorage — fall back to that
+  // so api.* calls from /app pages continue to work unchanged.
+  return sessionStorage.getItem('token') || localStorage.getItem('token')
 }
 
 export interface Order {
@@ -42,6 +45,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (res.status === 204) return undefined as T
   if (res.status === 401) {
+    sessionStorage.removeItem('token')
     localStorage.removeItem('token')
     window.location.href = '/login'
     throw new Error('Session expired — please sign in again')
@@ -545,7 +549,7 @@ export const api = {
       }),
     delete: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
     upload: async (file: File): Promise<{ url: string; is_video: boolean; content_type: string }> => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('token') || localStorage.getItem('token')) : null
       const form = new FormData()
       form.append('file', file)
       const res = await fetch(`${API_URL}/social/upload`, {

@@ -11,7 +11,8 @@ function b64url2buf(b64: string): ArrayBuffer {
 }
 
 function getToken(): string | null {
-  return typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  if (typeof window === 'undefined') return null
+  return sessionStorage.getItem('token') || localStorage.getItem('token')
 }
 
 async function apiCall<T>(path: string, options: RequestInit = {}): Promise<T> {

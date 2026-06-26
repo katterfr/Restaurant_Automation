@@ -280,7 +280,7 @@ export default function KioskPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     if (!token) { setScreen('login'); return }
     load()
   }, [load])
@@ -336,7 +336,7 @@ export default function KioskPage() {
         throw new Error(data.detail || 'Invalid email or password')
       }
       const data = await res.json()
-      localStorage.setItem('token', data.access_token)
+      sessionStorage.setItem('token', data.access_token)
       await load()
     } catch (e: unknown) {
       setLoginError(e instanceof Error ? e.message : 'Login failed')

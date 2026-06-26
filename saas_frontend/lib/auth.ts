@@ -16,21 +16,22 @@ function decodePayload(token: string): TokenPayload | null {
 }
 
 export function saveToken(token: string) {
-  localStorage.setItem('token', token)
+  // sessionStorage is tab-scoped: each portal tab keeps its own auth state
+  sessionStorage.setItem('token', token)
 }
 
 export function clearToken() {
-  localStorage.removeItem('token')
+  sessionStorage.removeItem('token')
 }
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem('token')
+  return sessionStorage.getItem('token')
 }
 
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false
-  return !!localStorage.getItem('token')
+  return !!sessionStorage.getItem('token')
 }
 
 export function getRole(): string | null {
