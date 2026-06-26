@@ -458,6 +458,26 @@ export default function MarketingPage() {
         </a>
       </section>
 
+      {/* FLOW DEMO */}
+      <section className="py-24 px-4" style={{ background:'rgba(2,6,23,0.98)' }}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">See It In Action</span>
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">One Platform, Three Perspectives</h2>
+            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">Watch a single phone call flow through Careful Server — from the customer's first ring to the owner's revenue update, with zero manual work in between.</p>
+          </div>
+          <FlowDemo />
+          <div className="flex flex-wrap justify-center gap-6 mt-8 text-xs text-slate-500">
+            {[['Customer','#38bdf8'],['Careful Server','#22c55e'],['Kitchen','#f59e0b'],['Owner','#818cf8']].map(([label,color])=>(
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{background:color}}/>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* STATS */}
       <section id="stats" className="py-16 border-y border-white/5" style={{ background:'rgba(15,23,42,0.8)' }}>
         <div ref={statsRef as React.RefObject<HTMLDivElement>} className={`max-w-5xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center transition-all duration-700 ${statsVis ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -594,26 +614,6 @@ export default function MarketingPage() {
                 <h3 className="text-white font-bold text-base mb-2">{s.title}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed">{s.desc}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FLOW DEMO */}
-      <section className="py-24 px-4" style={{ background:'rgba(2,6,23,0.98)' }}>
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
-            <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">See It In Action</span>
-            <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">One Platform, Three Perspectives</h2>
-            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">Watch a single phone call flow through Careful Server — from the customer's first ring to the owner's revenue update, with zero manual work in between.</p>
-          </div>
-          <FlowDemo />
-          <div className="flex flex-wrap justify-center gap-6 mt-8 text-xs text-slate-500">
-            {[['Customer','#38bdf8'],['Careful Server','#22c55e'],['Kitchen','#f59e0b'],['Owner','#818cf8']].map(([label,color])=>(
-              <span key={label} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{background:color}}/>
-                {label}
-              </span>
             ))}
           </div>
         </div>
