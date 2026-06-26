@@ -442,9 +442,21 @@ async def portal_chat(
     if not settings.anthropic_api_key:
         raise HTTPException(503, "AI chat not configured — add ANTHROPIC_API_KEY to Railway")
 
-    tid = current_user["tenant_id"]
+    # Convert asyncpg Record to plain dict to avoid .get() quirks
+    user_dict = dict(current_user)
+    user_role = user_dict.get("role", "staff")
+    raw_email = user_dict.get("email") or ""
+    user_display = user_dict.get("display_name") or (raw_email.split("@")[0].replace(".", " ").replace("_", " ").title() if raw_email else "Team Member")
+    is_employee = user_role in ("staff", "viewer")
+
+    tid = user_dict.get("tenant_id")
+    if not tid:
+        return {"reply": "I'm unable to load your restaurant data. Please contact your manager.", "navigate": None, "action_result": None}
 
     tenant = await db.fetchrow("SELECT name, plan, slug, status FROM tenants WHERE id=$1", tid)
+    if not tenant:
+        return {"reply": "Restaurant not found. Please contact your manager.", "navigate": None, "action_result": None}
+
     stats = await db.fetchrow(
         """SELECT
              COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)          AS today_orders,
@@ -484,19 +496,18 @@ async def portal_chat(
         *(["  - Delivery: delivery platform integrations · go to /delivery"] if "delivery" in features else []),
     ])
 
-    user_role = current_user.get("role", "staff")
-    user_display = current_user.get("display_name") or current_user.get("email", "").split("@")[0].capitalize()
-    is_employee = user_role in ("staff", "viewer")
-
     if is_employee:
-        # Fetch today's goal progress for the employee context
-        goal_row = await db.fetchrow(
-            """SELECT title, target_value, current_value, unit
-               FROM business_goals
-               WHERE tenant_id=$1 AND is_active=TRUE
-               ORDER BY created_at DESC LIMIT 1""",
-            tid,
-        )
+        goal_row = None
+        try:
+            goal_row = await db.fetchrow(
+                """SELECT title, target_value, current_value, unit
+                   FROM business_goals
+                   WHERE tenant_id=$1 AND is_active=TRUE
+                   ORDER BY created_at DESC LIMIT 1""",
+                tid,
+            )
+        except Exception:
+            pass
         goal_line = ""
         if goal_row:
             pct = (float(goal_row["current_value"] or 0) / float(goal_row["target_value"])) * 100 if goal_row["target_value"] else 0
@@ -611,16 +622,18 @@ When you detect feedback, start your reply with the EXACT token `[FEEDBACK]` on 
         async with httpx.AsyncClient(timeout=90) as c:
             # ── Agentic loop — up to 6 rounds of tool use ─────────────────────
             for _round in range(6):
+                api_payload: dict = {
+                    "model": "claude-sonnet-4-6",
+                    "max_tokens": 2048,
+                    "system": system_prompt,
+                    "messages": current_messages,
+                }
+                if not is_employee:
+                    api_payload["tools"] = _TOOLS
                 r = await c.post(
                     "https://api.anthropic.com/v1/messages",
                     headers=_headers,
-                    json={
-                        "model": "claude-sonnet-4-6",
-                        "max_tokens": 2048,
-                        "system": system_prompt,
-                        "messages": current_messages,
-                        "tools": _TOOLS,
-                    },
+                    json=api_payload,
                 )
                 if not r.is_success:
                     log.error("Anthropic %s: %s", r.status_code, r.text)
