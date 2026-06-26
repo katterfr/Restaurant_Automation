@@ -421,9 +421,31 @@ export default function MarketingPage() {
             ))}
           </div>
         </div>
+      </section>
 
-        {/* dashboard preview */}
-        <div className="relative z-10 mt-16 max-w-4xl mx-auto w-full cs-float-slow">
+      {/* FLOW DEMO */}
+      <section className="py-24 px-4" style={{ background:'rgba(2,6,23,0.98)' }}>
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">See It In Action</span>
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">One Platform, Three Perspectives</h2>
+            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">Watch a single phone call flow through Careful Server — from the customer's first ring to the owner's revenue update, with zero manual work in between.</p>
+          </div>
+          <FlowDemo />
+          <div className="flex flex-wrap justify-center gap-6 mt-8 text-xs text-slate-500">
+            {[['Customer','#38bdf8'],['Careful Server','#22c55e'],['Kitchen','#f59e0b'],['Owner','#818cf8']].map(([label,color])=>(
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{background:color}}/>
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* DASHBOARD PREVIEW */}
+      <section className="py-16 px-4" style={{ background:'rgba(2,6,23,0.98)' }}>
+        <div className="max-w-4xl mx-auto cs-float-slow">
           <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ background:'#0f172a', border:'1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5" style={{ background:'rgba(30,41,59,0.8)' }}>
               <div className="w-3 h-3 rounded-full bg-red-500/70"/>
@@ -450,30 +472,6 @@ export default function MarketingPage() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        <a href="#stats" className="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-500 hover:text-slate-300 transition-colors animate-bounce">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
-        </a>
-      </section>
-
-      {/* FLOW DEMO */}
-      <section className="py-24 px-4" style={{ background:'rgba(2,6,23,0.98)' }}>
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
-            <span className="text-green-400 text-sm font-semibold tracking-widest uppercase">See It In Action</span>
-            <h2 className="text-4xl sm:text-5xl font-extrabold text-white mt-3">One Platform, Three Perspectives</h2>
-            <p className="text-slate-400 mt-4 max-w-2xl mx-auto">Watch a single phone call flow through Careful Server — from the customer's first ring to the owner's revenue update, with zero manual work in between.</p>
-          </div>
-          <FlowDemo />
-          <div className="flex flex-wrap justify-center gap-6 mt-8 text-xs text-slate-500">
-            {[['Customer','#38bdf8'],['Careful Server','#22c55e'],['Kitchen','#f59e0b'],['Owner','#818cf8']].map(([label,color])=>(
-              <span key={label} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{background:color}}/>
-                {label}
-              </span>
-            ))}
           </div>
         </div>
       </section>
