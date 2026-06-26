@@ -452,58 +452,89 @@ export default function AppKioskPage() {
   // ── Fullscreen + security ──
   // ── Automatic lockdown (runs once on mount) ──
   useEffect(() => {
-    type FSElem = HTMLElement & { requestFullscreen: (opts?: object) => Promise<void> }
-    type ScreenOrientationExt = ScreenOrientation & { lock?: (o: string) => Promise<void> }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyDoc = document as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyScreen = window.screen as any
 
+    // ── Enter fullscreen, hiding the navigation bar ──
+    let fsDebounce: ReturnType<typeof setTimeout> | null = null
     function enterFullscreen() {
-      try {
-        if (!document.fullscreenElement) {
-          ;(document.documentElement as FSElem).requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
-        }
-      } catch {}
+      if (fsDebounce) return // debounce rapid re-requests
+      fsDebounce = setTimeout(() => { fsDebounce = null }, 300)
+      const isFs = !!(document.fullscreenElement || anyDoc.webkitFullscreenElement || anyDoc.mozFullScreenElement)
+      if (isFs) return
+      const el = document.documentElement
+      const req = (el as HTMLElement & { requestFullscreen?: (o?: object) => Promise<void>; webkitRequestFullscreen?: (o?: object) => Promise<void>; mozRequestFullScreen?: () => Promise<void> })
+      ;(req.requestFullscreen?.({ navigationUI: 'hide' }) ??
+        req.webkitRequestFullscreen?.({ navigationUI: 'hide' }) ??
+        req.mozRequestFullScreen?.())?.catch(() => {})
     }
 
+    // ── Lock orientation to portrait ──
     function lockOrientation() {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(window.screen as any)?.orientation?.lock?.('portrait').catch(() => {})
-      } catch {}
+      try { anyScreen?.orientation?.lock?.('portrait').catch(() => {}) } catch {}
     }
 
-    // Attempt fullscreen + orientation lock on mount (fallback if gesture already granted)
+    // Initial lockdown
     enterFullscreen()
     lockOrientation()
 
-    // Re-enter fullscreen the moment it is lost
+    // ── Re-enter fullscreen immediately when it is lost (back/home buttons) ──
     function onFullscreenChange() {
-      if (!document.fullscreenElement) {
+      const isFs = !!(document.fullscreenElement || anyDoc.webkitFullscreenElement || anyDoc.mozFullScreenElement)
+      if (!isFs) {
+        // Two-shot: immediately + after a short delay (handles OS animation lag)
         enterFullscreen()
+        setTimeout(enterFullscreen, 250)
       }
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    document.addEventListener('mozfullscreenchange', onFullscreenChange)
 
-    // History trap — absorbs back-button / swipe-back presses
+    // ── Re-assert when window regains focus (after home/recents dismiss) ──
+    function onWindowFocus() {
+      enterFullscreen()
+      lockOrientation()
+    }
+    window.addEventListener('focus', onWindowFocus)
+
+    // ── Heartbeat: check every 1.5 s — catches anything the events miss ──
+    const heartbeat = setInterval(() => {
+      const isFs = !!(document.fullscreenElement || anyDoc.webkitFullscreenElement || anyDoc.mozFullScreenElement)
+      if (!isFs && !document.hidden) enterFullscreen()
+    }, 1500)
+
+    // ── History trap — absorbs back-button and swipe-back (Android + iOS PWA) ──
+    // Push three states so multiple back presses are absorbed
+    window.history.pushState(null, '', window.location.href)
+    window.history.pushState(null, '', window.location.href)
     window.history.pushState(null, '', window.location.href)
     function onPopState() {
       window.history.pushState(null, '', window.location.href)
+      enterFullscreen() // back gesture also exits fullscreen, re-enter immediately
     }
     window.addEventListener('popstate', onPopState)
 
-    // Block context menu and dangerous keyboard shortcuts
+    // ── Block context menu and destructive keyboard shortcuts ──
     const noCtx = (e: MouseEvent) => e.preventDefault()
     document.addEventListener('contextmenu', noCtx)
     const noKeys = (e: KeyboardEvent) => {
-      if (e.key === 'F12') { e.preventDefault(); return }
-      if ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'l', 'n'].includes(e.key.toLowerCase())) {
+      if (e.key === 'F12' || e.key === 'Escape') { e.preventDefault(); return }
+      if ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'l', 'n', 'h'].includes(e.key.toLowerCase())) {
         e.preventDefault()
       }
     }
     document.addEventListener('keydown', noKeys)
 
     return () => {
+      clearInterval(heartbeat)
+      if (fsDebounce) clearTimeout(fsDebounce)
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+      document.removeEventListener('mozfullscreenchange', onFullscreenChange)
+      window.removeEventListener('focus', onWindowFocus)
       window.removeEventListener('popstate', onPopState)
       document.removeEventListener('contextmenu', noCtx)
       document.removeEventListener('keydown', noKeys)
@@ -535,15 +566,21 @@ export default function AppKioskPage() {
   // ── Focus exit tracking + re-lock on return ──
   useEffect(() => {
     if (screen !== 'focus') return
-    type FSElem = HTMLElement & { requestFullscreen: (opts?: object) => Promise<void> }
     function handleVisibility() {
       if (document.hidden) {
         api.staff.focusExit().catch(() => {})
       } else {
-        // Re-assert fullscreen and orientation as soon as employee returns
+        // Re-assert fullscreen as soon as employee returns to the app
         try {
-          if (!document.fullscreenElement) {
-            ;(document.documentElement as FSElem).requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const el = document.documentElement as any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const anyDoc = document as any
+          const isFs = !!(document.fullscreenElement || anyDoc.webkitFullscreenElement || anyDoc.mozFullScreenElement)
+          if (!isFs) {
+            ;(el.requestFullscreen?.({ navigationUI: 'hide' }) ??
+              el.webkitRequestFullscreen?.({ navigationUI: 'hide' }) ??
+              el.mozRequestFullScreen?.())?.catch(() => {})
           }
         } catch {}
         setFocusBanner(true)
