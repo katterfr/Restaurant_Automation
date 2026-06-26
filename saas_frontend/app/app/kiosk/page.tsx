@@ -83,6 +83,102 @@ function breakDuration(startIso: string): string {
   return shiftDuration(startIso)
 }
 
+// ─── Phone Lock Setup Wizard ──────────────────────────────────────────────────
+
+function PhoneLockSetup({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0)
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  function openSettings() {
+    if (isIOS) {
+      // Deep link to Accessibility settings on iOS
+      window.location.href = 'App-Prefs:root=ACCESSIBILITY'
+    }
+    // Android: no reliable deep link — instructions are shown
+  }
+
+  const iosSteps = [
+    {
+      title: 'Enable Guided Access',
+      body: 'Open your phone Settings, tap Accessibility, scroll down to Guided Access and turn it on. You only need to do this once.',
+      action: 'Open Settings',
+      onAction: openSettings,
+    },
+    {
+      title: 'Activate Focus Lock',
+      body: 'Triple-click the side button (power button) right now. A purple border will appear — tap Start. Your phone is now locked to this app.',
+      action: 'Done — I triple-clicked',
+      onAction: onDone,
+    },
+  ]
+
+  const androidSteps = [
+    {
+      title: 'Enable Screen Pinning',
+      body: 'Open Settings → Security (or Biometrics & Security) → Pin Windows or Screen Pinning, and turn it on. You only need to do this once.',
+      action: null,
+      onAction: null,
+    },
+    {
+      title: 'Pin This App',
+      body: 'Tap the square Recent Apps button at the bottom of your phone. Find Careful Server, tap the app icon at the top of the card, then tap Pin.',
+      action: 'Done — App is pinned',
+      onAction: onDone,
+    },
+  ]
+
+  const steps = isIOS ? iosSteps : androidSteps
+  const current = steps[step]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#0f172a] border border-white/10 rounded-t-3xl p-7 w-full max-w-sm">
+        {/* Step dots */}
+        <div className="flex justify-center gap-2 mb-6">
+          {steps.map((_, i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full transition-colors"
+              style={{ backgroundColor: i === step ? '#16a34a' : 'rgba(255,255,255,0.15)' }}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-[#16a34a] text-xs font-bold uppercase tracking-widest">Step {step + 1} of {steps.length}</span>
+        </div>
+        <h2 className="text-white text-xl font-bold mb-3">{current.title}</h2>
+        <p className="text-[#94a3b8] text-sm leading-relaxed mb-7">{current.body}</p>
+
+        <div className="space-y-3">
+          {current.action && (
+            <button
+              onClick={current.onAction ?? (() => {})}
+              className="w-full py-4 rounded-2xl bg-[#16a34a] hover:bg-[#15803d] text-white font-bold text-base transition-colors active:scale-[0.98]"
+            >
+              {current.action}
+            </button>
+          )}
+          {step < steps.length - 1 && (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              className="w-full py-3.5 rounded-2xl border border-white/10 text-white font-semibold text-base hover:border-white/20 transition-colors"
+            >
+              Next
+            </button>
+          )}
+          <button
+            onClick={onDone}
+            className="w-full py-3 text-[#64748b] text-sm hover:text-[#94a3b8] transition-colors"
+          >
+            Skip — set up later
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Emergency overlay ────────────────────────────────────────────────────────
 
 function EmergencyOverlay({
@@ -371,6 +467,7 @@ export default function AppKioskPage() {
   const [exitBiometricState, setExitBiometricState] = useState(false)
   const [error, setError] = useState('')
   const [autoClockOutReason, setAutoClockOutReason] = useState('')
+  const [showPhoneLockSetup, setShowPhoneLockSetup] = useState(false)
 
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgBottomRef = useRef<HTMLDivElement>(null)
@@ -507,6 +604,12 @@ export default function AppKioskPage() {
       const [liveData, msgs] = await Promise.all([api.staff.getLive(), api.staff.getMessages()])
       setLive(liveData)
       setMessages(msgs.slice(0, 10))
+
+      // Show phone lock setup wizard if not done on this device
+      const setupDone = localStorage.getItem('cs_phone_lock_setup_done')
+      if (!setupDone) {
+        setTimeout(() => setShowPhoneLockSetup(true), 800)
+      }
 
       setScreen('focus')
     } catch (e: unknown) {
@@ -676,6 +779,14 @@ export default function AppKioskPage() {
   // ── Focus Mode screen ──
   return (
     <div className="fixed inset-0 bg-[#020617] flex flex-col overflow-hidden">
+      {/* One-time phone lock setup wizard */}
+      {showPhoneLockSetup && (
+        <PhoneLockSetup onDone={() => {
+          localStorage.setItem('cs_phone_lock_setup_done', '1')
+          setShowPhoneLockSetup(false)
+        }} />
+      )}
+
       {/* Biometric verify overlay for exit */}
       {exitBiometricState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">

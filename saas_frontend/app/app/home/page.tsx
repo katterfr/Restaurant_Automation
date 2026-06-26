@@ -31,63 +31,6 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ─── Focus Mode Confirm Modal ─────────────────────────────────────────────────
-
-function FocusModeModal({
-  onConfirm,
-  onCancel,
-  loading,
-}: {
-  onConfirm: () => void
-  onCancel: () => void
-  loading: boolean
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">
-      <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-8 w-full max-w-sm">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center">
-            <svg className="w-8 h-8 text-[#16a34a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-        </div>
-
-        <h2 className="text-white text-xl font-bold text-center mb-2">Focus Mode</h2>
-        <p className="text-[#94a3b8] text-sm text-center mb-6 leading-relaxed">
-          You are about to start your shift.
-        </p>
-
-        <div className="bg-white/5 border border-white/8 rounded-xl px-4 py-4 mb-6 space-y-3">
-          <p className="text-[#94a3b8] text-sm leading-relaxed">
-            While on the clock, your phone will enter Focus Mode — only work features will be accessible until you clock out.
-          </p>
-          <p className="text-[#94a3b8] text-sm leading-relaxed">
-            You will receive a code directly on your screen when you request to exit. Type it to confirm.
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex-1 py-3 rounded-xl border border-white/10 text-[#94a3b8] text-sm font-medium hover:border-white/20 hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="flex-1 py-3 rounded-xl bg-[#16a34a] hover:bg-[#15803d] text-white text-sm font-bold transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Starting...' : 'Start Shift'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Biometric enrollment modal ───────────────────────────────────────────────
 
 function EnrollBiometricModal({
@@ -159,7 +102,6 @@ export default function AppHomePage() {
   const [goals, setGoals] = useState<BusinessGoal[]>([])
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [userEmail, setUserEmail] = useState('')
-  const [showFocusModal, setShowFocusModal] = useState(false)
   const [clockingIn, setClockingIn] = useState(false)
 
   // Biometric state
@@ -274,24 +216,16 @@ export default function AppHomePage() {
 
     // Geofence check
     if (policy?.geofence_enabled && policy.geofence_lat != null && policy.geofence_lng != null) {
-      if (isInGeofence === false) {
-        return // blocked — message shown below button
-      }
+      if (isInGeofence === false) return // blocked — message shown below button
     }
 
-    setShowFocusModal(true)
-  }
-
-  async function handleStartShift() {
-    setShowFocusModal(false)
-
-    // If biometric available and not enrolled -> show enrollment modal
+    // If biometric available and not enrolled -> enroll first
     if (biometricAvailable && !biometricEnrolled) {
       setShowEnrollModal(true)
       return
     }
 
-    await doClockIn()
+    doClockIn()
   }
 
   async function handleEnroll() {
@@ -301,7 +235,7 @@ export default function AppHomePage() {
       await enrollBiometric()
       setBiometricEnrolled(true)
       setShowEnrollModal(false)
-      await doClockIn()
+      doClockIn()
     } catch (e: unknown) {
       setEnrollError(e instanceof Error ? e.message : 'Enrollment failed')
     } finally {
@@ -309,9 +243,9 @@ export default function AppHomePage() {
     }
   }
 
-  async function handleSkipEnroll() {
+  function handleSkipEnroll() {
     setShowEnrollModal(false)
-    await doClockIn()
+    doClockIn()
   }
 
   async function doClockIn() {
@@ -351,15 +285,6 @@ export default function AppHomePage() {
 
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col pb-24">
-      {/* Focus mode modal */}
-      {showFocusModal && (
-        <FocusModeModal
-          onConfirm={handleStartShift}
-          onCancel={() => setShowFocusModal(false)}
-          loading={clockingIn}
-        />
-      )}
-
       {/* Biometric enrollment modal */}
       {showEnrollModal && (
         <EnrollBiometricModal
