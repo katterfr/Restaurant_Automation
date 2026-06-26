@@ -115,6 +115,14 @@ CREATE TABLE IF NOT EXISTS ai_staff_insights (
     reviewed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS employee_focus_exit_logs (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    shift_id INTEGER,
+    exited_at TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 
@@ -402,8 +410,15 @@ async def clock_out(current_user=Depends(_require_portal), db=Depends(get_db)):
 @router.post("/focus-exit")
 async def focus_exit(current_user=Depends(_require_portal), db=Depends(get_db)):
     await _ensure_tables(db)
-    tenant_id = current_user["tenant_id"]
-    user_id = current_user["id"]
+    user_dict = dict(current_user)
+    tenant_id = user_dict.get("tenant_id")
+    user_id = user_dict.get("id")
+
+    active = await db.fetchrow(
+        "SELECT id FROM employee_shifts WHERE tenant_id=$1 AND user_id=$2 AND clocked_out_at IS NULL",
+        tenant_id, user_id,
+    )
+    shift_id = active["id"] if active else None
 
     await db.execute(
         """UPDATE employee_shifts
@@ -411,6 +426,13 @@ async def focus_exit(current_user=Depends(_require_portal), db=Depends(get_db)):
            WHERE tenant_id=$1 AND user_id=$2 AND clocked_out_at IS NULL""",
         tenant_id, user_id,
     )
+    try:
+        await db.execute(
+            "INSERT INTO employee_focus_exit_logs (tenant_id, user_id, shift_id) VALUES ($1, $2, $3)",
+            tenant_id, user_id, shift_id,
+        )
+    except Exception:
+        pass
     return {"ok": True}
 
 
@@ -435,7 +457,8 @@ async def get_live_data(current_user=Depends(_require_portal), db=Depends(get_db
     # Who's currently on shift
     on_shift = await db.fetch(
         """SELECT es.id, es.user_id, es.clocked_in_at, es.focus_exits,
-                  u.email as user_email
+                  u.email as user_email,
+                  COALESCE(u.display_name, '') as display_name
            FROM employee_shifts es
            JOIN users u ON u.id=es.user_id
            WHERE es.tenant_id=$1 AND es.clocked_out_at IS NULL""",
@@ -457,6 +480,22 @@ async def get_live_data(current_user=Depends(_require_portal), db=Depends(get_db
                 out[k] = v
         return out
 
+    focus_exit_logs: list = []
+    try:
+        logs = await db.fetch(
+            """SELECT efl.id, efl.user_id, efl.exited_at,
+                      u.email as user_email,
+                      COALESCE(u.display_name, u.email) as display_name
+               FROM employee_focus_exit_logs efl
+               JOIN users u ON u.id = efl.user_id
+               WHERE efl.tenant_id=$1 AND efl.exited_at::date = CURRENT_DATE
+               ORDER BY efl.exited_at DESC LIMIT 50""",
+            tid,
+        )
+        focus_exit_logs = [_serialize(dict(l)) for l in logs]
+    except Exception:
+        pass
+
     return {
         "today_orders": orders["cnt"],
         "today_revenue": float(orders["rev"]),
@@ -464,6 +503,7 @@ async def get_live_data(current_user=Depends(_require_portal), db=Depends(get_db
         "on_shift_count": len(on_shift),
         "on_shift": [_serialize(dict(s)) for s in on_shift],
         "recent_orders": [_serialize(dict(o)) for o in recent_orders],
+        "focus_exit_logs": focus_exit_logs,
     }
 
 

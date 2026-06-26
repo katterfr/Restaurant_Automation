@@ -59,16 +59,14 @@ function breakDuration(startIso: string): string {
 
 // ─── Phone Lock Setup Wizard ──────────────────────────────────────────────────
 
-function PhoneLockSetup({ onDone }: { onDone: () => void }) {
+function PhoneLockSetup({ onComplete, onSkip }: { onComplete: () => void; onSkip: () => void }) {
   const [step, setStep] = useState(0)
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
 
   function openSettings() {
     if (isIOS) {
-      // Deep link to Accessibility settings on iOS
       window.location.href = 'App-Prefs:root=ACCESSIBILITY'
     }
-    // Android: no reliable deep link — instructions are shown
   }
 
   const iosSteps = [
@@ -82,7 +80,7 @@ function PhoneLockSetup({ onDone }: { onDone: () => void }) {
       title: 'Activate Focus Lock',
       body: 'Triple-click the side button (power button) right now. A purple border will appear — tap Start. Your phone is now locked to this app.',
       action: 'Done — I triple-clicked',
-      onAction: onDone,
+      onAction: onComplete,
     },
   ]
 
@@ -97,7 +95,7 @@ function PhoneLockSetup({ onDone }: { onDone: () => void }) {
       title: 'Pin This App',
       body: 'Tap the square Recent Apps button at the bottom of your phone. Find Careful Server, tap the app icon at the top of the card, then tap Pin.',
       action: 'Done — App is pinned',
-      onAction: onDone,
+      onAction: onComplete,
     },
   ]
 
@@ -142,7 +140,7 @@ function PhoneLockSetup({ onDone }: { onDone: () => void }) {
             </button>
           )}
           <button
-            onClick={onDone}
+            onClick={onSkip}
             className="w-full py-3 text-[#64748b] text-sm hover:text-[#94a3b8] transition-colors"
           >
             Skip — set up later
@@ -428,6 +426,7 @@ export default function AppKioskPage() {
   const [tenantName, setTenantName] = useState('Careful Server')
   const [tenantSlug, setTenantSlug] = useState('')
   const [shiftStart, setShiftStart] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState('')
 
   // UI state
   const [now, setNow] = useState(new Date())
@@ -563,15 +562,19 @@ export default function AppKioskPage() {
       setTenantName(dashAny.tenant?.name ?? 'Careful Server')
       const slug = dashAny.tenant?.slug ?? ''
       setTenantSlug(slug)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        setDisplayName(payload.display_name || '')
+      } catch { /* ignore */ }
 
       const [liveData, msgs] = await Promise.all([api.staff.getLive(), api.staff.getMessages()])
       setLive(liveData)
       setMessages(msgs.slice(0, 10))
 
-      // Show phone lock setup wizard if not done on this device
+      // Show phone lock setup every clock-in until the employee completes it
       const setupDone = localStorage.getItem('cs_phone_lock_setup_done')
       if (!setupDone) {
-        setTimeout(() => setShowPhoneLockSetup(true), 800)
+        setTimeout(() => setShowPhoneLockSetup(true), 600)
       }
 
       setScreen('focus')
@@ -739,10 +742,13 @@ export default function AppKioskPage() {
     <div className="fixed inset-0 bg-[#020617] flex flex-col overflow-hidden">
       {/* One-time phone lock setup wizard */}
       {showPhoneLockSetup && (
-        <PhoneLockSetup onDone={() => {
-          localStorage.setItem('cs_phone_lock_setup_done', '1')
-          setShowPhoneLockSetup(false)
-        }} />
+        <PhoneLockSetup
+          onComplete={() => {
+            localStorage.setItem('cs_phone_lock_setup_done', '1')
+            setShowPhoneLockSetup(false)
+          }}
+          onSkip={() => setShowPhoneLockSetup(false)}
+        />
       )}
 
       {/* Biometric verify overlay for exit */}
@@ -771,7 +777,12 @@ export default function AppKioskPage() {
       {/* Top bar */}
       <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
         <div>
-          <p className="text-white text-sm font-semibold truncate max-w-[160px]">{tenantName}</p>
+          <p className="text-white text-sm font-semibold truncate max-w-[180px]">{tenantName}</p>
+          {displayName && (
+            <p className="text-[#22c55e] text-xs mt-0.5 truncate max-w-[180px]">
+              {(() => { const h = now.getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' })()}, {displayName}
+            </p>
+          )}
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             <span className="text-[#94a3b8] text-xs font-mono">

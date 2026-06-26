@@ -370,13 +370,22 @@ export interface StaffPolicy {
   geofence_radius_m?: number
 }
 
+export interface FocusExitLog {
+  id: number
+  user_id: number
+  display_name: string
+  user_email: string
+  exited_at: string
+}
+
 export interface LiveData {
   today_orders: number
   today_revenue: number
   goals: BusinessGoal[]
   on_shift_count: number
-  on_shift: { id: number; user_id: number; clocked_in_at: string; focus_exits: number; user_email: string }[]
+  on_shift: { id: number; user_id: number; clocked_in_at: string; focus_exits: number; user_email: string; display_name: string }[]
   recent_orders: { id: number; order_source: string; total: number; status: string; created_at: string }[]
+  focus_exit_logs: FocusExitLog[]
 }
 export interface EmployeeShift {
   id: number

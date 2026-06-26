@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation'
 import { api, PortalDashboard, BusinessGoal, StaffPolicy } from '@/lib/api'
 import { isBiometricAvailable, enrollBiometric, verifyBiometric } from '@/lib/webauthn'
 
-function greeting(email: string): string {
+function greeting(name: string): string {
   const hour = new Date().getHours()
-  const name = email.split('@')[0]
   const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
   return `Good ${period}, ${name}`
 }
@@ -102,6 +101,7 @@ export default function AppHomePage() {
   const [goals, setGoals] = useState<BusinessGoal[]>([])
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [clockingIn, setClockingIn] = useState(false)
 
   // Biometric state
@@ -147,10 +147,12 @@ export default function AppHomePage() {
       setGoals((dailyGoals as BusinessGoal[]).filter(g => g.period === 'daily' && g.is_active))
       setPolicy(pol)
 
-      // Decode email from JWT
+      // Decode name from JWT
       try {
         const payload = JSON.parse(atob(token.split('.')[1]))
-        setUserEmail(payload.sub || payload.email || '')
+        const email = payload.sub || payload.email || ''
+        setUserEmail(email)
+        setDisplayName(payload.display_name || email.split('@')[0] || '')
       } catch {
         setUserEmail('')
       }
@@ -326,7 +328,7 @@ export default function AppHomePage() {
           {formatClock(now)}
         </p>
         {userEmail && (
-          <p className="text-[#94a3b8] text-sm mt-2">{greeting(userEmail)}</p>
+          <p className="text-[#94a3b8] text-sm mt-2">{greeting(displayName || userEmail)}</p>
         )}
       </div>
 

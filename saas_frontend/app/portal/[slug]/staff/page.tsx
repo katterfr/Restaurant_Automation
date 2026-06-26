@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useContext, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage, StaffInsight } from '@/lib/api'
+import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage, StaffInsight, FocusExitLog, LiveData } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 import { CustomizationContext } from '../tenant-context'
 
@@ -57,6 +57,10 @@ function OwnerView({ accent }: { accent: string }) {
   // Exit requests
   const [exitRequests, setExitRequests] = useState<ExitRequest[]>([])
   const exitPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Live app-exit alerts
+  const [focusExitLogs, setFocusExitLogs] = useState<FocusExitLog[]>([])
+  const liveExitPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // AI workplace insights
   const [insights, setInsights] = useState<StaffInsight[]>([])
@@ -120,6 +124,21 @@ function OwnerView({ accent }: { accent: string }) {
       if (exitPollRef.current) clearInterval(exitPollRef.current)
     }
   }, [loadExitRequests])
+
+  const loadLiveExits = useCallback(async () => {
+    try {
+      const live = await api.staff.getLive() as LiveData
+      setFocusExitLogs(live.focus_exit_logs ?? [])
+    } catch { /* not critical */ }
+  }, [])
+
+  useEffect(() => {
+    loadLiveExits()
+    liveExitPollRef.current = setInterval(loadLiveExits, 15000)
+    return () => {
+      if (liveExitPollRef.current) clearInterval(liveExitPollRef.current)
+    }
+  }, [loadLiveExits])
 
   async function toggleEnabled() {
     if (!policy) return
@@ -541,6 +560,34 @@ function OwnerView({ accent }: { accent: string }) {
               >
                 {passphraseCopied ? 'Copied!' : 'Copy'}
               </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Live App Exit Alerts */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <h2 className="text-base font-semibold text-gray-900">App Exit Alerts — Today</h2>
+          <span className="ml-auto text-xs text-gray-400">{focusExitLogs.length} event{focusExitLogs.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="px-5 py-4">
+          {focusExitLogs.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No app exits recorded today.</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {focusExitLogs.map(log => (
+                <div key={log.id} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-lg px-4 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{log.display_name || log.user_email}</p>
+                    <p className="text-xs text-gray-500">Left the app</p>
+                  </div>
+                  <span className="text-xs text-amber-700 font-mono whitespace-nowrap ml-4">
+                    {new Date(log.exited_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
