@@ -1,3 +1,4 @@
+import hashlib
 import random
 import secrets
 import logging
@@ -19,6 +20,41 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+async def _is_password_breached(password: str) -> bool:
+    """k-anonymity HIBP check — sends only first 5 chars of SHA-1 hash, never the full password."""
+    try:
+        sha1 = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+        prefix, suffix = sha1[:5], sha1[5:]
+        async with httpx.AsyncClient(timeout=3) as c:
+            r = await c.get(
+                f"https://api.pwnedpasswords.com/range/{prefix}",
+                headers={"User-Agent": "CarefulServer-Security/1.0"},
+            )
+            if not r.is_success:
+                return False
+            for line in r.text.splitlines():
+                if ":" in line:
+                    h, count = line.split(":", 1)
+                    if h.strip() == suffix and int(count.strip()) > 0:
+                        return True
+    except Exception:
+        pass
+    return False
+
+
+def _check_password_strength(password: str) -> str | None:
+    """Returns an error message string if weak, None if acceptable."""
+    if len(password) < 10:
+        return "Password must be at least 10 characters"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one number"
+    return None
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)):
@@ -77,6 +113,7 @@ async def _use_auth_token(db, token: str, token_type: str):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    password_breached: bool = False
 
 
 class ChangePasswordRequest(BaseModel):
@@ -89,7 +126,8 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db))
     user = await db.fetchrow("SELECT * FROM users WHERE email = $1", form.username)
     if not user or not verify_password(form.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return TokenResponse(access_token=_make_jwt(user))
+    breached = await _is_password_breached(form.password)
+    return TokenResponse(access_token=_make_jwt(user), password_breached=breached)
 
 
 @router.get("/me")
@@ -109,8 +147,11 @@ async def me(current_user=Depends(get_current_user)):
 async def change_password(body: ChangePasswordRequest, current_user=Depends(get_current_user), db=Depends(get_db)):
     if not verify_password(body.current_password, current_user["password_hash"]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    if len(body.new_password) < 8:
-        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    strength_err = _check_password_strength(body.new_password)
+    if strength_err:
+        raise HTTPException(status_code=400, detail=strength_err)
+    if await _is_password_breached(body.new_password):
+        raise HTTPException(status_code=400, detail="This password has appeared in a data breach. Please choose a different password.")
     await db.execute(
         "UPDATE users SET password_hash = $1 WHERE id = $2",
         hash_password(body.new_password), current_user["id"],

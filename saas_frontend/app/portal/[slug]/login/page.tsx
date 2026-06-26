@@ -41,6 +41,12 @@ function SlugLoginInner() {
   const [otpInfo, setOtpInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const googleIdToken = useRef('')
+  const [showBreachChange, setShowBreachChange] = useState(false)
+  const [savedOldPassword, setSavedOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [breachChangeError, setBreachChangeError] = useState('')
+  const [breachChanging, setBreachChanging] = useState(false)
 
   const verified = searchParams?.get('verified') === '1'
 
@@ -48,6 +54,24 @@ function SlugLoginInner() {
     saveToken(token)
     sessionStorage.setItem(`cs_show_welcome_${slug}`, '1')
     router.push(`/portal/${slug}/dashboard`)
+  }
+
+  async function handleBreachChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setBreachChangeError('')
+    if (newPassword !== confirmPassword) { setBreachChangeError('Passwords do not match'); return }
+    setBreachChanging(true)
+    try {
+      const { api } = await import('@/lib/api')
+      await api.auth.changePassword(savedOldPassword, newPassword)
+      setShowBreachChange(false)
+      sessionStorage.setItem(`cs_show_welcome_${slug}`, '1')
+      router.push(`/portal/${slug}/dashboard`)
+    } catch (err: unknown) {
+      setBreachChangeError(err instanceof Error ? err.message : 'Failed to update password')
+    } finally {
+      setBreachChanging(false)
+    }
   }
 
   useEffect(() => {
@@ -87,8 +111,15 @@ function SlugLoginInner() {
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError('')
     try {
-      const { access_token } = await login(email, password)
-      await afterLogin(access_token)
+      const result = await login(email, password)
+      if (result.password_breached) {
+        saveToken(result.access_token)
+        setSavedOldPassword(password)
+        setPassword('')
+        setShowBreachChange(true)
+      } else {
+        await afterLogin(result.access_token)
+      }
     } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Incorrect email or password') }
     finally { setLoading(false) }
   }
@@ -136,6 +167,58 @@ function SlugLoginInner() {
   const initial = tenant?.name?.[0]?.toUpperCase() ?? 'C'
   const inputCls = 'w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent'
   const socialBtn = 'w-full flex items-center justify-center gap-3 border border-gray-300 rounded-full py-3 px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors bg-white'
+
+  if (showBreachChange) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-5 mx-auto">
+            <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 text-center mb-2">Secure Your Account</h2>
+          <p className="text-sm text-gray-500 text-center mb-6">
+            Your current password was found in a known security breach. Please create a new, strong password.
+          </p>
+          <form onSubmit={handleBreachChangePassword} className="space-y-4">
+            <input
+              type="password"
+              required
+              autoFocus
+              autoComplete="new-password"
+              placeholder="New password (min 10 characters)"
+              value={newPassword}
+              onChange={e => { setNewPassword(e.target.value); setBreachChangeError('') }}
+              className={inputCls}
+            />
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={e => { setConfirmPassword(e.target.value); setBreachChangeError('') }}
+              className={inputCls}
+            />
+            {breachChangeError && (
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{breachChangeError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={breachChanging || !newPassword || !confirmPassword}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg py-3 transition-colors"
+            >
+              {breachChanging ? 'Updating...' : 'Set New Password'}
+            </button>
+          </form>
+          <p className="text-xs text-gray-400 text-center mt-4">
+            Min 10 characters · uppercase · lowercase · number required
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">

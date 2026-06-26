@@ -51,7 +51,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T
 }
 
-export async function login(email: string, password: string): Promise<{ access_token: string }> {
+export async function login(email: string, password: string): Promise<{ access_token: string; password_breached?: boolean }> {
   const body = new URLSearchParams({ username: email, password })
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
