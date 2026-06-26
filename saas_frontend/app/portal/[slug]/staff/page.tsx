@@ -1,9 +1,19 @@
 'use client'
-import { useEffect, useState, useCallback, useContext } from 'react'
+import { useEffect, useState, useCallback, useContext, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 import { CustomizationContext } from '../tenant-context'
+
+type ExitRequest = {
+  id: number
+  exit_type: string
+  code: string
+  status: string
+  created_at: string
+  expires_at: string
+  user_email: string
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +55,10 @@ function OwnerView({ accent }: { accent: string }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Exit requests
+  const [exitRequests, setExitRequests] = useState<ExitRequest[]>([])
+  const exitPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // Add contact form
   const [contactForm, setContactForm] = useState({ name: '', phone: '', relation: '' })
   const [addingContact, setAddingContact] = useState(false)
@@ -61,6 +75,13 @@ function OwnerView({ accent }: { accent: string }) {
   // Kiosk guide open/close
   const [guideOpen, setGuideOpen] = useState(false)
 
+  const loadExitRequests = useCallback(async () => {
+    try {
+      const reqs = await api.staff.getExitRequests()
+      setExitRequests(reqs)
+    } catch { /* owner might not have permission yet */ }
+  }, [])
+
   const load = useCallback(async () => {
     try {
       const [p, s] = await Promise.all([api.staff.getPolicy(), api.staff.shifts()])
@@ -76,6 +97,14 @@ function OwnerView({ accent }: { accent: string }) {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    loadExitRequests()
+    exitPollRef.current = setInterval(loadExitRequests, 10000)
+    return () => {
+      if (exitPollRef.current) clearInterval(exitPollRef.current)
+    }
+  }, [loadExitRequests])
 
   async function toggleEnabled() {
     if (!policy) return
@@ -164,8 +193,66 @@ function OwnerView({ accent }: { accent: string }) {
     )
   }
 
+  function minutesUntilExpiry(expiresAt: string): number {
+    return Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 60000))
+  }
+
+  function formatExitType(t: string): string {
+    return t === 'clock_out' ? 'Clock Out' : 'Take a Break'
+  }
+
   return (
     <div className="space-y-8">
+      {/* Exit Requests */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          {exitRequests.length > 0 && (
+            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-none" />
+          )}
+          <h2 className="text-base font-semibold text-gray-900">Pending Exit Requests</h2>
+          {exitRequests.length > 0 && (
+            <span className="ml-auto text-xs text-gray-400">{exitRequests.length} pending</span>
+          )}
+        </div>
+        <div className="px-5 py-4">
+          {exitRequests.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No pending exit requests</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">Employees waiting for an exit code</p>
+              {exitRequests.map(req => (
+                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-4">
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{req.user_email}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
+                        req.exit_type === 'clock_out'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {formatExitType(req.exit_type)}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        Requested at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        &middot; Expires in {minutesUntilExpiry(req.expires_at)}m
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-none">
+                    <p className="text-xs text-gray-500 mb-1 text-center">Exit Code</p>
+                    <p className="text-2xl font-bold font-mono tracking-[0.25em] text-green-700 bg-green-100 border border-green-200 rounded-xl px-4 py-2 text-center select-all">
+                      {req.code}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Header + toggle */}
       <div className="flex items-center justify-between">
         <div>

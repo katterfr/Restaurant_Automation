@@ -640,6 +640,18 @@ export const api = {
     getMessages: () => request<StaffMessage[]>('/staff/messages'),
     sendMessage: (content: string, to_user_id?: number) => request<StaffMessage>('/staff/messages', { method: 'POST', body: JSON.stringify({ content, to_user_id, is_broadcast: !to_user_id }) }),
     getLive: () => request<LiveData>('/staff/live'),
+    requestExit: (exit_type: 'clock_out' | 'break') =>
+      request<{ request_id: number; expires_in_minutes: number }>('/staff/exit-request', {
+        method: 'POST',
+        body: JSON.stringify({ exit_type }),
+      }),
+    confirmExit: (code: string) =>
+      request<{ ok: boolean; exit_type: string }>('/staff/confirm-exit', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    getExitRequests: () =>
+      request<{ id: number; exit_type: string; code: string; status: string; created_at: string; expires_at: string; user_email: string }[]>('/staff/exit-requests'),
   },
 }
 

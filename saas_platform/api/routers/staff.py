@@ -4,7 +4,8 @@ import base64
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Any
 
 from cryptography.fernet import Fernet
@@ -24,6 +25,18 @@ router = APIRouter(prefix="/staff", tags=["staff"])
 _tables_ready = False
 
 _CREATE_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS exit_requests (
+    id SERIAL PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    shift_id INT,
+    user_id INT NOT NULL,
+    exit_type TEXT NOT NULL,
+    code TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS shift_policies (
   id SERIAL PRIMARY KEY,
   tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE UNIQUE,
@@ -173,6 +186,14 @@ class MessageCreate(BaseModel):
     content: str
     to_user_id: Optional[int] = None
     is_broadcast: bool = True
+
+
+class ExitRequestBody(BaseModel):
+    exit_type: str  # 'clock_out' or 'break'
+
+
+class ConfirmExitBody(BaseModel):
+    code: str
 
 
 # ─── Policy endpoints ─────────────────────────────────────────────────────────
@@ -557,3 +578,106 @@ async def send_message(body: MessageCreate, current_user=Depends(_require_portal
     if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
         d["created_at"] = d["created_at"].isoformat()
     return d
+
+
+# ─── Exit Requests ────────────────────────────────────────────────────────────
+
+@router.post("/exit-request")
+async def request_exit(body: ExitRequestBody, current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+
+    # Get current shift
+    shift = await db.fetchrow(
+        "SELECT id FROM employee_shifts WHERE tenant_id=$1 AND user_id=$2 AND clocked_out_at IS NULL",
+        tid, uid
+    )
+    shift_id = shift["id"] if shift else None
+
+    # Generate 6-digit code
+    code = str(secrets.randbelow(1000000)).zfill(6)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    # Expire any previous pending requests for this user
+    await db.execute(
+        "UPDATE exit_requests SET status='expired' WHERE tenant_id=$1 AND user_id=$2 AND status='pending'",
+        tid, uid
+    )
+
+    req = await db.fetchrow(
+        """INSERT INTO exit_requests (tenant_id, shift_id, user_id, exit_type, code, expires_at)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
+        tid, shift_id, uid, body.exit_type, code, expires_at
+    )
+
+    return {"request_id": req["id"], "expires_in_minutes": 30}
+
+
+@router.post("/confirm-exit")
+async def confirm_exit(body: ConfirmExitBody, current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+
+    req = await db.fetchrow(
+        """SELECT * FROM exit_requests
+           WHERE tenant_id=$1 AND user_id=$2 AND code=$3 AND status='pending' AND expires_at > NOW()
+           ORDER BY created_at DESC LIMIT 1""",
+        tid, uid, body.code
+    )
+    if not req:
+        raise HTTPException(400, "Invalid or expired exit code")
+
+    await db.execute("UPDATE exit_requests SET status='used' WHERE id=$1", req["id"])
+
+    if req["exit_type"] == "clock_out":
+        clocked_in_row = await db.fetchrow(
+            "SELECT * FROM employee_shifts WHERE tenant_id=$1 AND user_id=$2 AND clocked_out_at IS NULL",
+            tid, uid
+        )
+        if clocked_in_row:
+            clocked_in_at: datetime = clocked_in_row["clocked_in_at"]
+            now = datetime.now(timezone.utc)
+            if clocked_in_at.tzinfo is None:
+                clocked_in_at = clocked_in_at.replace(tzinfo=timezone.utc)
+            duration_minutes = int((now - clocked_in_at).total_seconds() / 60)
+            await db.execute(
+                "UPDATE employee_shifts SET clocked_out_at=NOW(), duration_minutes=$3 WHERE id=$1 AND tenant_id=$2",
+                clocked_in_row["id"], tid, duration_minutes
+            )
+    elif req["exit_type"] == "break":
+        # Record break start — log for now
+        pass
+
+    return {"ok": True, "exit_type": req["exit_type"]}
+
+
+@router.get("/exit-requests")
+async def get_exit_requests(current_user=Depends(_require_portal), db=Depends(get_db)):
+    if current_user.get("role") not in ("owner", "admin", "manager"):
+        raise HTTPException(403, "Owner or manager access required")
+
+    tid = current_user["tenant_id"]
+    await _ensure_tables(db)
+
+    rows = await db.fetch(
+        """SELECT er.id, er.exit_type, er.code, er.status, er.created_at, er.expires_at,
+                  u.email as user_email
+           FROM exit_requests er
+           JOIN users u ON u.id = er.user_id
+           WHERE er.tenant_id=$1 AND er.status='pending' AND er.expires_at > NOW()
+           ORDER BY er.created_at DESC""",
+        tid
+    )
+
+    def _ser(row: dict) -> dict:
+        out = {}
+        for k, v in row.items():
+            if hasattr(v, "isoformat"):
+                out[k] = v.isoformat()
+            else:
+                out[k] = v
+        return out
+
+    return [_ser(dict(r)) for r in rows]
