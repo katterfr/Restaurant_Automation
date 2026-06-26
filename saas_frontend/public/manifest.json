@@ -3,7 +3,7 @@
   "short_name": "CarefulServer",
   "description": "Restaurant management platform",
   "start_url": "/app",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#020617",
   "theme_color": "#16a34a",
   "orientation": "portrait",

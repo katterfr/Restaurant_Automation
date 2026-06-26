@@ -438,7 +438,6 @@ export default function AppKioskPage() {
   const [exitBiometricState, setExitBiometricState] = useState(false)
   const [error, setError] = useState('')
   const [autoClockOutReason, setAutoClockOutReason] = useState('')
-  const [showPhoneLockSetup, setShowPhoneLockSetup] = useState(false)
 
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgBottomRef = useRef<HTMLDivElement>(null)
@@ -451,8 +450,47 @@ export default function AppKioskPage() {
   }, [])
 
   // ── Fullscreen + security ──
+  // ── Automatic lockdown (runs once on mount) ──
   useEffect(() => {
-    try { document.documentElement.requestFullscreen() } catch {}
+    type FSElem = HTMLElement & { requestFullscreen: (opts?: object) => Promise<void> }
+    type ScreenOrientationExt = ScreenOrientation & { lock?: (o: string) => Promise<void> }
+
+    function enterFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          ;(document.documentElement as FSElem).requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+        }
+      } catch {}
+    }
+
+    function lockOrientation() {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(window.screen as any)?.orientation?.lock?.('portrait').catch(() => {})
+      } catch {}
+    }
+
+    // Attempt fullscreen + orientation lock on mount (fallback if gesture already granted)
+    enterFullscreen()
+    lockOrientation()
+
+    // Re-enter fullscreen the moment it is lost
+    function onFullscreenChange() {
+      if (!document.fullscreenElement) {
+        enterFullscreen()
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+
+    // History trap — absorbs back-button / swipe-back presses
+    window.history.pushState(null, '', window.location.href)
+    function onPopState() {
+      window.history.pushState(null, '', window.location.href)
+    }
+    window.addEventListener('popstate', onPopState)
+
+    // Block context menu and dangerous keyboard shortcuts
     const noCtx = (e: MouseEvent) => e.preventDefault()
     document.addEventListener('contextmenu', noCtx)
     const noKeys = (e: KeyboardEvent) => {
@@ -462,7 +500,11 @@ export default function AppKioskPage() {
       }
     }
     document.addEventListener('keydown', noKeys)
+
     return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+      window.removeEventListener('popstate', onPopState)
       document.removeEventListener('contextmenu', noCtx)
       document.removeEventListener('keydown', noKeys)
     }
@@ -479,18 +521,31 @@ export default function AppKioskPage() {
       } catch { /* not supported or denied */ }
     }
     requestWakeLock()
+    // Re-acquire wake lock when tab becomes visible again (OS releases it on hide)
+    function onVisibilityForWakeLock() {
+      if (!document.hidden) requestWakeLock()
+    }
+    document.addEventListener('visibilitychange', onVisibilityForWakeLock)
     return () => {
       wakeLock?.release().catch(() => {})
+      document.removeEventListener('visibilitychange', onVisibilityForWakeLock)
     }
   }, [])
 
-  // ── Focus exit tracking ──
+  // ── Focus exit tracking + re-lock on return ──
   useEffect(() => {
     if (screen !== 'focus') return
+    type FSElem = HTMLElement & { requestFullscreen: (opts?: object) => Promise<void> }
     function handleVisibility() {
       if (document.hidden) {
         api.staff.focusExit().catch(() => {})
       } else {
+        // Re-assert fullscreen and orientation as soon as employee returns
+        try {
+          if (!document.fullscreenElement) {
+            ;(document.documentElement as FSElem).requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+          }
+        } catch {}
         setFocusBanner(true)
         if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current)
         bannerTimerRef.current = setTimeout(() => setFocusBanner(false), 3000)
@@ -570,12 +625,6 @@ export default function AppKioskPage() {
       const [liveData, msgs] = await Promise.all([api.staff.getLive(), api.staff.getMessages()])
       setLive(liveData)
       setMessages(msgs.slice(0, 10))
-
-      // Show phone lock setup every clock-in until the employee completes it
-      const setupDone = localStorage.getItem('cs_phone_lock_setup_done')
-      if (!setupDone) {
-        setTimeout(() => setShowPhoneLockSetup(true), 600)
-      }
 
       setScreen('focus')
     } catch (e: unknown) {
@@ -741,16 +790,6 @@ export default function AppKioskPage() {
   return (
     <div className="fixed inset-0 bg-[#020617] flex flex-col overflow-hidden">
       {/* One-time phone lock setup wizard */}
-      {showPhoneLockSetup && (
-        <PhoneLockSetup
-          onComplete={() => {
-            localStorage.setItem('cs_phone_lock_setup_done', '1')
-            setShowPhoneLockSetup(false)
-          }}
-          onSkip={() => setShowPhoneLockSetup(false)}
-        />
-      )}
-
       {/* Biometric verify overlay for exit */}
       {exitBiometricState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">

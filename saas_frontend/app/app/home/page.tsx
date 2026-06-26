@@ -221,6 +221,18 @@ export default function AppHomePage() {
       if (isInGeofence === false) return // blocked — message shown below button
     }
 
+    // Initiate lockdown immediately while we still have the user gesture.
+    // requestFullscreen and screen.orientation.lock both require a gesture —
+    // this is the only reliable place to call them.
+    try {
+      const el = document.documentElement as HTMLElement & { requestFullscreen: (opts?: object) => Promise<void> }
+      el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+    } catch {}
+    try {
+      type ScreenOrientationExt = ScreenOrientation & { lock?: (o: string) => Promise<void> }
+      ;(screen.orientation as ScreenOrientationExt).lock?.('portrait').catch(() => {})
+    } catch {}
+
     // If biometric available and not enrolled -> enroll first
     if (biometricAvailable && !biometricEnrolled) {
       setShowEnrollModal(true)
