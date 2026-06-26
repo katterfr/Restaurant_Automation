@@ -3,6 +3,7 @@ interface TokenPayload {
   tenant: number | null
   role: string
   exp: number
+  display_name?: string
 }
 
 function decodePayload(token: string): TokenPayload | null {
@@ -42,4 +43,17 @@ export function getTenantId(): number | null {
   const token = getToken()
   if (!token) return null
   return decodePayload(token)?.tenant ?? null
+}
+
+export function getDisplayName(): string {
+  const token = getToken()
+  if (!token) return ''
+  const payload = decodePayload(token)
+  if (!payload) return ''
+  if (payload.display_name) return payload.display_name
+  return ''
+}
+
+export function getEmail(): string | null {
+  return null
 }

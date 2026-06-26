@@ -484,7 +484,56 @@ async def portal_chat(
         *(["  - Delivery: delivery platform integrations · go to /delivery"] if "delivery" in features else []),
     ])
 
-    system_prompt = f"""You are Joyce, an autonomous AI assistant inside the owner portal for {tenant['name']}, \
+    user_role = current_user.get("role", "staff")
+    user_display = current_user.get("display_name") or current_user.get("email", "").split("@")[0].capitalize()
+    is_employee = user_role in ("staff", "viewer")
+
+    if is_employee:
+        # Fetch today's goal progress for the employee context
+        goal_row = await db.fetchrow(
+            """SELECT title, target_value, current_value, unit
+               FROM business_goals
+               WHERE tenant_id=$1 AND is_active=TRUE
+               ORDER BY created_at DESC LIMIT 1""",
+            tid,
+        )
+        goal_line = ""
+        if goal_row:
+            pct = (float(goal_row["current_value"] or 0) / float(goal_row["target_value"])) * 100 if goal_row["target_value"] else 0
+            goal_line = f"Active Goal: {goal_row['title']} — {goal_row['current_value']}/{goal_row['target_value']} {goal_row['unit']} ({pct:.0f}%)"
+
+        system_prompt = f"""You are Joyce, a personal AI work coach for {user_display}, a {user_role} at {tenant['name']}.
+
+Your mission: help {user_display} deliver outstanding service, hit the restaurant's daily goals, and grow their career.
+
+## Restaurant
+- Name: {tenant['name']}
+- Today's orders: {stats['today_orders']}
+- Today's revenue: ${float(stats['today_revenue']):.2f}
+{("- " + goal_line) if goal_line else ""}
+
+## Menu Overview
+- Total items: {menu['total']} ({menu['active']} available today)
+- Use get_menu to fetch full item details when asked about specific dishes, ingredients, or allergens
+
+## Your Focus Areas for {user_display}
+1. **Customer service excellence** — greeting etiquette, handling complaints, upselling techniques, table management
+2. **Goal progress** — explain today's numbers, what they mean, how {user_display}'s work contributes
+3. **Career advancement** — what skills, behaviors, and milestones lead from {user_role} to the next level (manager)
+4. **Restaurant knowledge** — menu items, specials, allergens, preparation basics when relevant
+5. **Shift tools** — clock in/out, team messaging, focus mode, goal tracking features
+
+## Tone
+Warm, encouraging, and specific. Use {user_display}'s name naturally. Celebrate wins. Be honest about areas to improve.
+Keep replies concise — under 100 words unless giving a detailed explanation they asked for.
+
+## Boundaries
+Only discuss topics relevant to {user_display}'s role. Do NOT discuss ads, accounting, billing, social media management, or owner-level strategy.
+Never use emojis."""
+
+        empty_reply = f"Hi {user_display}! I'm Joyce, your work coach. Ask me about today's goals, customer service tips, the menu, or how to grow your career here."
+    else:
+        system_prompt = f"""You are Joyce, an autonomous AI assistant inside the owner portal for {tenant['name']}, \
 a restaurant on the Careful-Server platform. You have FULL ability to take action on the owner's behalf — \
 you are not just an advisor, you are an executor. When the owner asks you to do something, DO IT using your tools.
 
@@ -540,11 +589,13 @@ When you detect feedback, start your reply with the EXACT token `[FEEDBACK]` on 
 - Be concise in replies — confirm what you did, not what you could do
 - Keep replies under 120 words unless listing results"""
 
+        empty_reply = "Hi! I can post to your social media, launch ad campaigns, manage your menu, and more — all automatically. What would you like me to do?"
+
     messages = _fmt_messages(body.messages)
     while messages and messages[0]["role"] != "user":
         messages.pop(0)
     if not messages:
-        return {"reply": "Hi! I can post to your social media, launch ad campaigns, manage your menu, and more — all automatically. What would you like me to do?", "navigate": None, "action_result": None}
+        return {"reply": empty_reply, "navigate": None, "action_result": None}
 
     _headers = {
         "x-api-key": settings.anthropic_api_key,

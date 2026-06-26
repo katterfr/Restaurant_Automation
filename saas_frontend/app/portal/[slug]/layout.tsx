@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter, usePathname } from 'next/navigation'
-import { isLoggedIn, clearToken, getTenantId } from '@/lib/auth'
+import { isLoggedIn, clearToken, getTenantId, getRole, getDisplayName } from '@/lib/auth'
 import { api, TenantCustomization as ApiCustomization } from '@/lib/api'
 import { TenantContext, TenantPublic, CustomizationContext, TenantCustomization } from './tenant-context'
 import ChatBot from './chat-bot'
@@ -91,17 +91,17 @@ function ChangePasswordModal({ accent, slug, onClose }: { accent: string; slug: 
   )
 }
 
-const ALL_NAV: { label: string; href: string; feature: null | string | string[] }[] = [
+const ALL_NAV: { label: string; href: string; feature: null | string | string[]; roles?: string[] }[] = [
   { label: 'Dashboard',   href: 'dashboard',  feature: null },
-  { label: 'Orders',      href: 'orders',     feature: null },
-  { label: 'Menu',        href: 'menu',       feature: null },
-  { label: 'Ads',         href: 'ads',        feature: ['ads_meta','ads_google','ads_youtube','ads_tiktok','ads_snapchat','ads_pinterest'] },
-  { label: 'Social',      href: 'social',     feature: ['social_meta','social_youtube','social_tiktok'] },
-  { label: 'Accounting',  href: 'accounting', feature: 'accounting' },
-  { label: 'Delivery',    href: 'delivery',   feature: 'delivery' },
-  { label: 'Listings',    href: 'business',   feature: ['listings_google','listings_apple'] },
-  { label: 'Phone Agent', href: 'phone',      feature: 'phone_agent' },
-  { label: 'AI Creative', href: 'creative',   feature: 'ai_creative' },
+  { label: 'Orders',      href: 'orders',     feature: null,                                                          roles: ['owner','admin','manager'] },
+  { label: 'Menu',        href: 'menu',       feature: null,                                                          roles: ['owner','admin','manager'] },
+  { label: 'Ads',         href: 'ads',        feature: ['ads_meta','ads_google','ads_youtube','ads_tiktok','ads_snapchat','ads_pinterest'], roles: ['owner','admin','marketing'] },
+  { label: 'Social',      href: 'social',     feature: ['social_meta','social_youtube','social_tiktok'],              roles: ['owner','admin','marketing','manager'] },
+  { label: 'Accounting',  href: 'accounting', feature: 'accounting',                                                  roles: ['owner','admin'] },
+  { label: 'Delivery',    href: 'delivery',   feature: 'delivery',                                                    roles: ['owner','admin','manager'] },
+  { label: 'Listings',    href: 'business',   feature: ['listings_google','listings_apple'],                          roles: ['owner','admin','manager'] },
+  { label: 'Phone Agent', href: 'phone',      feature: 'phone_agent',                                                 roles: ['owner','admin'] },
+  { label: 'AI Creative', href: 'creative',   feature: 'ai_creative',                                                 roles: ['owner','admin','marketing'] },
   { label: 'Staff',    href: 'staff',    feature: null },
   { label: 'Goals',    href: 'goals',    feature: null },
   { label: 'Messages', href: 'messages', feature: null },
@@ -260,7 +260,12 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
   }
 
   const initial = tenant?.name?.[0]?.toUpperCase() ?? '…'
+  const userRole = getRole() ?? 'staff'
+  const displayName = getDisplayName()
+  const isOwnerAdmin = userRole === 'owner' || userRole === 'admin'
+  const portalLabel = isOwnerAdmin ? 'Owner Portal' : (displayName || userRole)
   const visibleNav = ALL_NAV.filter(n => {
+    if (n.roles && !n.roles.includes(userRole)) return false
     if (!n.feature) return true
     if (Array.isArray(n.feature)) return n.feature.some(f => features.includes(f))
     return features.includes(n.feature)
@@ -299,7 +304,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                 <p className="text-sm font-semibold text-gray-900 leading-tight">
                   {tenant?.name ?? '…'}
                 </p>
-                <p className="text-xs text-gray-400">Owner Portal</p>
+                <p className="text-xs text-gray-400">{portalLabel}</p>
               </div>
             </div>
 
@@ -323,6 +328,18 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
             </nav>
 
             <div className="flex items-center gap-2">
+              <Link
+                href={`/portal/${slug}/goals`}
+                className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                Goals
+              </Link>
+              <Link
+                href={`/portal/${slug}/messages`}
+                className="hidden sm:block text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                Messages
+              </Link>
               <button
                 data-tour-id="customize-btn"
                 onClick={openDrawer}
@@ -371,6 +388,12 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                   {n.label}
                 </Link>
               ))}
+              <Link href={`/portal/${slug}/goals`} onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
+                Goals
+              </Link>
+              <Link href={`/portal/${slug}/messages`} onClick={() => setMobileOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
+                Messages
+              </Link>
               <button onClick={openDrawer} className="block w-full text-left px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">
                 Customize
               </button>
@@ -546,7 +569,7 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
         )}
 
         {/* AI Chat bot — available on every portal page */}
-        <ChatBot accent={accent} />
+        <ChatBot accent={accent} userName={displayName} userRole={userRole} />
       </CustomizationContext.Provider>
     </TenantContext.Provider>
   )

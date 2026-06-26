@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { useTenant, useCustomization } from '../tenant-context'
+import { getRole, getDisplayName } from '@/lib/auth'
 
 const FEATURE_META: Record<string, { icon: string; label: string }> = {
   ads_meta:         { icon: 'f',   label: 'Meta Ads' },
@@ -22,6 +23,16 @@ const FEATURE_META: Record<string, { icon: string; label: string }> = {
   menu_management:  { icon: 'Mn',  label: 'Menu Mgmt' },
   delivery:         { icon: 'Del', label: 'Delivery' },
 }
+
+const EMPLOYEE_FEATURE_META: { icon: string; label: string }[] = [
+  { icon: '⏱',  label: 'Clock In / Out' },
+  { icon: '💬', label: 'Team Messages' },
+  { icon: '🎯', label: 'Daily Goals' },
+  { icon: 'Mn', label: 'Menu Viewer' },
+  { icon: 'AI', label: 'Joyce AI Coach' },
+]
+
+const OWNER_ROLES = new Set(['owner', 'admin', 'manager', 'marketing'])
 
 function greeting() {
   const h = new Date().getHours()
@@ -58,6 +69,10 @@ export default function WelcomePage() {
   const [features, setFeatures] = useState<string[]>([])
   const [stats, setStats] = useState<{ today_orders: number; today_revenue: number; total_orders: number } | null>(null)
   const [animIn, setAnimIn] = useState(false)
+
+  const userRole = getRole() ?? 'staff'
+  const displayName = getDisplayName()
+  const isOwnerView = OWNER_ROLES.has(userRole)
 
   useEffect(() => {
     setTimeout(() => setAnimIn(true), 80)
@@ -123,14 +138,13 @@ export default function WelcomePage() {
 
         {/* greeting */}
         <div className="text-center space-y-2 mb-6">
-          <p className="text-slate-400 text-sm font-medium">{greeting()}</p>
+          <p className="text-slate-400 text-sm font-medium">
+            {greeting()}{displayName ? `, ${displayName}` : ''}
+          </p>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight">
             Welcome to<br/>
             <span style={{ color: accent }}>{tenant?.name ?? '…'}</span>
           </h1>
-          <p className="text-slate-400 text-base mt-2 max-w-sm mx-auto">
-            Your restaurant's command center is ready. Everything you need to run and grow your business, in one place.
-          </p>
         </div>
 
         {/* live stats (if any orders) */}
@@ -152,19 +166,33 @@ export default function WelcomePage() {
         )}
 
         {/* feature chips */}
-        {enabledFeatures.length > 0 && (
+        {isOwnerView ? (
+          enabledFeatures.length > 0 && (
+            <div className="mb-6">
+              <p className="text-slate-500 text-xs text-center mb-3 uppercase tracking-widest font-medium">Your Enabled Features</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {enabledFeatures.map((f, i) => {
+                  const m = FEATURE_META[f]!
+                  return (
+                    <span key={f} className="glass-card flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-slate-300 cs-up"
+                      style={{ animationDelay: `${0.05 * i}s`, opacity: 0 }}>
+                      <span className="text-xs font-bold opacity-70">{m.icon}</span> {m.label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        ) : (
           <div className="mb-6">
-            <p className="text-slate-500 text-xs text-center mb-3 uppercase tracking-widest font-medium">Your Enabled Features</p>
+            <p className="text-slate-500 text-xs text-center mb-3 uppercase tracking-widest font-medium">Your Tools</p>
             <div className="flex flex-wrap justify-center gap-2">
-              {enabledFeatures.map((f, i) => {
-                const m = FEATURE_META[f]!
-                return (
-                  <span key={f} className="glass-card flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-slate-300 cs-up"
-                    style={{ animationDelay: `${0.05 * i}s`, opacity: 0 }}>
-                    <span className="text-xs font-bold opacity-70">{m.icon}</span> {m.label}
-                  </span>
-                )
-              })}
+              {EMPLOYEE_FEATURE_META.map((m, i) => (
+                <span key={m.label} className="glass-card flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-slate-300 cs-up"
+                  style={{ animationDelay: `${0.05 * i}s`, opacity: 0 }}>
+                  <span className="text-xs font-bold opacity-70">{m.icon}</span> {m.label}
+                </span>
+              ))}
             </div>
           </div>
         )}

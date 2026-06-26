@@ -20,16 +20,23 @@ const CHAT_H = 560
 const EXP_W  = 680
 const EXP_H  = 680
 
-const SUGGESTIONS = [
+const OWNER_SUGGESTIONS = [
   "Post about today's special to Instagram",
   "Run a $10/day ad on Meta for our lunch menu",
   "How are my sales today?",
   "Add a menu item for me",
 ]
 
+const EMPLOYEE_SUGGESTIONS = [
+  "How are we doing on today's goals?",
+  "Give me a customer service tip",
+  "What's on the menu today?",
+  "How do I advance to the next role?",
+]
+
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)) }
 
-export default function ChatBot({ accent }: { accent: string }) {
+export default function ChatBot({ accent, userName, userRole }: { accent: string; userName?: string; userRole?: string }) {
   const router   = useRouter()
   const pathname = usePathname()
   const slug     = pathname?.split('/')?.[2] ?? ''
@@ -129,12 +136,18 @@ export default function ChatBot({ accent }: { accent: string }) {
     }
   }
 
+  const isEmployee = userRole === 'staff' || userRole === 'viewer'
+  const SUGGESTIONS = isEmployee ? EMPLOYEE_SUGGESTIONS : OWNER_SUGGESTIONS
+
   // ── open ──────────────────────────────────────────────────────────────────
   function openChat() {
     if (moved.current) return
     setMode('chat')
     if (msgs.length === 0) {
-      setMsgs([{ role: 'assistant', content: "Hi! I'm Joyce, your portal assistant — I can take action for you, not just give advice.\n\nI can post to your social media, launch ad campaigns, manage your menu, and search your orders — all automatically while you focus on other things. What would you like me to do?" }])
+      const greeting = isEmployee
+        ? `Hi${userName ? ` ${userName}` : ''}! I'm Joyce, your personal work coach. I'm here to help you deliver great service, track your goals, and grow your career.\n\nAsk me anything — today's goal progress, customer service tips, menu info, or how to advance in your role.`
+        : "Hi! I'm Joyce, your portal assistant — I can take action for you, not just give advice.\n\nI can post to your social media, launch ad campaigns, manage your menu, and search your orders — all automatically while you focus on other things. What would you like me to do?"
+      setMsgs([{ role: 'assistant', content: greeting }])
     }
   }
 
