@@ -150,8 +150,6 @@ async def change_password(body: ChangePasswordRequest, current_user=Depends(get_
     strength_err = _check_password_strength(body.new_password)
     if strength_err:
         raise HTTPException(status_code=400, detail=strength_err)
-    if await _is_password_breached(body.new_password):
-        raise HTTPException(status_code=400, detail="This password has appeared in a data breach. Please choose a different password.")
     await db.execute(
         "UPDATE users SET password_hash = $1 WHERE id = $2",
         hash_password(body.new_password), current_user["id"],
