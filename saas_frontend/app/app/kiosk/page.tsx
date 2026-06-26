@@ -6,40 +6,14 @@ import { useRouter } from 'next/navigation'
 import { api, StaffPolicy, LiveData, StaffMessage } from '@/lib/api'
 import { isBiometricAvailable, verifyBiometric } from '@/lib/webauthn'
 
-// ─── Crypto helpers ───────────────────────────────────────────────────────────
+// ─── Legacy message display ─────────────────────────────────────────────────
 
-async function deriveKey(passphrase: string, salt: string): Promise<CryptoKey> {
-  const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey'])
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: enc.encode(salt || 'careful-server-salt'), iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  )
-}
-
-async function encryptMsg(text: string, key: CryptoKey): Promise<string> {
-  const enc = new TextEncoder()
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text))
-  const buf = new Uint8Array(iv.byteLength + ct.byteLength)
-  buf.set(iv, 0)
-  buf.set(new Uint8Array(ct), iv.byteLength)
-  return btoa(String.fromCharCode(...buf))
-}
-
-async function decryptMsg(b64: string, key: CryptoKey): Promise<string> {
-  try {
-    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-    const iv = buf.slice(0, 12)
-    const ct = buf.slice(12)
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
-    return new TextDecoder().decode(pt)
-  } catch {
-    return '[encrypted]'
+function displayContent(content: string): string {
+  // Old messages were encrypted client-side — show a fallback for unreadable base64.
+  if (content.length > 50 && /^[A-Za-z0-9+/]{50,}$/.test(content) && !content.includes(' ')) {
+    return '[legacy encrypted message]'
   }
+  return content
 }
 
 // ─── Haversine distance ───────────────────────────────────────────────────────
@@ -451,11 +425,9 @@ export default function AppKioskPage() {
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [live, setLive] = useState<LiveData | null>(null)
   const [messages, setMessages] = useState<StaffMessage[]>([])
-  const [decryptedMsgs, setDecryptedMsgs] = useState<Record<number, string>>({})
   const [tenantName, setTenantName] = useState('Careful Server')
   const [tenantSlug, setTenantSlug] = useState('')
   const [shiftStart, setShiftStart] = useState<string | null>(null)
-  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
 
   // UI state
   const [now, setNow] = useState(new Date())
@@ -592,15 +564,6 @@ export default function AppKioskPage() {
       const slug = dashAny.tenant?.slug ?? ''
       setTenantSlug(slug)
 
-      // Restore crypto key if passphrase stored
-      const stored = localStorage.getItem(`cs_kiosk_passphrase_${slug}`)
-      if (stored && pol.chat_salt) {
-        try {
-          const key = await deriveKey(stored, pol.chat_salt || 'careful-server-salt')
-          setCryptoKey(key)
-        } catch { /* key derivation failed, continue without E2E */ }
-      }
-
       const [liveData, msgs] = await Promise.all([api.staff.getLive(), api.staff.getMessages()])
       setLive(liveData)
       setMessages(msgs.slice(0, 10))
@@ -653,35 +616,36 @@ export default function AppKioskPage() {
     return () => clearInterval(iv)
   }, [screen])
 
-  // ── Decrypt messages ──
-  useEffect(() => {
-    if (!cryptoKey) return
-    const decrypt = async () => {
-      const results: Record<number, string> = {}
-      for (const m of messages) {
-        results[m.id] = await decryptMsg(m.content, cryptoKey)
-      }
-      setDecryptedMsgs(results)
-    }
-    decrypt()
-  }, [messages, cryptoKey])
-
   // ── Scroll chat to bottom ──
   useEffect(() => {
     msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [decryptedMsgs])
+  }, [messages])
 
-  // ── Request exit (Clock Out or Break) with biometric ──
+  // ── Friendly error helper ──
+  function showFriendlyError(e: unknown, fallback: string) {
+    let msg = e instanceof Error ? e.message : fallback
+    if (/http|webauthn|credential/i.test(msg)) {
+      msg = 'Biometric check skipped. Proceed with exit code.'
+    }
+    setError(msg)
+    setTimeout(() => setError(''), 3000)
+  }
+
+  // ── Request exit (Clock Out or Break) — biometric only when enrolled ──
   async function requestExit(type: 'clock_out' | 'break') {
     setRequestingExit(true)
     setError('')
     try {
-      // Biometric check first
       const available = await isBiometricAvailable()
       if (available) {
-        setExitBiometricState(true)
         try {
-          await verifyBiometric()
+          const status = await api.webauthn.status()
+          if (status.enrolled) {
+            setExitBiometricState(true)
+            await verifyBiometric()
+          }
+        } catch {
+          // biometric not enrolled or failed — skip and proceed to exit code
         } finally {
           setExitBiometricState(false)
         }
@@ -693,7 +657,7 @@ export default function AppKioskPage() {
       setScreen('exit-request')
     } catch (e: unknown) {
       setExitBiometricState(false)
-      setError(e instanceof Error ? e.message : 'Failed to request exit')
+      showFriendlyError(e, 'Failed to request exit')
     } finally {
       setRequestingExit(false)
     }
@@ -721,14 +685,8 @@ export default function AppKioskPage() {
     if (!msgInput.trim()) return
     setSending(true)
     try {
-      let content = msgInput.trim()
-      if (cryptoKey) {
-        content = await encryptMsg(content, cryptoKey)
-      }
-      const msg = await api.staff.sendMessage(content)
-      const plain = msgInput.trim()
+      const msg = await api.staff.sendMessage(msgInput.trim())
       setMessages(prev => [msg, ...prev].slice(0, 10))
-      setDecryptedMsgs(prev => ({ ...prev, [msg.id]: plain }))
       setMsgInput('')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send message')
@@ -925,35 +883,30 @@ export default function AppKioskPage() {
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-white text-sm font-semibold">Team Chat</h2>
-              {cryptoKey && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-green-900/30 text-green-400">
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  E2E
-                </span>
-              )}
+              <span className="text-[#64748b] text-xs">View All</span>
             </div>
-            <span className="text-[#64748b] text-xs">Updates every 20s</span>
+            <button
+              onClick={() => router.push('/app/messages')}
+              className="text-xs font-medium px-2.5 py-1 rounded-lg border border-white/10 text-white hover:border-white/25 transition-colors"
+            >
+              Open Full Chat
+            </button>
           </div>
 
           <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto">
             {messages.length === 0 ? (
               <p className="text-[#64748b] text-sm text-center py-4">No messages yet</p>
             ) : (
-              [...messages].reverse().map(m => {
-                const text = cryptoKey ? (decryptedMsgs[m.id] ?? '...') : m.content
-                return (
-                  <div key={m.id} className="space-y-1">
-                    <p className="text-[#64748b] text-xs">
-                      {m.from_name} &middot; {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <div className="bg-white/5 rounded-xl px-3 py-2 text-sm text-white leading-relaxed">
-                      {text}
-                    </div>
+              [...messages].slice(0, 3).reverse().map(m => (
+                <div key={m.id} className="space-y-1">
+                  <p className="text-[#64748b] text-xs">
+                    {m.from_name} &middot; {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <div className="bg-white/5 rounded-xl px-3 py-2 text-sm text-white leading-relaxed">
+                    {displayContent(m.content)}
                   </div>
-                )
-              })
+                </div>
+              ))
             )}
             <div ref={msgBottomRef} />
           </div>

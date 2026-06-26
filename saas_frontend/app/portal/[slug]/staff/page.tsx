@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useContext, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage } from '@/lib/api'
+import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage, StaffInsight } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 import { CustomizationContext } from '../tenant-context'
 
@@ -58,6 +58,9 @@ function OwnerView({ accent }: { accent: string }) {
   const [exitRequests, setExitRequests] = useState<ExitRequest[]>([])
   const exitPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // AI workplace insights
+  const [insights, setInsights] = useState<StaffInsight[]>([])
+
   // Add contact form
   const [contactForm, setContactForm] = useState({ name: '', phone: '', relation: '' })
   const [addingContact, setAddingContact] = useState(false)
@@ -94,6 +97,7 @@ function OwnerView({ accent }: { accent: string }) {
       const [p, s] = await Promise.all([api.staff.getPolicy(), api.staff.shifts()])
       setPolicy(p)
       setShifts(s)
+      api.staff.getInsights().then(setInsights).catch(() => { /* not permitted or none */ })
       setKioskPinInput(p.kiosk_pin ?? '1234')
       setPassphraseInput(p.chat_salt ?? '')
       setGeofenceEnabled(p.geofence_enabled ?? false)
@@ -628,6 +632,51 @@ function OwnerView({ accent }: { accent: string }) {
           >
             Copy
           </button>
+        </div>
+      </div>
+
+      {/* AI Workplace Insights */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">AI Workplace Insights</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Constructive, actionable suggestions surfaced from team conversations</p>
+        </div>
+        <div className="px-5 py-4">
+          {insights.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No insights yet. Suggestions will appear here as your team chats.</p>
+          ) : (
+            <div className="space-y-3">
+              {insights.slice(0, 10).map(ins => {
+                const colors: Record<string, string> = {
+                  operations: 'bg-blue-100 text-blue-700',
+                  customer: 'bg-green-100 text-green-700',
+                  culture: 'bg-purple-100 text-purple-700',
+                  menu: 'bg-orange-100 text-orange-700',
+                }
+                const badge = colors[ins.category] ?? 'bg-gray-100 text-gray-600'
+                const isNew = Date.now() - new Date(ins.created_at).getTime() < 24 * 60 * 60 * 1000
+                return (
+                  <div key={ins.id} className="flex items-start gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold capitalize ${badge}`}>
+                      {ins.category}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-800">{ins.suggestion}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-400">{formatDate(ins.created_at)}</span>
+                        {isNew && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500 text-white">NEW</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-4 italic">
+            Powered by an AI that listens for constructive feedback from your team.
+          </p>
         </div>
       </div>
 

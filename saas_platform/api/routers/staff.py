@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -84,6 +85,36 @@ CREATE TABLE IF NOT EXISTS staff_messages (
   to_user_id INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS staff_chat_groups (
+    id SERIAL PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    invite_code TEXT NOT NULL,
+    created_by INT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    ai_flag_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS staff_group_members (
+    id SERIAL PRIMARY KEY,
+    group_id INT NOT NULL,
+    user_id INT NOT NULL,
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(group_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_staff_insights (
+    id SERIAL PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    category TEXT NOT NULL,
+    suggestion TEXT NOT NULL,
+    source_context TEXT DEFAULT '',
+    reviewed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 
@@ -94,6 +125,8 @@ async def _ensure_extra_columns(db: Any) -> None:
     await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_lat DOUBLE PRECISION")
     await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_lng DOUBLE PRECISION")
     await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_radius_m INT DEFAULT 150")
+    await db.execute("ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS group_id INT")
+    await db.execute("ALTER TABLE staff_messages ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'text'")
 
 
 async def _ensure_tables(db: Any) -> None:
@@ -194,6 +227,17 @@ class MessageCreate(BaseModel):
     content: str
     to_user_id: Optional[int] = None
     is_broadcast: bool = True
+    group_id: Optional[int] = None
+    message_type: str = "text"
+
+
+class CreateGroupBody(BaseModel):
+    name: str
+    description: str = ""
+
+
+class JoinGroupBody(BaseModel):
+    invite_code: str
 
 
 class ExitRequestBody(BaseModel):
@@ -577,19 +621,39 @@ def _goal_dict(row) -> dict:
 
 # ─── Messages ─────────────────────────────────────────────────────────────────
 
+async def _is_group_member(db: Any, group_id: int, tenant_id: int, user_id: int) -> bool:
+    row = await db.fetchrow(
+        """SELECT 1 FROM staff_group_members m
+           JOIN staff_chat_groups g ON g.id = m.group_id
+           WHERE m.group_id=$1 AND m.user_id=$2 AND g.tenant_id=$3""",
+        group_id, user_id, tenant_id,
+    )
+    return row is not None
+
+
 @router.get("/messages")
-async def list_messages(current_user=Depends(_require_portal), db=Depends(get_db)):
+async def list_messages(group_id: Optional[int] = None, current_user=Depends(_require_portal), db=Depends(get_db)):
     await _ensure_tables(db)
     tenant_id = current_user["tenant_id"]
     user_id = current_user["id"]
 
-    rows = await db.fetch(
-        """SELECT * FROM staff_messages
-           WHERE tenant_id=$1
-             AND (is_broadcast=TRUE OR from_user_id=$2 OR to_user_id=$2)
-           ORDER BY created_at DESC LIMIT 100""",
-        tenant_id, user_id,
-    )
+    if group_id is not None:
+        if not await _is_group_member(db, group_id, tenant_id, user_id):
+            raise HTTPException(403, "Not a member of this group")
+        rows = await db.fetch(
+            """SELECT * FROM staff_messages
+               WHERE tenant_id=$1 AND group_id=$2
+               ORDER BY created_at DESC LIMIT 100""",
+            tenant_id, group_id,
+        )
+    else:
+        rows = await db.fetch(
+            """SELECT * FROM staff_messages
+               WHERE tenant_id=$1 AND group_id IS NULL
+                 AND (is_broadcast=TRUE OR from_user_id=$2 OR to_user_id=$2)
+               ORDER BY created_at DESC LIMIT 100""",
+            tenant_id, user_id,
+        )
     result = []
     for r in rows:
         d = dict(r)
@@ -607,19 +671,170 @@ async def send_message(body: MessageCreate, current_user=Depends(_require_portal
     user_id = current_user["id"]
     from_name = current_user.get("display_name") or current_user.get("email") or "Staff"
 
+    if body.group_id is not None:
+        if not await _is_group_member(db, body.group_id, tenant_id, user_id):
+            raise HTTPException(403, "Not a member of this group")
+
+    message_type = body.message_type if body.message_type in ("text", "image") else "text"
+
     encrypted = _encrypt(tenant_id, body.content)
     row = await db.fetchrow(
         """INSERT INTO staff_messages
-             (tenant_id, from_user_id, from_name, content_encrypted, is_broadcast, to_user_id)
-           VALUES ($1,$2,$3,$4,$5,$6) RETURNING *""",
-        tenant_id, user_id, from_name, encrypted, body.is_broadcast, body.to_user_id,
+             (tenant_id, from_user_id, from_name, content_encrypted, is_broadcast, to_user_id, group_id, message_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *""",
+        tenant_id, user_id, from_name, encrypted, body.is_broadcast, body.to_user_id, body.group_id, message_type,
     )
     d = dict(row)
     d["content"] = body.content
     d.pop("content_encrypted", None)
     if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
         d["created_at"] = d["created_at"].isoformat()
+
+    # Fire-and-forget AI workplace monitor (never blocks the response, never surfaces to users).
+    # Only text messages are analyzed.
+    if message_type == "text":
+        try:
+            asyncio.create_task(_run_ai_monitor(tenant_id, body.content, db))
+        except Exception:
+            pass
+
     return d
+
+
+# ─── Chat Groups ──────────────────────────────────────────────────────────────
+
+@router.get("/groups")
+async def get_groups(current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+    rows = await db.fetch(
+        """SELECT g.id, g.name, g.description, g.invite_code, g.created_at, g.is_active,
+                  (SELECT COUNT(*) FROM staff_group_members WHERE group_id=g.id) as member_count
+           FROM staff_chat_groups g
+           JOIN staff_group_members m ON m.group_id=g.id
+           WHERE g.tenant_id=$1 AND m.user_id=$2 AND g.is_active=TRUE
+           ORDER BY g.created_at DESC""",
+        tid, uid,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+            d["created_at"] = d["created_at"].isoformat()
+        result.append(d)
+    return result
+
+
+@router.post("/groups")
+async def create_group(body: CreateGroupBody, current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+    invite_code = secrets.token_urlsafe(8).upper()[:8]
+    row = await db.fetchrow(
+        "INSERT INTO staff_chat_groups (tenant_id, name, description, invite_code, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id, invite_code",
+        tid, body.name.strip(), body.description.strip(), invite_code, uid,
+    )
+    await db.execute(
+        "INSERT INTO staff_group_members (group_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+        row["id"], uid,
+    )
+    return {"id": row["id"], "name": body.name, "invite_code": row["invite_code"]}
+
+
+@router.post("/groups/join")
+async def join_group(body: JoinGroupBody, current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+    group = await db.fetchrow(
+        "SELECT id, name FROM staff_chat_groups WHERE tenant_id=$1 AND invite_code=$2 AND is_active=TRUE",
+        tid, body.invite_code.upper().strip(),
+    )
+    if not group:
+        raise HTTPException(404, "Invalid invite code")
+    await db.execute(
+        "INSERT INTO staff_group_members (group_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+        group["id"], uid,
+    )
+    return {"ok": True, "group_id": group["id"], "group_name": group["name"]}
+
+
+@router.delete("/groups/{group_id}/leave")
+async def leave_group(group_id: int, current_user=Depends(_require_portal), db=Depends(get_db)):
+    tid = current_user["tenant_id"]
+    uid = current_user["id"]
+    await _ensure_tables(db)
+    # Verify the group belongs to this tenant before removing membership
+    group = await db.fetchrow(
+        "SELECT id FROM staff_chat_groups WHERE id=$1 AND tenant_id=$2", group_id, tid,
+    )
+    if not group:
+        raise HTTPException(404, "Group not found")
+    await db.execute(
+        "DELETE FROM staff_group_members WHERE group_id=$1 AND user_id=$2", group_id, uid,
+    )
+    return {"ok": True}
+
+
+# ─── AI Workplace Insights ────────────────────────────────────────────────────
+
+@router.get("/insights")
+async def get_insights(current_user=Depends(_require_portal), db=Depends(get_db)):
+    if current_user.get("role") not in ("owner", "admin", "manager"):
+        raise HTTPException(403, "Access denied")
+    tid = current_user["tenant_id"]
+    await _ensure_tables(db)
+    rows = await db.fetch(
+        "SELECT * FROM ai_staff_insights WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 50", tid,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+            d["created_at"] = d["created_at"].isoformat()
+        result.append(d)
+    return result
+
+
+async def _run_ai_monitor(tenant_id: int, message: str, db):
+    """Silent AI that extracts workplace improvement insights. Never records gossip."""
+    if not settings.anthropic_api_key or not message.strip():
+        return
+    if len(message) < 10:
+        return
+
+    system = """You are a silent workplace culture analyst. Your ONLY job is to identify genuinely useful, actionable suggestions that could help a restaurant owner improve the work environment, customer experience, or business operations.
+
+STRICT RULES:
+- Extract ONLY: suggestions about improving operations, customer service, scheduling, menu ideas, or workplace culture
+- IGNORE and return null for: personal complaints, gossip, slander, casual conversation, jokes, anything not actionable
+- NEVER record anything about coworkers' personal lives, relationships, or disputes
+- If in doubt, return null
+- Respond with JSON only: {"suggestion": "...", "category": "operations|customer|culture|menu|null"}
+- If nothing useful, return {"suggestion": null, "category": "null"}"""
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": settings.anthropic_api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 150, "system": system,
+                      "messages": [{"role": "user", "content": f"Analyze this workplace message: {message[:500]}"}]},
+            )
+            if not r.is_success:
+                return
+            text = r.json()["content"][0]["text"]
+            data = json.loads(text)
+            if data.get("suggestion") and data.get("category") != "null":
+                await db.execute(
+                    "INSERT INTO ai_staff_insights (tenant_id, category, suggestion) VALUES ($1,$2,$3)",
+                    tenant_id, data["category"], data["suggestion"],
+                )
+    except Exception:
+        pass  # Never let AI monitor errors surface to users
 
 
 # ─── Exit Requests ────────────────────────────────────────────────────────────

@@ -5,37 +5,14 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { api, StaffPolicy, LiveData, StaffMessage } from '@/lib/api'
 
-// ─── Crypto helpers ───────────────────────────────────────────────────────────
+// ─── Legacy message display ─────────────────────────────────────────────────
 
-async function deriveKey(passphrase: string, salt: string): Promise<CryptoKey> {
-  const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey'])
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: enc.encode(salt || 'careful-server-salt'), iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  )
-}
-
-async function encryptMsg(text: string, key: CryptoKey): Promise<string> {
-  const enc = new TextEncoder()
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text))
-  const buf = new Uint8Array(iv.byteLength + ct.byteLength)
-  buf.set(iv, 0); buf.set(new Uint8Array(ct), iv.byteLength)
-  return btoa(String.fromCharCode(...buf))
-}
-
-async function decryptMsg(b64: string, key: CryptoKey): Promise<string> {
-  try {
-    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-    const iv = buf.slice(0, 12)
-    const ct = buf.slice(12)
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
-    return new TextDecoder().decode(pt)
-  } catch { return '[encrypted]' }
+function displayContent(content: string): string {
+  // Old messages were encrypted client-side — show a fallback for unreadable base64.
+  if (content.length > 50 && /^[A-Za-z0-9+/]{50,}$/.test(content) && !content.includes(' ')) {
+    return '[legacy encrypted message]'
+  }
+  return content
 }
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
@@ -213,7 +190,7 @@ function EmergencyOverlay({ contacts, onClose }: { contacts: { name: string; pho
 
 // ─── Main kiosk page ──────────────────────────────────────────────────────────
 
-type Screen = 'loading' | 'login' | 'passphrase' | 'clock-in' | 'focus'
+type Screen = 'loading' | 'login' | 'clock-in' | 'focus'
 
 export default function KioskPage() {
   const params = useParams<{ slug: string }>()
@@ -229,12 +206,8 @@ export default function KioskPage() {
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [live, setLive] = useState<LiveData | null>(null)
   const [messages, setMessages] = useState<StaffMessage[]>([])
-  const [decryptedMsgs, setDecryptedMsgs] = useState<Record<number, string>>({})
   const [shiftStart, setShiftStart] = useState<string | null>(null)
   const [now, setNow] = useState(new Date())
-  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null)
-  const [passphraseInput, setPassphraseInput] = useState('')
-  const [passphraseError, setPassphraseError] = useState('')
   const [msgInput, setMsgInput] = useState('')
   const [sending, setSending] = useState(false)
   const [clockingIn, setClockinIn] = useState(false)
@@ -298,26 +271,12 @@ export default function KioskPage() {
       const [p, shift] = await Promise.all([api.staff.getPolicy(), api.staff.currentShift()])
       setPolicy(p)
       if (shift) setShiftStart(shift.clocked_in_at)
-
-      // Check localStorage for passphrase
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(`cs_kiosk_passphrase_${slug}`) : null
-      if (stored) {
-        const salt = p.chat_salt || 'careful-server-salt'
-        try {
-          const key = await deriveKey(stored, salt)
-          setCryptoKey(key)
-          setScreen(shift ? 'focus' : 'clock-in')
-        } catch {
-          setScreen('passphrase')
-        }
-      } else {
-        setScreen('passphrase')
-      }
+      setScreen(shift ? 'focus' : 'clock-in')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load')
       setScreen('clock-in')
     }
-  }, [slug])
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -354,23 +313,10 @@ export default function KioskPage() {
     return () => clearInterval(iv)
   }, [screen])
 
-  // ── Decrypt messages when key or messages change ──
-  useEffect(() => {
-    if (!cryptoKey) return
-    const decrypt = async () => {
-      const results: Record<number, string> = {}
-      for (const m of messages) {
-        results[m.id] = await decryptMsg(m.content, cryptoKey)
-      }
-      setDecryptedMsgs(results)
-    }
-    decrypt()
-  }, [messages, cryptoKey])
-
   // ── Scroll chat to bottom ──
   useEffect(() => {
     msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [decryptedMsgs])
+  }, [messages])
 
   // ── Login ──
   async function handleLogin(e: React.FormEvent) {
@@ -396,23 +342,6 @@ export default function KioskPage() {
       setLoginError(e instanceof Error ? e.message : 'Login failed')
     } finally {
       setLoggingIn(false)
-    }
-  }
-
-  // ── Passphrase submit ──
-  async function submitPassphrase() {
-    if (!passphraseInput.trim()) return
-    setPassphraseError('')
-    try {
-      const salt = policy?.chat_salt || 'careful-server-salt'
-      const key = await deriveKey(passphraseInput.trim(), salt)
-      localStorage.setItem(`cs_kiosk_passphrase_${slug}`, passphraseInput.trim())
-      setCryptoKey(key)
-      const shift = await api.staff.currentShift()
-      if (shift) setShiftStart(shift.clocked_in_at)
-      setScreen(shift ? 'focus' : 'clock-in')
-    } catch (e: unknown) {
-      setPassphraseError(e instanceof Error ? e.message : 'Failed to derive key')
     }
   }
 
@@ -443,7 +372,6 @@ export default function KioskPage() {
       setShiftStart(null)
       setLive(null)
       setMessages([])
-      setDecryptedMsgs({})
       setShowClockOutConfirm(false)
       setScreen('clock-in')
     } catch (e: unknown) {
@@ -456,15 +384,11 @@ export default function KioskPage() {
 
   // ── Send message ──
   async function sendMessage() {
-    if (!msgInput.trim() || !cryptoKey) return
+    if (!msgInput.trim()) return
     setSending(true)
     try {
-      const ciphertext = await encryptMsg(msgInput.trim(), cryptoKey)
-      const msg = await api.staff.sendMessage(ciphertext)
-      // Decrypt our own message immediately
-      const plain = msgInput.trim()
+      const msg = await api.staff.sendMessage(msgInput.trim())
       setMessages(prev => [msg, ...prev].slice(0, 10))
-      setDecryptedMsgs(prev => ({ ...prev, [msg.id]: plain }))
       setMsgInput('')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send message')
@@ -534,53 +458,6 @@ export default function KioskPage() {
             {loggingIn ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-      </div>
-    )
-  }
-
-  // ── Passphrase screen ──
-  if (screen === 'passphrase') {
-    return (
-      <div className="fixed inset-0 bg-[#020617] flex flex-col items-center justify-center px-6">
-        {/* Logo / branding */}
-        <div
-          className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-lg"
-          style={{ backgroundColor: accent }}
-        >
-          CS
-        </div>
-        <h1 className="text-white text-2xl font-bold text-center mb-2">Work App</h1>
-        <p className="text-[#94a3b8] text-sm text-center mb-10 max-w-xs">
-          Enter your team passphrase to access the work app
-        </p>
-
-        <div className="w-full max-w-xs space-y-4">
-          <input
-            type="text"
-            placeholder="Team passphrase"
-            value={passphraseInput}
-            onChange={e => { setPassphraseInput(e.target.value); setPassphraseError('') }}
-            onKeyDown={e => { if (e.key === 'Enter') submitPassphrase() }}
-            autoCapitalize="none"
-            autoCorrect="off"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white placeholder-white/30 text-base focus:outline-none focus:border-white/30 focus:bg-white/8"
-          />
-          {passphraseError && (
-            <p className="text-red-400 text-sm text-center">{passphraseError}</p>
-          )}
-          <button
-            onClick={submitPassphrase}
-            disabled={!passphraseInput.trim()}
-            className="w-full py-4 text-white text-base font-semibold rounded-xl disabled:opacity-40 transition-opacity active:scale-[0.98]"
-            style={{ backgroundColor: accent }}
-          >
-            Join Team
-          </button>
-        </div>
-
-        <p className="text-[#64748b] text-xs text-center mt-8 max-w-xs">
-          Contact your manager if you do not have the passphrase
-        </p>
       </div>
     )
   }
@@ -794,15 +671,7 @@ export default function KioskPage() {
         {/* Team Chat */}
         <div className="bg-[#0f172a] border border-white/6 rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-white text-sm font-semibold">Team Chat</h2>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-green-900/30 text-green-400">
-                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                E2E
-              </span>
-            </div>
+            <h2 className="text-white text-sm font-semibold">Team Chat</h2>
             <span className="text-[#64748b] text-xs">Updates every 20s</span>
           </div>
 
@@ -811,17 +680,14 @@ export default function KioskPage() {
             {messages.length === 0 ? (
               <p className="text-[#64748b] text-sm text-center py-4">No messages yet</p>
             ) : (
-              [...messages].reverse().map(m => {
-                const text = decryptedMsgs[m.id] ?? '...'
-                return (
-                  <div key={m.id} className="space-y-1">
-                    <p className="text-[#64748b] text-xs">{m.from_name} &middot; {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    <div className="bg-white/5 rounded-xl px-3 py-2 text-sm text-white leading-relaxed">
-                      {text}
-                    </div>
+              [...messages].reverse().map(m => (
+                <div key={m.id} className="space-y-1">
+                  <p className="text-[#64748b] text-xs">{m.from_name} &middot; {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  <div className="bg-white/5 rounded-xl px-3 py-2 text-sm text-white leading-relaxed">
+                    {displayContent(m.content)}
                   </div>
-                )
-              })
+                </div>
+              ))
             )}
             <div ref={msgBottomRef} />
           </div>
@@ -838,7 +704,7 @@ export default function KioskPage() {
             />
             <button
               onClick={sendMessage}
-              disabled={sending || !msgInput.trim() || !cryptoKey}
+              disabled={sending || !msgInput.trim()}
               className="px-4 py-2.5 text-white text-sm font-medium rounded-xl disabled:opacity-40 transition-opacity"
               style={{ backgroundColor: accent }}
             >

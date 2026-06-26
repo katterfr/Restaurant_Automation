@@ -408,6 +408,26 @@ export interface StaffMessage {
   is_broadcast: boolean
   to_user_id: number | null
   created_at: string
+  group_id?: number | null
+  message_type?: string
+}
+
+export interface ChatGroup {
+  id: number
+  name: string
+  description: string
+  invite_code: string
+  member_count: number
+  created_at: string
+  is_active: boolean
+}
+
+export interface StaffInsight {
+  id: number
+  category: string
+  suggestion: string
+  created_at: string
+  reviewed: boolean
 }
 
 export const api = {
@@ -641,8 +661,25 @@ export const api = {
     createGoal: (body: Partial<BusinessGoal>) => request<BusinessGoal>('/staff/goals', { method: 'POST', body: JSON.stringify(body) }),
     updateGoal: (id: number, body: Partial<BusinessGoal>) => request<BusinessGoal>(`/staff/goals/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteGoal: (id: number) => request<void>(`/staff/goals/${id}`, { method: 'DELETE' }),
-    getMessages: () => request<StaffMessage[]>('/staff/messages'),
-    sendMessage: (content: string, to_user_id?: number) => request<StaffMessage>('/staff/messages', { method: 'POST', body: JSON.stringify({ content, to_user_id, is_broadcast: !to_user_id }) }),
+    getMessages: (groupId?: number) =>
+      request<StaffMessage[]>(`/staff/messages${groupId ? `?group_id=${groupId}` : ''}`),
+    sendMessage: (content: string, groupId?: number, messageType?: string) =>
+      request<StaffMessage>('/staff/messages', {
+        method: 'POST',
+        body: JSON.stringify({ content, group_id: groupId, message_type: messageType ?? 'text', is_broadcast: !groupId }),
+      }),
+    getGroups: () => request<ChatGroup[]>('/staff/groups'),
+    createGroup: (name: string, description: string) =>
+      request<{ id: number; name: string; invite_code: string }>('/staff/groups', {
+        method: 'POST', body: JSON.stringify({ name, description }),
+      }),
+    joinGroup: (invite_code: string) =>
+      request<{ ok: boolean; group_id: number; group_name: string }>('/staff/groups/join', {
+        method: 'POST', body: JSON.stringify({ invite_code }),
+      }),
+    leaveGroup: (groupId: number) =>
+      request<void>(`/staff/groups/${groupId}/leave`, { method: 'DELETE' }),
+    getInsights: () => request<StaffInsight[]>('/staff/insights'),
     getLive: () => request<LiveData>('/staff/live'),
     requestExit: (exit_type: 'clock_out' | 'break') =>
       request<{ request_id: number; code: string; expires_in_minutes: number }>('/staff/exit-request', {

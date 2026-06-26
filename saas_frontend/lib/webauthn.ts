@@ -90,6 +90,10 @@ export async function verifyBiometric(): Promise<void> {
     allow_credentials: { id: string; type: string }[]
   }>('/auth/webauthn/auth-begin')
 
+  if (!opts.allow_credentials || opts.allow_credentials.length === 0) {
+    throw new Error('No biometric enrolled on this device')
+  }
+
   const credential = await navigator.credentials.get({
     publicKey: {
       challenge: b64url2buf(opts.challenge),
