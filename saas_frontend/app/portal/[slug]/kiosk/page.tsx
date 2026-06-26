@@ -213,7 +213,7 @@ function EmergencyOverlay({ contacts, onClose }: { contacts: { name: string; pho
 
 // ─── Main kiosk page ──────────────────────────────────────────────────────────
 
-type Screen = 'loading' | 'passphrase' | 'clock-in' | 'focus'
+type Screen = 'loading' | 'login' | 'passphrase' | 'clock-in' | 'focus'
 
 export default function KioskPage() {
   const params = useParams<{ slug: string }>()
@@ -244,8 +244,13 @@ export default function KioskPage() {
   const [showEmergency, setShowEmergency] = useState(false)
   const [focusBanner, setFocusBanner] = useState(false)
   const [error, setError] = useState('')
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loggingIn, setLoggingIn] = useState(false)
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgBottomRef = useRef<HTMLDivElement>(null)
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-production-731b.up.railway.app'
 
   // ── Clock tick ──
   useEffect(() => {
@@ -314,7 +319,12 @@ export default function KioskPage() {
     }
   }, [slug])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const token = localStorage.getItem('token')
+    if (!token) { setScreen('login'); return }
+    load()
+  }, [load])
 
   // ── Live data polling ──
   useEffect(() => {
@@ -361,6 +371,33 @@ export default function KioskPage() {
   useEffect(() => {
     msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [decryptedMsgs])
+
+  // ── Login ──
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loginEmail.trim() || !loginPassword) return
+    setLoginError('')
+    setLoggingIn(true)
+    try {
+      const body = new URLSearchParams({ username: loginEmail.trim(), password: loginPassword })
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Invalid email or password')
+      }
+      const data = await res.json()
+      localStorage.setItem('token', data.access_token)
+      await load()
+    } catch (e: unknown) {
+      setLoginError(e instanceof Error ? e.message : 'Login failed')
+    } finally {
+      setLoggingIn(false)
+    }
+  }
 
   // ── Passphrase submit ──
   async function submitPassphrase() {
@@ -444,6 +481,59 @@ export default function KioskPage() {
     return (
       <div className="fixed inset-0 bg-[#020617] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white/20 rounded-full animate-spin" style={{ borderTopColor: accent }} />
+      </div>
+    )
+  }
+
+  // ── Login screen ──
+  if (screen === 'login') {
+    return (
+      <div className="fixed inset-0 bg-[#020617] flex flex-col items-center justify-center px-6">
+        <div
+          className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-lg"
+          style={{ backgroundColor: accent }}
+        >
+          CS
+        </div>
+        <h1 className="text-white text-2xl font-bold text-center mb-1">Careful Server</h1>
+        <p className="text-[#94a3b8] text-sm text-center mb-8">Sign in to start your shift</p>
+        <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
+          <div>
+            <label className="block text-[#94a3b8] text-xs font-medium mb-1.5">Email</label>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={loginEmail}
+              onChange={e => setLoginEmail(e.target.value)}
+              className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-white/30"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-[#94a3b8] text-xs font-medium mb-1.5">Password</label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={loginPassword}
+              onChange={e => setLoginPassword(e.target.value)}
+              className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-white/30"
+              placeholder="••••••••"
+            />
+          </div>
+          {loginError && (
+            <p className="text-red-400 text-sm bg-red-950/50 border border-red-900/50 rounded-xl px-4 py-2.5 text-center">{loginError}</p>
+          )}
+          <button
+            type="submit"
+            disabled={loggingIn}
+            className="w-full py-4 rounded-xl text-white font-bold text-base disabled:opacity-50 transition-opacity active:scale-95"
+            style={{ backgroundColor: accent }}
+          >
+            {loggingIn ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
       </div>
     )
   }
