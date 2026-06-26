@@ -67,11 +67,11 @@ const PLANS = [
     features:['Everything in Growth','AI Phone Agent 24/7','Voice & Text Bridge','Accounting & Bookkeeping','Priority Support','Custom Onboarding'] },
 ]
 
-type LiveTestimonial = { restaurant_name: string; owner_name: string; star_rating: number; comment: string }
+type LiveTestimonial = { restaurant_name?: string; owner_name: string; star_rating: number; comment: string }
 const FALLBACK_TESTIMONIALS: LiveTestimonial[] = [
-  { comment: 'The AI phone agent alone paid for itself in the first week. We stopped missing after-hours orders completely.', owner_name: 'Carlos M.', restaurant_name: 'The Taqueria, Austin TX', star_rating: 5 },
-  { comment: "Managing ads across 5 platforms used to take hours every day. Now it's 10 minutes, and our ROAS doubled.", owner_name: 'Sarah K.', restaurant_name: 'Urban Bites, Chicago IL', star_rating: 5 },
-  { comment: 'Our online presence exploded after connecting Google Maps and running AI-generated ad creatives. Revenue up 34%.', owner_name: 'James T.', restaurant_name: 'Harbor Grill, Miami FL', star_rating: 5 },
+  { comment: 'The AI phone agent alone paid for itself in the first week. We stopped missing after-hours orders completely.', owner_name: 'Carlos M.', star_rating: 5 },
+  { comment: "Managing ads across 5 platforms used to take hours every day. Now it's 10 minutes, and our ROAS doubled.", owner_name: 'Sarah K.', star_rating: 5 },
+  { comment: 'Our online presence exploded after connecting Google Maps and running AI-generated ad creatives. Revenue up 34%.', owner_name: 'James T.', star_rating: 5 },
 ]
 
 const STEPS = [
@@ -683,7 +683,7 @@ export default function MarketingPage() {
                 <p className="text-slate-300 text-sm leading-relaxed">&quot;{t.comment}&quot;</p>
                 <div>
                   <p className="text-white font-semibold text-sm">{t.owner_name}</p>
-                  <p className="text-slate-500 text-xs">{t.restaurant_name}</p>
+                  {t.restaurant_name && <p className="text-slate-500 text-xs">{t.restaurant_name}</p>}
                 </div>
               </div>
             ))}
