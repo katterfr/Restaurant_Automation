@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, StaffPolicy, LiveData, StaffMessage } from '@/lib/api'
+import { isBiometricAvailable, verifyBiometric } from '@/lib/webauthn'
 
 // ─── Crypto helpers ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,16 @@ async function decryptMsg(b64: string, key: CryptoKey): Promise<string> {
   } catch {
     return '[encrypted]'
   }
+}
+
+// ─── Haversine distance ───────────────────────────────────────────────────────
+
+function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
@@ -123,10 +134,12 @@ function EmergencyOverlay({
 
 function ExitCodeScreen({
   exitType,
+  exitCode,
   onCancel,
   onSuccess,
 }: {
   exitType: 'clock_out' | 'break'
+  exitCode: string
   onCancel: () => void
   onSuccess: (exitType: string) => void
 }) {
@@ -171,7 +184,6 @@ function ExitCodeScreen({
       inputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-submit when all 6 filled
     if (digit && newDigits.every(d => d !== '')) {
       submitCode(newDigits.join(''))
     }
@@ -195,15 +207,28 @@ function ExitCodeScreen({
         </svg>
       </div>
 
-      <h2 className="text-white text-2xl font-bold text-center mb-3">Exit Code Requested</h2>
-      <p className="text-[#94a3b8] text-sm text-center mb-2 max-w-xs leading-relaxed">
-        Your manager has been notified.
-      </p>
-      <p className="text-[#94a3b8] text-sm text-center mb-10 max-w-xs leading-relaxed">
-        Ask them for the 6-digit exit code to continue.
+      <h2 className="text-white text-2xl font-bold text-center mb-3">Your Exit Code</h2>
+      <p className="text-[#94a3b8] text-sm text-center mb-8 max-w-xs leading-relaxed">
+        The code below was generated for this session. Type it to confirm and exit Focus Mode.
       </p>
 
-      {/* 6 digit boxes */}
+      {/* Code display */}
+      {exitCode && (
+        <div className="flex gap-3 mb-8">
+          {exitCode.split('').map((digit, i) => (
+            <div
+              key={i}
+              className="w-11 h-14 rounded-xl bg-[#0f172a] border border-[#16a34a]/50 flex items-center justify-center"
+            >
+              <span className="text-[#16a34a] text-2xl font-bold font-mono">{digit}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[#64748b] text-xs text-center mb-4">Type this code below to confirm:</p>
+
+      {/* 6 digit input boxes */}
       <div className={`flex gap-3 mb-6 transition-all ${shake ? 'animate-bounce' : ''}`}>
         {digits.map((d, i) => (
           <input
@@ -243,7 +268,7 @@ function ExitCodeScreen({
 
       {exitType === 'break' && (
         <p className="text-[#64748b] text-xs text-center mt-4">
-          Break request pending manager approval
+          Enter the code above to start your break
         </p>
       )}
     </div>
@@ -295,6 +320,23 @@ function BreakScreen({
   )
 }
 
+// ─── Auto clock-out overlay ───────────────────────────────────────────────────
+
+function AutoClockOutOverlay({ reason }: { reason: string }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 px-6">
+      <div className="w-16 h-16 rounded-full bg-red-900/40 border border-red-500/50 flex items-center justify-center mb-6">
+        <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+      </div>
+      <p className="text-red-400 text-xl font-bold text-center mb-3">{reason}</p>
+      <p className="text-[#94a3b8] text-sm text-center">Redirecting in a moment...</p>
+      <div className="mt-6 w-6 h-6 border-2 border-white/20 border-t-red-400 rounded-full animate-spin" />
+    </div>
+  )
+}
+
 // ─── Main kiosk page ──────────────────────────────────────────────────────────
 
 type Screen = 'loading' | 'focus' | 'exit-request' | 'break'
@@ -306,6 +348,7 @@ export default function AppKioskPage() {
   // State machine
   const [screen, setScreen] = useState<Screen>('loading')
   const [exitType, setExitType] = useState<'clock_out' | 'break'>('clock_out')
+  const [exitCode, setExitCode] = useState('')
   const [breakStartIso, setBreakStartIso] = useState<string | null>(null)
 
   // Data
@@ -325,10 +368,13 @@ export default function AppKioskPage() {
   const [msgInput, setMsgInput] = useState('')
   const [sending, setSending] = useState(false)
   const [requestingExit, setRequestingExit] = useState(false)
+  const [exitBiometricState, setExitBiometricState] = useState(false)
   const [error, setError] = useState('')
+  const [autoClockOutReason, setAutoClockOutReason] = useState('')
 
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgBottomRef = useRef<HTMLDivElement>(null)
+  const autoClockOutRef = useRef(false) // prevent double auto-clockout
 
   // ── Clock tick ──
   useEffect(() => {
@@ -386,6 +432,42 @@ export default function AppKioskPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [screen])
 
+  // ── Geofencing watchPosition ──
+  useEffect(() => {
+    if (screen !== 'focus' || !policy?.geofence_enabled || policy.geofence_lat == null) return
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const dist = getDistanceMeters(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          policy.geofence_lat!,
+          policy.geofence_lng!
+        )
+        if (dist > (policy.geofence_radius_m ?? 150) + 50) {
+          handleAutoClockOut('You have left the restaurant. Your shift has been ended automatically.')
+        }
+      },
+      () => {}, // ignore errors silently
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, policy])
+
+  async function handleAutoClockOut(reason: string) {
+    if (autoClockOutRef.current) return
+    autoClockOutRef.current = true
+    setAutoClockOutReason(reason)
+    try {
+      await api.staff.clockOut()
+    } catch { /* best effort */ }
+    setTimeout(() => {
+      router.replace('/app/home')
+    }, 3000)
+  }
+
   // ── Initial load ──
   const load = useCallback(async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -422,7 +504,6 @@ export default function AppKioskPage() {
         } catch { /* key derivation failed, continue without E2E */ }
       }
 
-      // Fetch live data + messages
       const [liveData, msgs] = await Promise.all([api.staff.getLive(), api.staff.getMessages()])
       setLive(liveData)
       setMessages(msgs.slice(0, 10))
@@ -487,15 +568,28 @@ export default function AppKioskPage() {
     msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [decryptedMsgs])
 
-  // ── Request exit (Clock Out or Break) ──
+  // ── Request exit (Clock Out or Break) with biometric ──
   async function requestExit(type: 'clock_out' | 'break') {
     setRequestingExit(true)
     setError('')
     try {
-      await api.staff.requestExit(type)
+      // Biometric check first
+      const available = await isBiometricAvailable()
+      if (available) {
+        setExitBiometricState(true)
+        try {
+          await verifyBiometric()
+        } finally {
+          setExitBiometricState(false)
+        }
+      }
+
+      const result = await api.staff.requestExit(type)
+      setExitCode(result.code)
       setExitType(type)
       setScreen('exit-request')
     } catch (e: unknown) {
+      setExitBiometricState(false)
       setError(e instanceof Error ? e.message : 'Failed to request exit')
     } finally {
       setRequestingExit(false)
@@ -504,13 +598,19 @@ export default function AppKioskPage() {
 
   // ── Exit code confirmed ──
   async function handleExitConfirmed(confirmedExitType: string) {
+    setExitCode('') // clear code from memory
     if (confirmedExitType === 'clock_out') {
-      // Already clocked out on backend; redirect home
       router.replace('/app/home')
     } else if (confirmedExitType === 'break') {
       setBreakStartIso(new Date().toISOString())
       setScreen('break')
     }
+  }
+
+  // ── Cancel exit ──
+  function handleCancelExit() {
+    setExitCode('') // clear code from memory
+    setScreen('focus')
   }
 
   // ── Send message ──
@@ -536,6 +636,11 @@ export default function AppKioskPage() {
 
   const contacts = policy?.emergency_contacts ?? []
 
+  // ── Auto clock-out overlay ──
+  if (autoClockOutReason) {
+    return <AutoClockOutOverlay reason={autoClockOutReason} />
+  }
+
   // ── Loading screen ──
   if (screen === 'loading') {
     return (
@@ -550,7 +655,8 @@ export default function AppKioskPage() {
     return (
       <ExitCodeScreen
         exitType={exitType}
-        onCancel={() => setScreen('focus')}
+        exitCode={exitCode}
+        onCancel={handleCancelExit}
         onSuccess={handleExitConfirmed}
       />
     )
@@ -570,6 +676,17 @@ export default function AppKioskPage() {
   // ── Focus Mode screen ──
   return (
     <div className="fixed inset-0 bg-[#020617] flex flex-col overflow-hidden">
+      {/* Biometric verify overlay for exit */}
+      {exitBiometricState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">
+          <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-8 w-full max-w-sm text-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-[#16a34a] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white text-base font-semibold">Verify your identity to exit</p>
+            <p className="text-[#94a3b8] text-sm mt-2">Follow your device prompt</p>
+          </div>
+        </div>
+      )}
+
       {/* Focus return banner */}
       {focusBanner && (
         <div className="absolute top-0 left-0 right-0 z-40 bg-amber-500 text-white text-center py-3 text-sm font-semibold">

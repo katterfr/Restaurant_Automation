@@ -364,6 +364,10 @@ export interface StaffPolicy {
   emergency_contacts: { name: string; phone: string; relation: string }[]
   kiosk_pin?: string
   chat_salt?: string
+  geofence_enabled?: boolean
+  geofence_lat?: number | null
+  geofence_lng?: number | null
+  geofence_radius_m?: number
 }
 
 export interface LiveData {
@@ -641,7 +645,7 @@ export const api = {
     sendMessage: (content: string, to_user_id?: number) => request<StaffMessage>('/staff/messages', { method: 'POST', body: JSON.stringify({ content, to_user_id, is_broadcast: !to_user_id }) }),
     getLive: () => request<LiveData>('/staff/live'),
     requestExit: (exit_type: 'clock_out' | 'break') =>
-      request<{ request_id: number; expires_in_minutes: number }>('/staff/exit-request', {
+      request<{ request_id: number; code: string; expires_in_minutes: number }>('/staff/exit-request', {
         method: 'POST',
         body: JSON.stringify({ exit_type }),
       }),
@@ -651,7 +655,10 @@ export const api = {
         body: JSON.stringify({ code }),
       }),
     getExitRequests: () =>
-      request<{ id: number; exit_type: string; code: string; status: string; created_at: string; expires_at: string; user_email: string }[]>('/staff/exit-requests'),
+      request<{ id: number; exit_type: string; status: string; created_at: string; expires_at: string; user_email: string }[]>('/staff/exit-requests'),
+  },
+  webauthn: {
+    status: () => request<{ enrolled: boolean; credential_count: number }>('/auth/webauthn/status'),
   },
 }
 

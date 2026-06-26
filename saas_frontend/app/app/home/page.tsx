@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, PortalDashboard, BusinessGoal, StaffPolicy } from '@/lib/api'
+import { isBiometricAvailable, enrollBiometric, verifyBiometric } from '@/lib/webauthn'
 
 function greeting(email: string): string {
   const hour = new Date().getHours()
@@ -20,6 +21,16 @@ function formatDateLong(d: Date): string {
   return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
 }
 
+// ─── Haversine distance ───────────────────────────────────────────────────────
+
+function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 // ─── Focus Mode Confirm Modal ─────────────────────────────────────────────────
 
 function FocusModeModal({
@@ -34,7 +45,6 @@ function FocusModeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">
       <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-8 w-full max-w-sm">
-        {/* Icon */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 rounded-2xl bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center">
             <svg className="w-8 h-8 text-[#16a34a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -53,7 +63,7 @@ function FocusModeModal({
             While on the clock, your phone will enter Focus Mode — only work features will be accessible until you clock out.
           </p>
           <p className="text-[#94a3b8] text-sm leading-relaxed">
-            Your manager will need to provide an exit code to end your shift or take a break.
+            You will receive a code directly on your screen when you request to exit. Type it to confirm.
           </p>
         </div>
 
@@ -78,7 +88,67 @@ function FocusModeModal({
   )
 }
 
+// ─── Biometric enrollment modal ───────────────────────────────────────────────
+
+function EnrollBiometricModal({
+  onEnroll,
+  onSkip,
+  enrolling,
+  enrollError,
+}: {
+  onEnroll: () => void
+  onSkip: () => void
+  enrolling: boolean
+  enrollError: string
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">
+      <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-8 w-full max-w-sm">
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center">
+            <svg className="w-8 h-8 text-[#16a34a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+            </svg>
+          </div>
+        </div>
+
+        <h2 className="text-white text-xl font-bold text-center mb-2">Set Up Biometric Authentication</h2>
+        <p className="text-[#94a3b8] text-sm text-center mb-6 leading-relaxed">
+          Your identity will be verified each time you clock in or out. This uses your phone&apos;s built-in Face ID or fingerprint.
+        </p>
+
+        {enrollError && (
+          <div className="bg-red-950/60 border border-red-900/50 rounded-xl px-4 py-3 text-red-400 text-sm mb-4">
+            {enrollError}
+          </div>
+        )}
+
+        <button
+          onClick={onEnroll}
+          disabled={enrolling}
+          className="w-full py-4 rounded-xl bg-[#16a34a] hover:bg-[#15803d] text-white text-sm font-bold transition-colors disabled:opacity-50 mb-3"
+        >
+          {enrolling ? 'Setting up...' : 'Tap to Enroll — Use Face ID / Fingerprint'}
+        </button>
+        <button
+          onClick={onSkip}
+          disabled={enrolling}
+          className="w-full py-3 rounded-xl border border-white/10 text-[#94a3b8] text-sm font-medium hover:border-white/20 hover:text-white transition-colors"
+        >
+          Skip for Now
+        </button>
+
+        <p className="text-[#64748b] text-xs text-center mt-4">
+          Skipping means anyone with access to this device can clock in as you.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
+
+type ClockinState = 'idle' | 'biometric' | 'clockin' | 'error'
 
 export default function AppHomePage() {
   const router = useRouter()
@@ -92,6 +162,18 @@ export default function AppHomePage() {
   const [showFocusModal, setShowFocusModal] = useState(false)
   const [clockingIn, setClockingIn] = useState(false)
 
+  // Biometric state
+  const [biometricAvailable, setBiometricAvailable] = useState(false)
+  const [biometricEnrolled, setBiometricEnrolled] = useState(false)
+  const [showEnrollModal, setShowEnrollModal] = useState(false)
+  const [enrolling, setEnrolling] = useState(false)
+  const [enrollError, setEnrollError] = useState('')
+  const [clockinState, setClockinState] = useState<ClockinState>('idle')
+
+  // Geofencing state
+  const [isInGeofence, setIsInGeofence] = useState<boolean | null>(null)
+  const [geoPermDenied, setGeoPermDenied] = useState(false)
+
   // Live clock
   useEffect(() => {
     const iv = setInterval(() => setNow(new Date()), 1000)
@@ -99,7 +181,6 @@ export default function AppHomePage() {
   }, [])
 
   const load = useCallback(async () => {
-    // Token guard
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
     if (!token) {
       router.replace('/app/login')
@@ -114,14 +195,13 @@ export default function AppHomePage() {
         api.staff.getPolicy(),
       ])
 
-      // Already clocked in → go straight to kiosk
+      // Already clocked in -> go straight to kiosk
       if (shift) {
         router.replace('/app/kiosk')
         return
       }
 
       setDashboard(dash as unknown as PortalDashboard)
-      // Filter to only daily goals
       setGoals((dailyGoals as BusinessGoal[]).filter(g => g.period === 'daily' && g.is_active))
       setPolicy(pol)
 
@@ -132,10 +212,44 @@ export default function AppHomePage() {
       } catch {
         setUserEmail('')
       }
+
+      // Check biometric availability
+      const available = await isBiometricAvailable()
+      setBiometricAvailable(available)
+      if (available) {
+        try {
+          const status = await api.webauthn.status()
+          setBiometricEnrolled(status.enrolled)
+        } catch {
+          setBiometricEnrolled(false)
+        }
+      }
+
+      // Check geofence
+      if (pol.geofence_enabled && pol.geofence_lat != null && pol.geofence_lng != null) {
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const dist = getDistanceMeters(
+                pos.coords.latitude,
+                pos.coords.longitude,
+                pol.geofence_lat!,
+                pol.geofence_lng!
+              )
+              setIsInGeofence(dist <= (pol.geofence_radius_m ?? 150))
+            },
+            () => {
+              setGeoPermDenied(true)
+              setIsInGeofence(null)
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+          )
+        } else {
+          setIsInGeofence(null)
+        }
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to load'
-      // 401 handling: the api helper clears the token and redirects to /login,
-      // but we want to redirect to /app/login instead.
       if (msg.includes('Session expired') || !localStorage.getItem('token')) {
         router.replace('/app/login')
         return
@@ -155,17 +269,69 @@ export default function AppHomePage() {
     router.replace('/app/login')
   }
 
+  function handleClockInTap() {
+    setError('')
+
+    // Geofence check
+    if (policy?.geofence_enabled && policy.geofence_lat != null && policy.geofence_lng != null) {
+      if (isInGeofence === false) {
+        return // blocked — message shown below button
+      }
+    }
+
+    setShowFocusModal(true)
+  }
+
   async function handleStartShift() {
-    setClockingIn(true)
+    setShowFocusModal(false)
+
+    // If biometric available and not enrolled -> show enrollment modal
+    if (biometricAvailable && !biometricEnrolled) {
+      setShowEnrollModal(true)
+      return
+    }
+
+    await doClockIn()
+  }
+
+  async function handleEnroll() {
+    setEnrolling(true)
+    setEnrollError('')
     try {
+      await enrollBiometric()
+      setBiometricEnrolled(true)
+      setShowEnrollModal(false)
+      await doClockIn()
+    } catch (e: unknown) {
+      setEnrollError(e instanceof Error ? e.message : 'Enrollment failed')
+    } finally {
+      setEnrolling(false)
+    }
+  }
+
+  async function handleSkipEnroll() {
+    setShowEnrollModal(false)
+    await doClockIn()
+  }
+
+  async function doClockIn() {
+    setClockingIn(true)
+    setClockinState('idle')
+    try {
+      if (biometricAvailable && biometricEnrolled) {
+        setClockinState('biometric')
+        await verifyBiometric()
+      }
+      setClockinState('clockin')
       await api.staff.clockIn()
       router.push('/app/kiosk')
     } catch (e: unknown) {
+      setClockinState('error')
       const msg = e instanceof Error ? e.message : 'Failed to clock in'
       setError(msg)
-      setShowFocusModal(false)
     } finally {
       setClockingIn(false)
+      setClockinState('idle')
     }
   }
 
@@ -179,6 +345,10 @@ export default function AppHomePage() {
 
   const tenantName = dashboard?.tenant?.name ?? 'Careful Server'
 
+  const geofenceEnabled = policy?.geofence_enabled && policy.geofence_lat != null && policy.geofence_lng != null
+  const geofenceBlocked = geofenceEnabled && isInGeofence === false
+  const geofenceVerified = geofenceEnabled && isInGeofence === true
+
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col pb-24">
       {/* Focus mode modal */}
@@ -188,6 +358,27 @@ export default function AppHomePage() {
           onCancel={() => setShowFocusModal(false)}
           loading={clockingIn}
         />
+      )}
+
+      {/* Biometric enrollment modal */}
+      {showEnrollModal && (
+        <EnrollBiometricModal
+          onEnroll={handleEnroll}
+          onSkip={handleSkipEnroll}
+          enrolling={enrolling}
+          enrollError={enrollError}
+        />
+      )}
+
+      {/* Biometric verify overlay */}
+      {clockinState === 'biometric' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-6">
+          <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-8 w-full max-w-sm text-center">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-[#16a34a] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white text-base font-semibold">Verifying identity...</p>
+            <p className="text-[#94a3b8] text-sm mt-2">Follow your device prompt</p>
+          </div>
+        </div>
       )}
 
       {/* Top bar */}
@@ -218,6 +409,13 @@ export default function AppHomePage() {
       {error && (
         <div className="mx-5 mb-4 bg-red-950/60 border border-red-900/50 rounded-xl px-4 py-3 text-red-400 text-sm">
           {error}
+        </div>
+      )}
+
+      {/* Geofence permission denied warning */}
+      {geoPermDenied && geofenceEnabled && (
+        <div className="mx-5 mb-4 bg-amber-950/60 border border-amber-900/50 rounded-xl px-4 py-3 text-amber-400 text-sm">
+          Location access was denied. If you have trouble clocking in, enable location permissions in your browser settings.
         </div>
       )}
 
@@ -281,12 +479,26 @@ export default function AppHomePage() {
 
       {/* Sticky Clock In button */}
       <div className="fixed bottom-0 left-0 right-0 px-5 pb-8 pt-4 bg-gradient-to-t from-[#020617] to-transparent">
+        {geofenceVerified && (
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-green-400" />
+            <span className="text-green-400 text-xs font-medium">Location verified</span>
+          </div>
+        )}
+
         <button
-          onClick={() => setShowFocusModal(true)}
-          className="w-full bg-[#16a34a] hover:bg-[#15803d] text-white text-lg font-bold rounded-2xl h-16 shadow-lg transition-colors active:scale-[0.98]"
+          onClick={handleClockInTap}
+          disabled={clockingIn || geofenceBlocked}
+          className="w-full bg-[#16a34a] hover:bg-[#15803d] text-white text-lg font-bold rounded-2xl h-16 shadow-lg transition-colors active:scale-[0.98] disabled:opacity-50"
         >
-          Clock In
+          {clockingIn ? 'Clocking In...' : 'Clock In'}
         </button>
+
+        {geofenceBlocked && (
+          <p className="text-[#94a3b8] text-xs text-center mt-3 px-4 leading-relaxed">
+            You must be at the restaurant to clock in. Your current location is not recognized.
+          </p>
+        )}
       </div>
     </div>
   )

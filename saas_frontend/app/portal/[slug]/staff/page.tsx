@@ -8,7 +8,6 @@ import { CustomizationContext } from '../tenant-context'
 type ExitRequest = {
   id: number
   exit_type: string
-  code: string
   status: string
   created_at: string
   expires_at: string
@@ -72,6 +71,15 @@ function OwnerView({ accent }: { accent: string }) {
   const [savingPassphrase, setSavingPassphrase] = useState(false)
   const [passphraseCopied, setPassphraseCopied] = useState(false)
 
+  // Geofencing
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false)
+  const [geofenceLat, setGeofenceLat] = useState('')
+  const [geofenceLng, setGeofenceLng] = useState('')
+  const [geofenceRadius, setGeofenceRadius] = useState('150')
+  const [savingGeofence, setSavingGeofence] = useState(false)
+  const [geoLocating, setGeoLocating] = useState(false)
+  const [geoSetMsg, setGeoSetMsg] = useState('')
+
   // Kiosk guide open/close
   const [guideOpen, setGuideOpen] = useState(false)
 
@@ -89,6 +97,10 @@ function OwnerView({ accent }: { accent: string }) {
       setShifts(s)
       setKioskPinInput(p.kiosk_pin ?? '1234')
       setPassphraseInput(p.chat_salt ?? '')
+      setGeofenceEnabled(p.geofence_enabled ?? false)
+      setGeofenceLat(p.geofence_lat != null ? String(p.geofence_lat) : '')
+      setGeofenceLng(p.geofence_lng != null ? String(p.geofence_lng) : '')
+      setGeofenceRadius(String(p.geofence_radius_m ?? 150))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -182,6 +194,45 @@ function OwnerView({ accent }: { accent: string }) {
     } catch {}
   }
 
+  async function setCurrentLocation() {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGeoSetMsg('Geolocation is not available in this browser.')
+      return
+    }
+    setGeoLocating(true)
+    setGeoSetMsg('')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeofenceLat(pos.coords.latitude.toFixed(6))
+        setGeofenceLng(pos.coords.longitude.toFixed(6))
+        setGeoSetMsg(`Location set: ${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°W`)
+        setGeoLocating(false)
+      },
+      () => {
+        setGeoSetMsg('Unable to get location. Check browser permissions.')
+        setGeoLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    )
+  }
+
+  async function saveGeofence() {
+    setSavingGeofence(true)
+    try {
+      const updated = await api.staff.updatePolicy({
+        geofence_enabled: geofenceEnabled,
+        geofence_lat: geofenceLat ? parseFloat(geofenceLat) : null,
+        geofence_lng: geofenceLng ? parseFloat(geofenceLng) : null,
+        geofence_radius_m: geofenceRadius ? parseInt(geofenceRadius, 10) : 150,
+      })
+      setPolicy(updated)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save geofence')
+    } finally {
+      setSavingGeofence(false)
+    }
+  }
+
   const activeShifts = shifts.filter(s => !s.clocked_out_at)
   const recentShifts = shifts.slice(0, 20)
 
@@ -193,35 +244,25 @@ function OwnerView({ accent }: { accent: string }) {
     )
   }
 
-  function minutesUntilExpiry(expiresAt: string): number {
-    return Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 60000))
-  }
-
   function formatExitType(t: string): string {
     return t === 'clock_out' ? 'Clock Out' : 'Take a Break'
   }
 
   return (
     <div className="space-y-8">
-      {/* Exit Requests */}
+      {/* Recent Exit Activity */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          {exitRequests.length > 0 && (
-            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-none" />
-          )}
-          <h2 className="text-base font-semibold text-gray-900">Pending Exit Requests</h2>
-          {exitRequests.length > 0 && (
-            <span className="ml-auto text-xs text-gray-400">{exitRequests.length} pending</span>
-          )}
+          <h2 className="text-base font-semibold text-gray-900">Recent Exit Activity</h2>
+          <span className="ml-auto text-xs text-gray-400">Employees receive codes directly on their screen</span>
         </div>
         <div className="px-5 py-4">
           {exitRequests.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No pending exit requests</p>
+            <p className="text-sm text-gray-400 italic">No recent exit activity</p>
           ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-gray-500">Employees waiting for an exit code</p>
-              {exitRequests.map(req => (
-                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-4">
+            <div className="space-y-2">
+              {exitRequests.slice(0, 10).map(req => (
+                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
                   <div className="space-y-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{req.user_email}</p>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -232,19 +273,19 @@ function OwnerView({ accent }: { accent: string }) {
                       }`}>
                         {formatExitType(req.exit_type)}
                       </span>
-                      <span className="text-xs text-gray-400">
-                        Requested at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                        req.status === 'used'
+                          ? 'bg-green-100 text-green-700'
+                          : req.status === 'expired'
+                          ? 'bg-gray-100 text-gray-500'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {req.status}
                       </span>
                       <span className="text-xs text-gray-400">
-                        &middot; Expires in {minutesUntilExpiry(req.expires_at)}m
+                        {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                  </div>
-                  <div className="flex-none">
-                    <p className="text-xs text-gray-500 mb-1 text-center">Exit Code</p>
-                    <p className="text-2xl font-bold font-mono tracking-[0.25em] text-green-700 bg-green-100 border border-green-200 rounded-xl px-4 py-2 text-center select-all">
-                      {req.code}
-                    </p>
                   </div>
                 </div>
               ))}
@@ -359,6 +400,99 @@ function OwnerView({ accent }: { accent: string }) {
             style={{ backgroundColor: accent }}
           >
             {savingPin ? 'Saving...' : 'Save PIN'}
+          </button>
+        </div>
+      </div>
+
+      {/* Geofencing */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Restaurant Location (for employee clock-in)</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Require employees to be at the restaurant to clock in</p>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          {/* Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Enable location-based clock-in</p>
+              <p className="text-xs text-gray-400 mt-0.5">Employees must be within the radius to clock in</p>
+            </div>
+            <button
+              onClick={() => setGeofenceEnabled(v => !v)}
+              className={`w-12 h-6 rounded-full transition-colors relative ${geofenceEnabled ? '' : 'bg-gray-300'}`}
+              style={geofenceEnabled ? { backgroundColor: accent } : {}}
+            >
+              <span className={`block w-5 h-5 rounded-full bg-white shadow absolute top-0.5 transition-transform ${geofenceEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
+          {geofenceEnabled && (
+            <>
+              <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 leading-relaxed">
+                When enabled: employees must be within the radius to clock in. If an employee leaves during their shift, they are automatically clocked out.
+              </p>
+
+              {/* Set to current location */}
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <button
+                  onClick={setCurrentLocation}
+                  disabled={geoLocating}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {geoLocating ? 'Getting location...' : 'Set to My Current Location'}
+                </button>
+                {geoSetMsg && (
+                  <span className="text-xs text-green-700 font-medium">{geoSetMsg}</span>
+                )}
+              </div>
+
+              {/* Lat / Lng / Radius inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="e.g. 40.712800"
+                    value={geofenceLat}
+                    onChange={e => setGeofenceLat(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="e.g. -74.006000"
+                    value={geofenceLng}
+                    onChange={e => setGeofenceLng(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Radius (meters)</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="5000"
+                    placeholder="150"
+                    value={geofenceRadius}
+                    onChange={e => setGeofenceRadius(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          <button
+            onClick={saveGeofence}
+            disabled={savingGeofence}
+            className="px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-opacity hover:opacity-90"
+            style={{ backgroundColor: accent }}
+          >
+            {savingGeofence ? 'Saving...' : 'Save Location'}
           </button>
         </div>
       </div>

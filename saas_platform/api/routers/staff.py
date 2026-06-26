@@ -90,6 +90,10 @@ CREATE TABLE IF NOT EXISTS staff_messages (
 async def _ensure_extra_columns(db: Any) -> None:
     await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS kiosk_pin TEXT DEFAULT '1234'")
     await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS chat_salt TEXT DEFAULT ''")
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_enabled BOOLEAN DEFAULT FALSE")
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_lat DOUBLE PRECISION")
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_lng DOUBLE PRECISION")
+    await db.execute("ALTER TABLE shift_policies ADD COLUMN IF NOT EXISTS geofence_radius_m INT DEFAULT 150")
 
 
 async def _ensure_tables(db: Any) -> None:
@@ -152,6 +156,10 @@ class PolicyUpdate(BaseModel):
     emergency_contacts: Optional[List[EmergencyContact]] = None
     kiosk_pin: Optional[str] = None
     chat_salt: Optional[str] = None
+    geofence_enabled: Optional[bool] = None
+    geofence_lat: Optional[float] = None
+    geofence_lng: Optional[float] = None
+    geofence_radius_m: Optional[int] = None
 
 
 class ClockOutBody(BaseModel):
@@ -203,11 +211,20 @@ async def get_policy(current_user=Depends(_require_portal), db=Depends(get_db)):
     await _ensure_tables(db)
     tenant_id = current_user["tenant_id"]
     row = await db.fetchrow(
-        "SELECT enabled, emergency_contacts, kiosk_pin, chat_salt FROM shift_policies WHERE tenant_id=$1",
+        "SELECT enabled, emergency_contacts, kiosk_pin, chat_salt, geofence_enabled, geofence_lat, geofence_lng, geofence_radius_m FROM shift_policies WHERE tenant_id=$1",
         tenant_id,
     )
     if row is None:
-        return {"enabled": False, "emergency_contacts": [], "kiosk_pin": "1234", "chat_salt": ""}
+        return {
+            "enabled": False,
+            "emergency_contacts": [],
+            "kiosk_pin": "1234",
+            "chat_salt": "",
+            "geofence_enabled": False,
+            "geofence_lat": None,
+            "geofence_lng": None,
+            "geofence_radius_m": 150,
+        }
     contacts = row["emergency_contacts"]
     if isinstance(contacts, str):
         contacts = json.loads(contacts)
@@ -216,6 +233,10 @@ async def get_policy(current_user=Depends(_require_portal), db=Depends(get_db)):
         "emergency_contacts": contacts or [],
         "kiosk_pin": row["kiosk_pin"] or "1234",
         "chat_salt": row["chat_salt"] or "",
+        "geofence_enabled": row["geofence_enabled"] or False,
+        "geofence_lat": row["geofence_lat"],
+        "geofence_lng": row["geofence_lng"],
+        "geofence_radius_m": row["geofence_radius_m"] or 150,
     }
 
 
@@ -236,10 +257,16 @@ async def update_policy(body: PolicyUpdate, current_user=Depends(_require_portal
         contacts = [c.model_dump() for c in body.emergency_contacts] if body.emergency_contacts is not None else []
         kiosk_pin = body.kiosk_pin if body.kiosk_pin is not None else "1234"
         chat_salt = body.chat_salt if body.chat_salt is not None else ""
+        geofence_enabled = body.geofence_enabled if body.geofence_enabled is not None else False
+        geofence_lat = body.geofence_lat
+        geofence_lng = body.geofence_lng
+        geofence_radius_m = body.geofence_radius_m if body.geofence_radius_m is not None else 150
         await db.execute(
-            """INSERT INTO shift_policies (tenant_id, enabled, emergency_contacts, kiosk_pin, chat_salt, updated_at)
-               VALUES ($1, $2, $3::jsonb, $4, $5, NOW())""",
+            """INSERT INTO shift_policies (tenant_id, enabled, emergency_contacts, kiosk_pin, chat_salt,
+               geofence_enabled, geofence_lat, geofence_lng, geofence_radius_m, updated_at)
+               VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, NOW())""",
             tenant_id, enabled, json.dumps(contacts), kiosk_pin, chat_salt,
+            geofence_enabled, geofence_lat, geofence_lng, geofence_radius_m,
         )
     else:
         enabled = body.enabled if body.enabled is not None else existing["enabled"]
@@ -250,14 +277,29 @@ async def update_policy(body: PolicyUpdate, current_user=Depends(_require_portal
             contacts = json.loads(raw) if isinstance(raw, str) else (raw or [])
         kiosk_pin = body.kiosk_pin if body.kiosk_pin is not None else (existing.get("kiosk_pin") or "1234")
         chat_salt = body.chat_salt if body.chat_salt is not None else (existing.get("chat_salt") or "")
+        geofence_enabled = body.geofence_enabled if body.geofence_enabled is not None else (existing.get("geofence_enabled") or False)
+        geofence_lat = body.geofence_lat if body.geofence_lat is not None else existing.get("geofence_lat")
+        geofence_lng = body.geofence_lng if body.geofence_lng is not None else existing.get("geofence_lng")
+        geofence_radius_m = body.geofence_radius_m if body.geofence_radius_m is not None else (existing.get("geofence_radius_m") or 150)
         await db.execute(
             """UPDATE shift_policies
-               SET enabled=$2, emergency_contacts=$3::jsonb, kiosk_pin=$4, chat_salt=$5, updated_at=NOW()
+               SET enabled=$2, emergency_contacts=$3::jsonb, kiosk_pin=$4, chat_salt=$5,
+               geofence_enabled=$6, geofence_lat=$7, geofence_lng=$8, geofence_radius_m=$9, updated_at=NOW()
                WHERE tenant_id=$1""",
             tenant_id, enabled, json.dumps(contacts), kiosk_pin, chat_salt,
+            geofence_enabled, geofence_lat, geofence_lng, geofence_radius_m,
         )
 
-    return {"enabled": enabled, "emergency_contacts": contacts, "kiosk_pin": kiosk_pin, "chat_salt": chat_salt}
+    return {
+        "enabled": enabled,
+        "emergency_contacts": contacts,
+        "kiosk_pin": kiosk_pin,
+        "chat_salt": chat_salt,
+        "geofence_enabled": geofence_enabled,
+        "geofence_lat": geofence_lat,
+        "geofence_lng": geofence_lng,
+        "geofence_radius_m": geofence_radius_m,
+    }
 
 
 # ─── Clock-in / out / focus ───────────────────────────────────────────────────
@@ -611,7 +653,7 @@ async def request_exit(body: ExitRequestBody, current_user=Depends(_require_port
         tid, shift_id, uid, body.exit_type, code, expires_at
     )
 
-    return {"request_id": req["id"], "expires_in_minutes": 30}
+    return {"request_id": req["id"], "code": code, "expires_in_minutes": 30}
 
 
 @router.post("/confirm-exit")
@@ -655,6 +697,7 @@ async def confirm_exit(body: ConfirmExitBody, current_user=Depends(_require_port
 
 @router.get("/exit-requests")
 async def get_exit_requests(current_user=Depends(_require_portal), db=Depends(get_db)):
+    """Recent Exit Activity — shows history for audit. Codes are not shown (employees receive them directly)."""
     if current_user.get("role") not in ("owner", "admin", "manager"):
         raise HTTPException(403, "Owner or manager access required")
 
@@ -662,12 +705,13 @@ async def get_exit_requests(current_user=Depends(_require_portal), db=Depends(ge
     await _ensure_tables(db)
 
     rows = await db.fetch(
-        """SELECT er.id, er.exit_type, er.code, er.status, er.created_at, er.expires_at,
+        """SELECT er.id, er.exit_type, er.status, er.created_at, er.expires_at,
                   u.email as user_email
            FROM exit_requests er
            JOIN users u ON u.id = er.user_id
-           WHERE er.tenant_id=$1 AND er.status='pending' AND er.expires_at > NOW()
-           ORDER BY er.created_at DESC""",
+           WHERE er.tenant_id=$1
+           ORDER BY er.created_at DESC
+           LIMIT 50""",
         tid
     )
 
