@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useContext, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage, StaffInsight, FocusExitLog, LiveData } from '@/lib/api'
+import { api, StaffPolicy, EmployeeShift, BusinessGoal, StaffMessage, StaffInsight, FocusExitLog, LiveData, EmployeeSchedule } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 import { CustomizationContext } from '../tenant-context'
 
@@ -87,7 +87,26 @@ function OwnerView({ accent }: { accent: string }) {
   const [geoLocating, setGeoLocating] = useState(false)
   const [geoSetMsg, setGeoSetMsg] = useState('')
 
-  // Kiosk guide open/close
+  // Schedules
+  const [schedules, setSchedules] = useState<EmployeeSchedule[]>([])
+  const [scheduleForm, setScheduleForm] = useState({
+    user_id: '',
+    scheduled_date: new Date().toISOString().slice(0, 10),
+    start_time: '09:00',
+    end_time: '',
+    early_grace_minutes: '0',
+    notes: '',
+  })
+  const [savingSchedule, setSavingSchedule] = useState(false)
+  const [scheduleError, setScheduleError] = useState('')
+  const [tenantUsers, setTenantUsers] = useState<{ id: number; email: string; display_name: string; role: string }[]>([])
+
+  const loadSchedules = useCallback(async () => {
+    try {
+      const rows = await api.staff.getSchedules()
+      setSchedules(rows)
+    } catch { /* ignore */ }
+  }, [])
 
   const loadExitRequests = useCallback(async () => {
     try {
@@ -115,7 +134,11 @@ function OwnerView({ accent }: { accent: string }) {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    loadSchedules()
+    api.staff.getEmployees().then(setTenantUsers).catch(() => {})
+  }, [load, loadSchedules])
 
   useEffect(() => {
     loadExitRequests()
@@ -206,6 +229,36 @@ function OwnerView({ accent }: { accent: string }) {
 
   function generateAndSetPassphrase() {
     setPassphraseInput(generatePassphrase())
+  }
+
+  async function handleCreateSchedule(e: React.FormEvent) {
+    e.preventDefault()
+    setScheduleError('')
+    if (!scheduleForm.user_id) { setScheduleError('Select an employee'); return }
+    setSavingSchedule(true)
+    try {
+      await api.staff.createSchedule({
+        user_id: parseInt(scheduleForm.user_id),
+        scheduled_date: scheduleForm.scheduled_date,
+        start_time: scheduleForm.start_time,
+        end_time: scheduleForm.end_time || null,
+        early_grace_minutes: parseInt(scheduleForm.early_grace_minutes) || 0,
+        notes: scheduleForm.notes || null,
+      })
+      await loadSchedules()
+      setScheduleForm(f => ({ ...f, user_id: '', notes: '' }))
+    } catch (e: unknown) {
+      setScheduleError(e instanceof Error ? e.message : 'Failed to save schedule')
+    } finally {
+      setSavingSchedule(false)
+    }
+  }
+
+  async function handleDeleteSchedule(id: number) {
+    try {
+      await api.staff.deleteSchedule(id)
+      setSchedules(prev => prev.filter(s => s.id !== id))
+    } catch { /* ignore */ }
   }
 
   async function copyPassphrase() {
@@ -560,6 +613,149 @@ function OwnerView({ accent }: { accent: string }) {
               >
                 {passphraseCopied ? 'Copied!' : 'Copy'}
               </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Shift Scheduling ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Shift Scheduling</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Set when each employee can clock in. Optionally allow early clock-in with a grace period.</p>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {/* Create form */}
+          <form onSubmit={handleCreateSchedule} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Employee</label>
+              <select
+                required
+                value={scheduleForm.user_id}
+                onChange={e => setScheduleForm(f => ({ ...f, user_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              >
+                <option value="">Select employee…</option>
+                {tenantUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.display_name || u.email} ({u.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+              <input
+                type="date"
+                required
+                value={scheduleForm.scheduled_date}
+                onChange={e => setScheduleForm(f => ({ ...f, scheduled_date: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Shift Start</label>
+              <input
+                type="time"
+                required
+                value={scheduleForm.start_time}
+                onChange={e => setScheduleForm(f => ({ ...f, start_time: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Shift End (optional)</label>
+              <input
+                type="time"
+                value={scheduleForm.end_time}
+                onChange={e => setScheduleForm(f => ({ ...f, end_time: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Early Clock-in Grace (minutes)</label>
+              <input
+                type="number"
+                min="0"
+                max="120"
+                value={scheduleForm.early_grace_minutes}
+                onChange={e => setScheduleForm(f => ({ ...f, early_grace_minutes: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                placeholder="0 = exact time only"
+              />
+              <p className="text-xs text-gray-400 mt-0.5">0 = must clock in at exact start time</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
+              <input
+                type="text"
+                value={scheduleForm.notes}
+                onChange={e => setScheduleForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="e.g. Opening shift"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={savingSchedule}
+                className="px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-opacity hover:opacity-90"
+                style={{ backgroundColor: accent }}
+              >
+                {savingSchedule ? 'Saving…' : 'Add / Update Schedule'}
+              </button>
+              {scheduleError && <p className="text-red-500 text-sm">{scheduleError}</p>}
+            </div>
+          </form>
+
+          {/* Schedule list */}
+          {schedules.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No schedules set. Employees can clock in freely until you add a schedule.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Start</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">End</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Grace</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {schedules.map(s => {
+                    const fmtTime = (t: string | null) => {
+                      if (!t) return '—'
+                      const [h, m] = t.split(':').map(Number)
+                      const ampm = h < 12 ? 'AM' : 'PM'
+                      return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`
+                    }
+                    return (
+                      <tr key={s.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-900 font-medium">{s.user_name || s.user_email || `#${s.user_id}`}</td>
+                        <td className="px-3 py-2 text-gray-600">{s.scheduled_date}</td>
+                        <td className="px-3 py-2 text-gray-900 font-mono">{fmtTime(s.start_time)}</td>
+                        <td className="px-3 py-2 text-gray-600 font-mono">{fmtTime(s.end_time)}</td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {s.early_grace_minutes > 0 ? `${s.early_grace_minutes} min early` : 'Exact'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{s.notes || ''}</td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => handleDeleteSchedule(s.id)}
+                            className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

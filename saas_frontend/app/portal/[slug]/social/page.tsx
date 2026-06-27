@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { api, SocialPost, PlatformStatus } from '@/lib/api'
+import { api, SocialPost, PlatformStatus, MetaAccountInfo } from '@/lib/api'
 
 const SOCIAL_PLATFORMS = [
   { key: 'meta',           label: 'Facebook & Instagram', sub: 'Posts, Reels & Stories', color: 'bg-blue-600' },
@@ -41,17 +41,22 @@ export default function SocialPage() {
   const searchParams = useSearchParams()
   const slug        = params?.slug ?? ''
 
-  const [posts,   setPosts]   = useState<SocialPost[]>([])
-  const [status,  setStatus]  = useState<Record<string, PlatformStatus>>({})
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState('')
-  const [connecting, setConnecting] = useState<string | null>(null)
+  const [posts,       setPosts]       = useState<SocialPost[]>([])
+  const [status,      setStatus]      = useState<Record<string, PlatformStatus>>({})
+  const [metaInfo,    setMetaInfo]    = useState<MetaAccountInfo | null>(null)
+  const [loading,     setLoading]     = useState(true)
+  const [error,       setError]       = useState('')
+  const [connecting,  setConnecting]  = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       const [p, s] = await Promise.all([api.social.posts(), api.ads.status().catch(() => ({}))])
       setPosts(p)
-      setStatus(s as Record<string, PlatformStatus>)
+      const st = s as Record<string, PlatformStatus>
+      setStatus(st)
+      if (st.meta?.connected) {
+        api.ads.metaAccountInfo().then(setMetaInfo).catch(() => {})
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -69,7 +74,7 @@ export default function SocialPage() {
   async function connect(platform: string) {
     setConnecting(platform)
     try {
-      const { oauth_url } = await api.ads.connectUrl(platform)
+      const { oauth_url } = await api.ads.connectUrl(platform, 'social')
       window.location.href = oauth_url
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Connect failed')
@@ -112,34 +117,64 @@ export default function SocialPage() {
             const s = status[p.key]
             const isConnected = !!s?.connected
             return (
-              <div key={p.key} className="bg-white border border-gray-200 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <PlatformIcon k={p.key} />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{p.label}</p>
-                    <p className="text-xs text-gray-400">{p.sub}</p>
+              <div key={p.key} className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <PlatformIcon k={p.key} />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{p.label}</p>
+                      <p className="text-xs text-gray-400">{p.sub}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {isConnected && <span className="text-xs bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-medium">Connected</span>}
+                    {isConnected ? (
+                      <button
+                        onClick={() => disconnect(p.key)}
+                        className="text-sm text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => connect(p.key)}
+                        disabled={connecting === p.key}
+                        className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                      >
+                        {connecting === p.key && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        {connecting === p.key ? 'Redirecting…' : 'Connect'}
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {isConnected && <span className="text-xs bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-medium">Connected</span>}
-                  {isConnected ? (
-                    <button
-                      onClick={() => disconnect(p.key)}
-                      className="text-sm text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Disconnect
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => connect(p.key)}
-                      disabled={connecting === p.key}
-                      className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                    >
-                      {connecting === p.key && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                      {connecting === p.key ? 'Redirecting…' : 'Connect'}
-                    </button>
-                  )}
-                </div>
+                {/* Show Facebook page + Instagram account when Meta is connected */}
+                {p.key === 'meta' && isConnected && metaInfo && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      {metaInfo.page_picture && (
+                        <img src={metaInfo.page_picture} alt="" className="w-6 h-6 rounded-full" />
+                      )}
+                      <div>
+                        <p className="text-xs text-gray-400">Facebook Page</p>
+                        <p className="text-sm font-medium text-gray-900">{metaInfo.page_name || metaInfo.page_id}</p>
+                      </div>
+                    </div>
+                    {metaInfo.ig_username && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center">
+                          <span className="text-white text-[9px] font-bold">IG</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Instagram</p>
+                          <p className="text-sm font-medium text-gray-900">@{metaInfo.ig_username}</p>
+                        </div>
+                      </div>
+                    )}
+                    {!metaInfo.ig_id && (
+                      <p className="text-xs text-amber-600 self-center">No Instagram Business account linked to this page — connect one in Facebook Page Settings.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}

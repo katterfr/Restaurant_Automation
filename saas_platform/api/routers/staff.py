@@ -116,6 +116,20 @@ CREATE TABLE IF NOT EXISTS ai_staff_insights (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS employee_schedules (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scheduled_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME,
+    early_grace_minutes INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, user_id, scheduled_date)
+);
+
 CREATE TABLE IF NOT EXISTS employee_focus_exit_logs (
     id SERIAL PRIMARY KEY,
     tenant_id INTEGER NOT NULL,
@@ -229,6 +243,22 @@ class GoalUpdate(BaseModel):
     period_start: Optional[str] = None
     period_end: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+class ScheduleCreate(BaseModel):
+    user_id: int
+    scheduled_date: str          # YYYY-MM-DD
+    start_time: str              # HH:MM  (24-hour)
+    end_time: Optional[str] = None
+    early_grace_minutes: int = 0
+    notes: Optional[str] = None
+
+
+class ScheduleUpdate(BaseModel):
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    early_grace_minutes: Optional[int] = None
+    notes: Optional[str] = None
 
 
 class MessageCreate(BaseModel):
@@ -359,8 +389,9 @@ async def update_policy(body: PolicyUpdate, current_user=Depends(_require_portal
 @router.post("/clock-in")
 async def clock_in(current_user=Depends(_require_portal), db=Depends(get_db)):
     await _ensure_tables(db)
-    tenant_id = current_user["tenant_id"]
-    user_id = current_user["id"]
+    user_dict = dict(current_user)
+    tenant_id = user_dict.get("tenant_id")
+    user_id = user_dict.get("id")
 
     # Check if already clocked in
     active = await db.fetchrow(
@@ -369,6 +400,40 @@ async def clock_in(current_user=Depends(_require_portal), db=Depends(get_db)):
     )
     if active:
         raise HTTPException(400, "Already clocked in")
+
+    # ── Schedule enforcement ──────────────────────────────────────────────────
+    schedule = await db.fetchrow(
+        "SELECT * FROM employee_schedules WHERE tenant_id=$1 AND user_id=$2 AND scheduled_date=CURRENT_DATE",
+        tenant_id, user_id,
+    )
+    if schedule:
+        from datetime import time as dt_time
+        now_utc = datetime.now(timezone.utc)
+        # Use the server's local time for comparison (matches what the DB's CURRENT_DATE returns)
+        now_local = datetime.now()
+        now_time = now_local.time().replace(second=0, microsecond=0)
+
+        scheduled_start = schedule["start_time"]  # datetime.time from asyncpg
+        grace_minutes = schedule["early_grace_minutes"] or 0
+
+        # Earliest allowed clock-in = scheduled start minus grace period
+        start_dt = datetime.combine(now_local.date(), scheduled_start)
+        earliest_dt = start_dt - timedelta(minutes=grace_minutes)
+        earliest_time = earliest_dt.time().replace(second=0, microsecond=0)
+
+        if now_time < earliest_time:
+            def fmt(t: dt_time) -> str:
+                hour = t.hour % 12 or 12
+                ampm = "AM" if t.hour < 12 else "PM"
+                return f"{hour}:{t.minute:02d} {ampm}"
+
+            msg = f"Too early to clock in. Your shift starts at {fmt(scheduled_start)}."
+            if grace_minutes > 0:
+                msg += f" You may clock in up to {grace_minutes} min early, from {fmt(earliest_time)}."
+            else:
+                msg += f" Clock-in opens at {fmt(scheduled_start)}."
+            raise HTTPException(400, msg)
+    # ─────────────────────────────────────────────────────────────────────────
 
     row = await db.fetchrow(
         """INSERT INTO employee_shifts (tenant_id, user_id, clocked_in_at, focus_exits)
@@ -434,6 +499,21 @@ async def focus_exit(current_user=Depends(_require_portal), db=Depends(get_db)):
     except Exception:
         pass
     return {"ok": True}
+
+
+@router.get("/employees")
+async def list_employees(current_user=Depends(_require_portal), db=Depends(get_db)):
+    """Return all staff for this tenant (for schedule pickers). Owner/manager only."""
+    user_dict = dict(current_user)
+    if user_dict.get("role") not in {"owner", "admin", "manager"}:
+        raise HTTPException(403, "Managers only")
+    tenant_id = user_dict.get("tenant_id")
+    rows = await db.fetch(
+        """SELECT id, email, COALESCE(display_name, '') as display_name, role
+           FROM users WHERE tenant_id=$1 ORDER BY display_name, email""",
+        tenant_id,
+    )
+    return [dict(r) for r in rows]
 
 
 @router.get("/live")
@@ -552,13 +632,155 @@ async def list_shifts(current_user=Depends(_require_portal), db=Depends(get_db))
 
 def _shift_dict(row) -> dict:
     d = dict(row)
-    # Convert datetimes to ISO strings for JSON serialisation
     for key in ("clocked_in_at", "clocked_out_at", "created_at"):
         if key in d and d[key] is not None:
             val = d[key]
             if hasattr(val, "isoformat"):
                 d[key] = val.isoformat()
     return d
+
+
+def _schedule_dict(row) -> dict:
+    d = dict(row)
+    for key in ("scheduled_date", "start_time", "end_time", "created_at"):
+        if key in d and d[key] is not None:
+            val = d[key]
+            if hasattr(val, "isoformat"):
+                d[key] = val.isoformat()
+            else:
+                d[key] = str(val)
+    return d
+
+
+# ─── Schedules ────────────────────────────────────────────────────────────────
+
+@router.get("/schedules/mine")
+async def get_my_schedule_today(current_user=Depends(_require_portal), db=Depends(get_db)):
+    """Return today's schedule for the requesting employee (used by employee app home page)."""
+    await _ensure_tables(db)
+    user_dict = dict(current_user)
+    tenant_id = user_dict.get("tenant_id")
+    user_id = user_dict.get("id")
+
+    row = await db.fetchrow(
+        "SELECT * FROM employee_schedules WHERE tenant_id=$1 AND user_id=$2 AND scheduled_date=CURRENT_DATE",
+        tenant_id, user_id,
+    )
+    if not row:
+        return None
+    return _schedule_dict(row)
+
+
+@router.get("/schedules")
+async def list_schedules(current_user=Depends(_require_portal), db=Depends(get_db)):
+    """List schedules. Owners/managers see all; staff see only their own (next 7 days)."""
+    await _ensure_tables(db)
+    user_dict = dict(current_user)
+    tenant_id = user_dict.get("tenant_id")
+    user_id = user_dict.get("id")
+    role = user_dict.get("role", "staff")
+
+    if role in {"owner", "admin", "manager"}:
+        rows = await db.fetch(
+            """SELECT s.*, u.email as user_email, COALESCE(u.display_name, u.email) as user_name
+               FROM employee_schedules s
+               JOIN users u ON u.id = s.user_id
+               WHERE s.tenant_id=$1 AND s.scheduled_date >= CURRENT_DATE - INTERVAL '1 day'
+               ORDER BY s.scheduled_date ASC, s.start_time ASC
+               LIMIT 200""",
+            tenant_id,
+        )
+    else:
+        rows = await db.fetch(
+            """SELECT * FROM employee_schedules
+               WHERE tenant_id=$1 AND user_id=$2 AND scheduled_date >= CURRENT_DATE
+               ORDER BY scheduled_date ASC, start_time ASC
+               LIMIT 30""",
+            tenant_id, user_id,
+        )
+    return [_schedule_dict(r) for r in rows]
+
+
+@router.post("/schedules")
+async def create_schedule(body: ScheduleCreate, current_user=Depends(_require_portal), db=Depends(get_db)):
+    user_dict = dict(current_user)
+    if user_dict.get("role") not in {"owner", "admin", "manager"}:
+        raise HTTPException(403, "Only owners and managers can schedule shifts")
+    await _ensure_tables(db)
+    tenant_id = user_dict.get("tenant_id")
+    creator_id = user_dict.get("id")
+
+    # Verify the target employee belongs to this tenant
+    target = await db.fetchrow(
+        "SELECT id FROM users WHERE id=$1 AND tenant_id=$2", body.user_id, tenant_id
+    )
+    if not target:
+        raise HTTPException(404, "Employee not found")
+
+    row = await db.fetchrow(
+        """INSERT INTO employee_schedules
+             (tenant_id, user_id, scheduled_date, start_time, end_time,
+              early_grace_minutes, notes, created_by)
+           VALUES ($1,$2,$3::date,$4::time,$5::time,$6,$7,$8)
+           ON CONFLICT (tenant_id, user_id, scheduled_date)
+           DO UPDATE SET start_time=EXCLUDED.start_time,
+                         end_time=EXCLUDED.end_time,
+                         early_grace_minutes=EXCLUDED.early_grace_minutes,
+                         notes=EXCLUDED.notes
+           RETURNING *""",
+        tenant_id, body.user_id, body.scheduled_date,
+        body.start_time, body.end_time, body.early_grace_minutes,
+        body.notes, creator_id,
+    )
+    return _schedule_dict(row)
+
+
+@router.put("/schedules/{schedule_id}")
+async def update_schedule(schedule_id: int, body: ScheduleUpdate, current_user=Depends(_require_portal), db=Depends(get_db)):
+    user_dict = dict(current_user)
+    if user_dict.get("role") not in {"owner", "admin", "manager"}:
+        raise HTTPException(403, "Only owners and managers can edit schedules")
+    await _ensure_tables(db)
+    tenant_id = user_dict.get("tenant_id")
+
+    existing = await db.fetchrow(
+        "SELECT * FROM employee_schedules WHERE id=$1 AND tenant_id=$2", schedule_id, tenant_id
+    )
+    if not existing:
+        raise HTTPException(404, "Schedule not found")
+
+    d = dict(existing)
+    start_time = body.start_time if body.start_time is not None else str(d["start_time"])
+    end_time = body.end_time if body.end_time is not None else (str(d["end_time"]) if d.get("end_time") else None)
+    grace = body.early_grace_minutes if body.early_grace_minutes is not None else d.get("early_grace_minutes", 0)
+    notes = body.notes if body.notes is not None else d.get("notes")
+
+    row = await db.fetchrow(
+        """UPDATE employee_schedules
+           SET start_time=$3::time, end_time=$4::time,
+               early_grace_minutes=$5, notes=$6
+           WHERE id=$1 AND tenant_id=$2
+           RETURNING *""",
+        schedule_id, tenant_id, start_time, end_time, grace, notes,
+    )
+    return _schedule_dict(row)
+
+
+@router.delete("/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: int, current_user=Depends(_require_portal), db=Depends(get_db)):
+    user_dict = dict(current_user)
+    if user_dict.get("role") not in {"owner", "admin", "manager"}:
+        raise HTTPException(403, "Only owners and managers can delete schedules")
+    await _ensure_tables(db)
+    tenant_id = user_dict.get("tenant_id")
+
+    deleted = await db.fetchrow(
+        "DELETE FROM employee_schedules WHERE id=$1 AND tenant_id=$2 RETURNING id",
+        schedule_id, tenant_id,
+    )
+    if not deleted:
+        raise HTTPException(404, "Schedule not found")
+    return {"ok": True}
 
 
 # ─── Goals ────────────────────────────────────────────────────────────────────

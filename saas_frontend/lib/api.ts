@@ -206,6 +206,16 @@ export interface PlatformStatus {
   connected: boolean
   ad_account_id: string | null
   connected_at: string | null
+  page_id?: string | null
+  ig_connected?: boolean
+}
+
+export interface MetaAccountInfo {
+  page_id: string
+  page_name: string
+  page_picture: string
+  ig_id: string
+  ig_username: string
 }
 
 export interface SocialPost {
@@ -401,6 +411,19 @@ export interface EmployeeShift {
   focus_exits: number
   notes: string | null
 }
+
+export interface EmployeeSchedule {
+  id: number
+  tenant_id: number
+  user_id: number
+  scheduled_date: string      // YYYY-MM-DD
+  start_time: string          // HH:MM:SS
+  end_time: string | null
+  early_grace_minutes: number
+  notes: string | null
+  user_email?: string
+  user_name?: string
+}
 export interface BusinessGoal {
   id: number
   title: string
@@ -508,7 +531,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
     cancel: (id: number) => request<void>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
-    connectUrl: (platform: string) => request<{ oauth_url: string }>(`/ads/connect/${platform}/url`),
+    connectUrl: (platform: string, source: 'ads' | 'social' = 'ads') => request<{ oauth_url: string }>(`/ads/connect/${platform}/url?source=${source}`),
+    metaAccountInfo: () => request<MetaAccountInfo>('/ads/connect/meta/account-info'),
     saveCredentials: (platform: string, data: { access_token: string; account_id: string; page_id?: string }) =>
       request<{ ok: boolean; platform: string }>(`/ads/credentials/${platform}`, { method: 'POST', body: JSON.stringify(data) }),
     disconnect: (platform: string) =>
@@ -706,6 +730,15 @@ export const api = {
       }),
     getExitRequests: () =>
       request<{ id: number; exit_type: string; status: string; created_at: string; expires_at: string; user_email: string }[]>('/staff/exit-requests'),
+    getEmployees: () => request<{ id: number; email: string; display_name: string; role: string }[]>('/staff/employees'),
+    getMySchedule: () => request<EmployeeSchedule | null>('/staff/schedules/mine'),
+    getSchedules: () => request<EmployeeSchedule[]>('/staff/schedules'),
+    createSchedule: (body: Omit<EmployeeSchedule, 'id' | 'tenant_id' | 'user_email' | 'user_name'>) =>
+      request<EmployeeSchedule>('/staff/schedules', { method: 'POST', body: JSON.stringify(body) }),
+    updateSchedule: (id: number, body: Partial<Pick<EmployeeSchedule, 'start_time' | 'end_time' | 'early_grace_minutes' | 'notes'>>) =>
+      request<EmployeeSchedule>(`/staff/schedules/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteSchedule: (id: number) =>
+      request<void>(`/staff/schedules/${id}`, { method: 'DELETE' }),
   },
   webauthn: {
     status: () => request<{ enrolled: boolean; credential_count: number }>('/auth/webauthn/status'),

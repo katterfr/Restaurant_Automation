@@ -40,19 +40,21 @@ def _require_owner(current_user=Depends(get_current_user)):
     return current_user
 
 
-def _sign_state(tenant_id: int) -> str:
-    sig = hmac.new(settings.secret_key.encode(), str(tenant_id).encode(), hashlib.sha256).hexdigest()[:16]
-    return base64.urlsafe_b64encode(f"{tenant_id}:{sig}".encode()).decode()
+def _sign_state(tenant_id: int, source: str = "ads") -> str:
+    payload = f"{tenant_id}|{source}"
+    sig = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
+    return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
 
 
-def _parse_state(state: str) -> int:
+def _parse_state(state: str) -> tuple[int, str]:
     try:
         decoded = base64.urlsafe_b64decode(state.encode()).decode()
-        tid_str, sig = decoded.rsplit(":", 1)
-        expected = hmac.new(settings.secret_key.encode(), tid_str.encode(), hashlib.sha256).hexdigest()[:16]
+        payload, sig = decoded.rsplit(":", 1)
+        expected = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
         if not hmac.compare_digest(sig, expected):
             raise ValueError("bad sig")
-        return int(tid_str)
+        parts = payload.split("|", 1)
+        return int(parts[0]), parts[1] if len(parts) > 1 else "ads"
     except Exception:
         raise HTTPException(400, "Invalid OAuth state")
 
@@ -66,27 +68,82 @@ def _callback_uri(platform: str) -> str:
 @router.get("/status")
 async def platform_status(current_user=Depends(_require_owner), db=Depends(get_db)):
     rows = await db.fetch(
-        "SELECT platform, ad_account_id, connected_at FROM platform_connections WHERE tenant_id = $1",
+        "SELECT platform, ad_account_id, refresh_token, connected_at FROM platform_connections WHERE tenant_id = $1",
         current_user["tenant_id"],
     )
     connected = {r["platform"]: dict(r) for r in rows}
-    return {
-        p: {
+
+    def _meta_details(conn: dict) -> dict:
+        raw = conn.get("refresh_token") or ""
+        parts = raw.split(":", 2)
+        if len(parts) == 3:
+            return {"page_id": parts[0], "ig_connected": bool(parts[2])}
+        return {"page_id": None, "ig_connected": False}
+
+    result = {}
+    for p, mod in PLATFORMS.items():
+        entry: dict = {
             "configured": mod.is_configured(),
             "connected": p in connected,
             "ad_account_id": connected.get(p, {}).get("ad_account_id") or None,
             "connected_at": str(connected[p]["connected_at"]) if p in connected else None,
         }
-        for p, mod in PLATFORMS.items()
+        if p == "meta" and p in connected:
+            entry.update(_meta_details(connected[p]))
+        result[p] = entry
+    return result
+
+
+@router.get("/connect/meta/account-info")
+async def meta_account_info(current_user=Depends(_require_owner), db=Depends(get_db)):
+    """Return FB page name + IG username for the connected Meta account."""
+    conn = await db.fetchrow(
+        "SELECT access_token, refresh_token FROM platform_connections WHERE tenant_id=$1 AND platform='meta'",
+        current_user["tenant_id"],
+    )
+    if not conn:
+        raise HTTPException(404, "Meta not connected")
+    raw = (conn["refresh_token"] or "").split(":", 2)
+    if len(raw) < 2:
+        raise HTTPException(400, "Re-connect Meta to refresh account info")
+    page_id, page_token = raw[0], raw[1]
+    ig_id = raw[2] if len(raw) > 2 else ""
+
+    async with __import__("httpx").AsyncClient(timeout=10) as c:
+        # Fetch page name
+        rp = await c.get(f"https://graph.facebook.com/v19.0/{page_id}", params={
+            "access_token": page_token, "fields": "name,picture{url}"
+        })
+        rp.raise_for_status()
+        page_data = rp.json()
+
+        ig_name = ""
+        if ig_id:
+            ri = await c.get(f"https://graph.facebook.com/v19.0/{ig_id}", params={
+                "access_token": page_token, "fields": "username,profile_picture_url"
+            })
+            if ri.is_success:
+                ig_data = ri.json()
+                ig_name = ig_data.get("username", "")
+
+    return {
+        "page_id": page_id,
+        "page_name": page_data.get("name", ""),
+        "page_picture": page_data.get("picture", {}).get("data", {}).get("url", "") if "picture" in page_data else "",
+        "ig_id": ig_id,
+        "ig_username": ig_name,
     }
 
 
 # ─── Connect URL (returned to frontend for window redirect) ───────────────────
 
 @router.get("/connect/{platform}/url")
-async def get_connect_url(platform: str, current_user=Depends(_require_owner)):
-    state = _sign_state(current_user["tenant_id"])
-    # TikTok content (organic posts) uses Login Kit OAuth
+async def get_connect_url(
+    platform: str,
+    source: str = Query("ads"),  # "ads" | "social" — controls where user lands after OAuth
+    current_user=Depends(_require_owner),
+):
+    state = _sign_state(current_user["tenant_id"], source)
     if platform == "tiktok_content":
         if not tiktok_api.is_configured():
             raise HTTPException(400, "TikTok credentials not configured in Railway")
@@ -110,7 +167,7 @@ async def oauth_callback(
 ):
     # tiktok_content uses Login Kit OAuth, not business API
     if platform == "tiktok_content":
-        tenant_id = _parse_state(state)
+        tenant_id, source = _parse_state(state)
         try:
             token_data = await tiktok_api.content_exchange_code(code, _callback_uri(platform))
         except Exception as e:
@@ -132,7 +189,7 @@ async def oauth_callback(
     if platform not in PLATFORMS:
         raise HTTPException(404, "Unknown platform")
 
-    tenant_id = _parse_state(state)
+    tenant_id, source = _parse_state(state)
     mod = PLATFORMS[platform]
 
     try:
@@ -204,7 +261,8 @@ async def oauth_callback(
 
     tenant = await db.fetchrow("SELECT slug FROM tenants WHERE id = $1", tenant_id)
     slug = tenant["slug"] if tenant else ""
-    return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/ads?connected={platform}")
+    section = "social" if source == "social" else "ads"
+    return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/{section}?connected={platform}")
 
 
 # ─── TikTok Webhook ──────────────────────────────────────────────────────────

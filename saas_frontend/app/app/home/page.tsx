@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { api, PortalDashboard, BusinessGoal, StaffPolicy } from '@/lib/api'
+import { api, PortalDashboard, BusinessGoal, StaffPolicy, EmployeeSchedule } from '@/lib/api'
 import { isBiometricAvailable, enrollBiometric, verifyBiometric } from '@/lib/webauthn'
 
 function greeting(name: string): string {
@@ -102,6 +102,7 @@ export default function AppHomePage() {
   const [policy, setPolicy] = useState<StaffPolicy | null>(null)
   const [userEmail, setUserEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [schedule, setSchedule] = useState<EmployeeSchedule | null | undefined>(undefined) // undefined = still loading
   const [clockingIn, setClockingIn] = useState(false)
 
   // Biometric state
@@ -146,6 +147,14 @@ export default function AppHomePage() {
       setDashboard(dash as unknown as PortalDashboard)
       setGoals((dailyGoals as BusinessGoal[]).filter(g => g.period === 'daily' && g.is_active))
       setPolicy(pol)
+
+      // Load today's scheduled shift (null = no schedule = open clock-in)
+      try {
+        const sched = await api.staff.getMySchedule()
+        setSchedule(sched)
+      } catch {
+        setSchedule(null)
+      }
 
       // Decode name from JWT
       try {
@@ -299,6 +308,45 @@ export default function AppHomePage() {
   const geofenceBlocked = geofenceEnabled && isInGeofence === false
   const geofenceVerified = geofenceEnabled && isInGeofence === true
 
+  // ── Schedule window calculation ──────────────────────────────────────────
+  function parseTimeToday(timeStr: string): Date {
+    // timeStr is "HH:MM:SS" from the backend
+    const [h, m] = timeStr.split(':').map(Number)
+    const d = new Date()
+    d.setHours(h, m, 0, 0)
+    return d
+  }
+
+  type ClockInStatus =
+    | { allowed: true; label: string }
+    | { allowed: false; tooEarly: true; opensAt: Date; scheduledAt: Date; graceMinutes: number }
+
+  function getClockInStatus(): ClockInStatus {
+    if (!schedule) return { allowed: true, label: 'Clock In' }  // no schedule = free clock-in
+    const scheduledAt = parseTimeToday(schedule.start_time)
+    const grace = schedule.early_grace_minutes ?? 0
+    const opensAt = new Date(scheduledAt.getTime() - grace * 60000)
+    if (now < opensAt) {
+      return { allowed: false, tooEarly: true, opensAt, scheduledAt, graceMinutes: grace }
+    }
+    const fmt12 = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    return { allowed: true, label: `Clock In — Shift ${fmt12(scheduledAt)}` }
+  }
+
+  function formatCountdown(opensAt: Date): string {
+    const diff = Math.max(0, opensAt.getTime() - now.getTime())
+    const totalSecs = Math.floor(diff / 1000)
+    const h = Math.floor(totalSecs / 3600)
+    const m = Math.floor((totalSecs % 3600) / 60)
+    const s = totalSecs % 60
+    if (h > 0) return `${h}h ${m}m ${s}s`
+    if (m > 0) return `${m}m ${s}s`
+    return `${s}s`
+  }
+
+  const clockInStatus = getClockInStatus()
+  const scheduleBlocked = !clockInStatus.allowed
+
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col pb-24">
       {/* Biometric enrollment modal */}
@@ -420,19 +468,35 @@ export default function AppHomePage() {
 
       {/* Sticky Clock In button */}
       <div className="fixed bottom-0 left-0 right-0 px-5 pb-8 pt-4 bg-gradient-to-t from-[#020617] to-transparent">
-        {geofenceVerified && (
+        {geofenceVerified && !scheduleBlocked && (
           <div className="flex items-center justify-center gap-2 mb-3">
             <span className="w-2 h-2 rounded-full bg-green-400" />
             <span className="text-green-400 text-xs font-medium">Location verified</span>
           </div>
         )}
 
+        {/* Schedule countdown banner */}
+        {scheduleBlocked && (() => {
+          const s = clockInStatus as Extract<typeof clockInStatus, { allowed: false }>
+          return (
+            <div className="bg-[#0f172a] border border-amber-500/30 rounded-2xl px-4 py-4 mb-3 text-center">
+              <p className="text-amber-400 text-xs font-semibold uppercase tracking-widest mb-1">Shift Not Open Yet</p>
+              <p className="text-white text-3xl font-bold font-mono tabular-nums mb-1">{formatCountdown(s.opensAt)}</p>
+              <p className="text-[#94a3b8] text-xs">
+                {s.graceMinutes > 0
+                  ? `Clock-in opens ${s.graceMinutes} min before your ${s.scheduledAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} shift`
+                  : `Your shift starts at ${s.scheduledAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+              </p>
+            </div>
+          )
+        })()}
+
         <button
           onClick={handleClockInTap}
-          disabled={clockingIn || geofenceBlocked}
+          disabled={clockingIn || geofenceBlocked || scheduleBlocked}
           className="w-full bg-[#16a34a] hover:bg-[#15803d] text-white text-lg font-bold rounded-2xl h-16 shadow-lg transition-colors active:scale-[0.98] disabled:opacity-50"
         >
-          {clockingIn ? 'Clocking In...' : 'Clock In'}
+          {clockingIn ? 'Clocking In...' : clockInStatus.allowed ? (clockInStatus as Extract<typeof clockInStatus, { allowed: true }>).label : 'Clock In'}
         </button>
 
         {geofenceBlocked && (
