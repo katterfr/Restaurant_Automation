@@ -731,6 +731,8 @@ export const api = {
     getExitRequests: () =>
       request<{ id: number; exit_type: string; status: string; created_at: string; expires_at: string; user_email: string }[]>('/staff/exit-requests'),
     getEmployees: () => request<{ id: number; email: string; display_name: string; role: string }[]>('/staff/employees'),
+    registerPushToken: (token: string, platform: 'fcm' | 'apns', appType: 'staff' | 'manager') =>
+      request<void>('/staff/push-token', { method: 'POST', body: JSON.stringify({ token, platform, app_type: appType }) }),
     getMySchedule: () => request<EmployeeSchedule | null>('/staff/schedules/mine'),
     getSchedules: () => request<EmployeeSchedule[]>('/staff/schedules'),
     createSchedule: (body: Omit<EmployeeSchedule, 'id' | 'tenant_id' | 'user_email' | 'user_name'>) =>

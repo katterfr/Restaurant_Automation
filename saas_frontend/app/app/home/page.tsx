@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, PortalDashboard, BusinessGoal, StaffPolicy, EmployeeSchedule } from '@/lib/api'
 import { isBiometricAvailable, enrollBiometric, verifyBiometric } from '@/lib/webauthn'
+import { isNativeApp, getNativePlatform, requestPushPermission, onPushToken, hapticSuccess, hapticError, scheduleShiftReminder, setStatusBarDark } from '@/lib/native'
 
 function greeting(name: string): string {
   const hour = new Date().getHours()
@@ -217,6 +218,28 @@ export default function AppHomePage() {
     load()
   }, [load])
 
+  // Native app: dark status bar + push notification setup
+  useEffect(() => {
+    if (!isNativeApp()) return
+    setStatusBarDark(true)
+    let cleanup: (() => void) | undefined
+    requestPushPermission().then(granted => {
+      if (!granted) return
+      const platform = getNativePlatform() === 'ios' ? 'apns' : 'fcm'
+      onPushToken(async token => {
+        try { await api.staff.registerPushToken(token, platform, 'staff') } catch { /* ignore */ }
+      }).then(fn => { cleanup = fn })
+    })
+    return () => { cleanup?.() }
+  }, [])
+
+  // Schedule shift reminder notification when schedule is loaded
+  useEffect(() => {
+    if (!schedule || !isNativeApp()) return
+    const tenantName = dashboard?.tenant?.name ?? 'your restaurant'
+    scheduleShiftReminder(schedule.scheduled_date, schedule.start_time.slice(0, 5), tenantName, 30)
+  }, [schedule, dashboard])
+
   function signOut() {
     localStorage.removeItem('token')
     router.replace('/app/login')
@@ -224,6 +247,7 @@ export default function AppHomePage() {
 
   function handleClockInTap() {
     setError('')
+    hapticLight()
 
     // Geofence check
     if (policy?.geofence_enabled && policy.geofence_lat != null && policy.geofence_lng != null) {
@@ -283,9 +307,11 @@ export default function AppHomePage() {
       }
       setClockinState('clockin')
       await api.staff.clockIn()
+      hapticSuccess()
       router.push('/app/kiosk')
     } catch (e: unknown) {
       setClockinState('error')
+      hapticError()
       const msg = e instanceof Error ? e.message : 'Failed to clock in'
       setError(msg)
     } finally {

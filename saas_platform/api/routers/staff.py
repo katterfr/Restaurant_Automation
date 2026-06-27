@@ -137,6 +137,17 @@ CREATE TABLE IF NOT EXISTS employee_focus_exit_logs (
     shift_id INTEGER,
     exited_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS device_push_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    platform TEXT NOT NULL DEFAULT 'fcm',
+    app_type TEXT NOT NULL DEFAULT 'staff',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, app_type)
+);
 """
 
 
@@ -499,6 +510,30 @@ async def focus_exit(current_user=Depends(_require_portal), db=Depends(get_db)):
     except Exception:
         pass
     return {"ok": True}
+
+
+class PushTokenBody(BaseModel):
+    token: str
+    platform: str = "fcm"   # fcm | apns
+    app_type: str = "staff"  # staff | manager
+
+
+@router.post("/push-token", status_code=204)
+async def register_push_token(
+    body: PushTokenBody,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Register or refresh a device push notification token for the current user."""
+    user_dict = dict(current_user)
+    await _ensure_tables(db)
+    await db.execute(
+        """INSERT INTO device_push_tokens (user_id, tenant_id, token, platform, app_type, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (user_id, app_type)
+           DO UPDATE SET token=$3, platform=$4, updated_at=NOW()""",
+        user_dict["id"], user_dict.get("tenant_id"), body.token, body.platform, body.app_type,
+    )
 
 
 @router.get("/employees")
