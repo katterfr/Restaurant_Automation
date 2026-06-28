@@ -664,6 +664,37 @@ export const api = {
       request<AdminPhoneAgent>(`/admin/phone-agents/${tenantId}`, { method: 'PATCH', body: JSON.stringify(body) }),
     calls: (tenantId: number) => request<PhoneCall[]>(`/admin/phone-agents/${tenantId}/calls`),
   },
+  adminMarketing: {
+    status: () => request<{
+      ads: Record<string, { configured: boolean; connected: boolean; ad_account_id: string | null; connected_at: string | null }>
+      social: Record<string, { connected: boolean; connected_at: string | null }>
+    }>('/admin/marketing/status'),
+    connectUrl: (platform: string, source?: string) =>
+      request<{ oauth_url: string }>(`/admin/marketing/connect/${platform}/url${source ? `?source=${source}` : ''}`),
+    disconnect: (platform: string) =>
+      request<{ ok: boolean }>(`/admin/marketing/connect/${platform}`, { method: 'DELETE' }),
+    social: {
+      posts: () => request<SocialPost[]>('/admin/marketing/social/posts'),
+      create: (body: { platforms: string[]; content: string; image_url?: string; video_url?: string; link_url?: string; media_type?: string }) =>
+        request<{ id: number; status: string; results: Record<string, unknown> }>('/admin/marketing/social/posts', { method: 'POST', body: JSON.stringify(body) }),
+      delete: (id: number) => request<void>(`/admin/marketing/social/posts/${id}`, { method: 'DELETE' }),
+    },
+    ads: {
+      campaigns: () => request<AdCampaign[]>('/admin/marketing/ads/campaigns'),
+      create: (body: { platforms: string[]; headline: string; body: string; image_url?: string; destination_url?: string; cta?: string; budget_daily?: number; location?: string; start_date?: string; end_date?: string }) =>
+        request<unknown[]>('/admin/marketing/ads/campaigns', { method: 'POST', body: JSON.stringify(body) }),
+      cancel: (id: number) => request<void>(`/admin/marketing/ads/campaigns/${id}`, { method: 'DELETE' }),
+    },
+    creative: {
+      library: () => request<{ configured: boolean; assets: CreativeAsset[]; usage: { images: { used: number; limit: number }; videos: { used: number; limit: number } } }>('/admin/marketing/creative/library'),
+      generateImage: (body: { prompt: string; style: string; aspect_ratio: string }) =>
+        request<{ id: number; status: string; url: string }>('/admin/marketing/creative/image', { method: 'POST', body: JSON.stringify(body) }),
+      generateVideo: (body: { prompt: string; image_url?: string; duration?: number; aspect_ratio?: string; style?: string }) =>
+        request<{ id: number; status: string; request_id: string }>('/admin/marketing/creative/video', { method: 'POST', body: JSON.stringify(body) }),
+      assetStatus: (id: number) => request<{ id: number; status: string; url?: string; error?: string }>(`/admin/marketing/creative/${id}/status`),
+      delete: (id: number) => request<void>(`/admin/marketing/creative/${id}`, { method: 'DELETE' }),
+    },
+  },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),
     toggle: (tenantId: number, feature: string) =>

@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
 from db.database import init_db, close_db, get_db_pool
-from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback, staff, webauthn
+from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback, staff, webauthn, admin_marketing
 from api.routers import tasks as tasks_router
 
 logging.basicConfig(
@@ -84,6 +84,7 @@ app.include_router(phone.router)
 app.include_router(creative.router)
 app.include_router(public.router)
 app.include_router(admin_chat.router)
+app.include_router(admin_marketing.router)
 app.include_router(feedback.router)
 app.include_router(staff.router)
 app.include_router(webauthn.router)

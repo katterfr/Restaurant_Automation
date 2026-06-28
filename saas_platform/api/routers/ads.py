@@ -182,6 +182,8 @@ async def oauth_callback(
                DO UPDATE SET access_token=$3, refresh_token=$4, ad_account_id=$5, connected_at=NOW()""",
             tenant_id, "tiktok_content", access_token, refresh_token, open_id,
         )
+        if tenant_id == 0:
+            return RedirectResponse(f"{settings.frontend_url}/marketing?connected=tiktok_content")
         tenant = await db.fetchrow("SELECT slug FROM tenants WHERE id=$1", tenant_id)
         slug = tenant["slug"] if tenant else ""
         return RedirectResponse(f"{settings.frontend_url}/portal/{slug}/social?connected=tiktok")
@@ -259,6 +261,8 @@ async def oauth_callback(
         tenant_id, platform, access_token, refresh_token, ad_account_id,
     )
 
+    if tenant_id == 0:
+        return RedirectResponse(f"{settings.frontend_url}/marketing?connected={platform}")
     tenant = await db.fetchrow("SELECT slug FROM tenants WHERE id = $1", tenant_id)
     slug = tenant["slug"] if tenant else ""
     section = "social" if source == "social" else "ads"
