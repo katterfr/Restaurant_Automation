@@ -8,6 +8,7 @@ const nav = [
   { label: 'Feedback',     href: '/feedback',     icon: '★' },
   { label: 'Phone Agent',  href: '/phone-agent',  icon: '☎' },
   { label: 'AI Assistant', href: '/chat',         icon: '✦' },
+  { label: 'Automations',  href: '/automations',  icon: '⏱' },
   { label: 'Settings',     href: '/settings',     icon: '⚙' },
 ]
 

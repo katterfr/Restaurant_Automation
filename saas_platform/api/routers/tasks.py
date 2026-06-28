@@ -479,9 +479,14 @@ async def run_due_tasks(db) -> int:
         run_id = run_row["id"]
 
         try:
-            summary, action_type = await _execute_task_prompt(
-                tenant_id, task_dict["prompt"], task_dict["label"], db
-            )
+            if tenant_id == 0:
+                summary, action_type = await _execute_admin_task_prompt(
+                    task_dict["prompt"], task_dict["label"], db
+                )
+            else:
+                summary, action_type = await _execute_task_prompt(
+                    tenant_id, task_dict["prompt"], task_dict["label"], db
+                )
             await db.execute(
                 "UPDATE ai_task_runs SET status='success', completed_at=NOW(), result_summary=$1, action_type=$2 WHERE id=$3",
                 summary[:1000], action_type, run_id,
@@ -657,3 +662,397 @@ async def trigger_run_due(request: Request, db=Depends(get_db)):
         raise HTTPException(401, "Invalid cron secret")
     count = await run_due_tasks(db)
     return {"tasks_executed": count}
+
+
+# ─── Admin task endpoints ──────────────────────────────────────────────────────
+
+def _require_admin_role(current_user=Depends(get_current_user)):
+    if current_user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    return current_user
+
+
+async def _execute_admin_task_prompt(prompt: str, label: str, db) -> tuple[str, Optional[str]]:
+    """Run a platform-level admin task through the admin AI loop. Returns (summary, action_type)."""
+    if not settings.anthropic_api_key:
+        return "AI not configured — add ANTHROPIC_API_KEY", None
+
+    stats = await db.fetchrow(
+        "SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status='active') AS active FROM tenants"
+    )
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    system_prompt = f"""You are the Careful-Server Admin AI running a SCHEDULED PLATFORM TASK.
+
+This is an automated execution — an admin pre-approved this action. Execute it completely and autonomously.
+
+## Platform Context
+- Total tenants: {stats['total']} ({stats['active']} active)
+- Current time: {now_utc}
+
+## Scheduled Task
+Label: {label}
+
+## Available Tools
+- list_tenants: find restaurants
+- get_tenant_details: inspect a specific tenant
+- create_social_post_for_tenant: publish social content for any restaurant
+- create_ad_campaign_for_tenant: launch ad campaigns
+- create_accounting_entry_for_tenant: record financial entries
+- get_accounting_summary_for_tenant: view financials
+- update_phone_agent_for_tenant: update phone agent settings
+
+## Instructions
+- Execute the task using tools as needed — chain multiple tools if required
+- Never use emojis
+- After completing, give a brief 1-2 sentence summary of what was done"""
+
+    # Import integrations
+    from integrations import meta as meta_api
+    from integrations import tiktok as tiktok_api
+    from integrations import youtube as youtube_api
+    from integrations import google_ads as google_api
+    from integrations import snapchat as snapchat_api
+    from integrations import pinterest as pinterest_api
+
+    _admin_tools = [
+        {
+            "name": "list_tenants",
+            "description": "List all tenants. Optionally filter by plan or status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string"},
+                    "plan": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+            },
+        },
+        {
+            "name": "get_tenant_details",
+            "description": "Get full details for a specific tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"tenant_id": {"type": "integer"}},
+                "required": ["tenant_id"],
+            },
+        },
+        {
+            "name": "create_social_post_for_tenant",
+            "description": "Publish a social post for any tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {"type": "integer"},
+                    "platforms": {"type": "array", "items": {"type": "string"}},
+                    "content": {"type": "string"},
+                    "image_url": {"type": "string"},
+                },
+                "required": ["tenant_id", "platforms", "content"],
+            },
+        },
+        {
+            "name": "create_ad_campaign_for_tenant",
+            "description": "Launch an ad campaign for any tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {"type": "integer"},
+                    "platform": {"type": "string"},
+                    "headline": {"type": "string"},
+                    "body": {"type": "string"},
+                    "budget_daily": {"type": "number"},
+                },
+                "required": ["tenant_id", "platform", "headline", "body", "budget_daily"],
+            },
+        },
+        {
+            "name": "create_accounting_entry_for_tenant",
+            "description": "Add an accounting entry for any tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {"type": "integer"},
+                    "type": {"type": "string"},
+                    "category": {"type": "string"},
+                    "amount": {"type": "number"},
+                    "description": {"type": "string"},
+                    "date": {"type": "string"},
+                },
+                "required": ["tenant_id", "type", "category", "amount", "description"],
+            },
+        },
+        {
+            "name": "get_accounting_summary_for_tenant",
+            "description": "View accounting summary for any tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"tenant_id": {"type": "integer"}},
+                "required": ["tenant_id"],
+            },
+        },
+        {
+            "name": "update_phone_agent_for_tenant",
+            "description": "Update phone agent settings for any tenant.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tenant_id": {"type": "integer"},
+                    "greeting": {"type": "string"},
+                    "special_instructions": {"type": "string"},
+                    "is_active": {"type": "boolean"},
+                },
+                "required": ["tenant_id"],
+            },
+        },
+    ]
+
+    messages: list[dict] = [{"role": "user", "content": prompt}]
+    action_type: Optional[str] = None
+    _headers = {
+        "x-api-key": settings.anthropic_api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as c:
+            for _round in range(8):
+                r = await c.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=_headers,
+                    json={
+                        "model": "claude-sonnet-4-6",
+                        "max_tokens": 1024,
+                        "system": system_prompt,
+                        "messages": messages,
+                        "tools": _admin_tools,
+                    },
+                )
+                if not r.is_success:
+                    return f"AI error: {r.status_code}", None
+
+                resp = r.json()
+                tool_uses = [b for b in resp["content"] if b["type"] == "tool_use"]
+
+                if not tool_uses:
+                    reply = "\n".join(b["text"] for b in resp["content"] if b["type"] == "text")
+                    return reply.strip() or "Task completed.", action_type
+
+                tool_results = []
+                for tu in tool_uses:
+                    name = tu["name"]
+                    inp = tu["input"]
+                    tu_id = tu["id"]
+                    result = ""
+
+                    if name == "list_tenants":
+                        rows = await db.fetch(
+                            "SELECT id,name,slug,plan,status FROM tenants WHERE ($1::text IS NULL OR status=$1) AND ($2::text IS NULL OR plan=$2) ORDER BY created_at DESC LIMIT $3",
+                            inp.get("status"), inp.get("plan"), min(int(inp.get("limit", 20)), 50),
+                        )
+                        result = "\n".join(f"#{r['id']} {r['name']} ({r['slug']}) · {r['plan']} · {r['status']}" for r in rows) or "No tenants."
+                    elif name == "get_tenant_details":
+                        tid = int(inp["tenant_id"])
+                        t = await db.fetchrow("SELECT * FROM tenants WHERE id=$1", tid)
+                        result = f"Tenant #{tid}: {t['name']} plan={t['plan']} status={t['status']}" if t else "Not found."
+                    elif name == "create_social_post_for_tenant":
+                        tid = int(inp["tenant_id"])
+                        platforms_req = inp.get("platforms", [])
+                        content = inp.get("content", "")
+                        image_url = inp.get("image_url")
+                        row = await db.fetchrow("INSERT INTO social_posts (tenant_id,platforms,content,image_url,status) VALUES ($1,$2,$3,$4,'publishing') RETURNING id", tid, json.dumps(platforms_req), content, image_url)
+                        post_id = row["id"]; post_results: dict = {}
+                        for platform in platforms_req:
+                            conn = await db.fetchrow("SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform=$2", tid, platform)
+                            if not conn:
+                                post_results[platform] = {"status": "not_connected"}; continue
+                            try:
+                                if platform == "meta":
+                                    raw = (conn.get("refresh_token") or ""); parts = raw.split(":", 2)
+                                    if len(parts) == 3:
+                                        page_id, page_token, ig_id = parts
+                                    else:
+                                        page_id = conn.get("ad_account_id",""); page_token = conn.get("access_token",""); ig_id = ""
+                                    pid = await meta_api.create_page_post(page_token or conn["access_token"], page_id, content, image_url, None, None)
+                                elif platform == "tiktok_content":
+                                    pid = await tiktok_api.create_post(conn["access_token"], conn["ad_account_id"] or "", content, image_url=image_url)
+                                elif platform == "youtube":
+                                    pid = await youtube_api.create_post(conn["access_token"], conn["ad_account_id"] or "", content, image_url)
+                                else:
+                                    post_results[platform] = {"status": "not_supported"}; continue
+                                post_results[platform] = {"status": "published", "id": pid}
+                            except Exception as e:
+                                post_results[platform] = {"status": "failed", "error": str(e)[:200]}
+                        ok = [p for p, v in post_results.items() if v["status"] == "published"]
+                        await db.execute("UPDATE social_posts SET status=$1, platform_results=$2 WHERE id=$3", "published" if ok else "failed", json.dumps(post_results), post_id)
+                        action_type = action_type or "social_post"
+                        result = f"Posted to {', '.join(ok) or 'failed'} for tenant #{tid}."
+                    elif name == "create_ad_campaign_for_tenant":
+                        tid = int(inp["tenant_id"]); platform = inp["platform"]
+                        conn = await db.fetchrow("SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform=$2", tid, platform)
+                        if not conn:
+                            result = f"{platform} not connected for tenant #{tid}."
+                        else:
+                            campaign = {"headline": inp["headline"], "body": inp["body"], "budget_daily": float(inp.get("budget_daily", 10)), "image_url": None, "destination_url": ""}
+                            try:
+                                if platform == "meta": camp_id = await meta_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "google": camp_id = await google_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                elif platform == "tiktok": camp_id = await tiktok_api.deploy_campaign(conn["access_token"], conn["ad_account_id"] or "", campaign)
+                                else: camp_id = None
+                                if camp_id:
+                                    await db.execute("INSERT INTO ad_campaigns (tenant_id,platform,status,headline,body,image_url,destination_url,cta,budget_daily,location,radius_miles,start_date,end_date,error_message,platform_campaign_id) VALUES ($1,$2,'active',$3,$4,NULL,''  ,'LEARN_MORE',$5,NULL,10,NULL,NULL,NULL,$6)", tid, platform, inp["headline"], inp["body"], float(inp.get("budget_daily",10)), str(camp_id))
+                                    action_type = action_type or "ad_campaign"
+                                    result = f"Launched {platform} campaign for tenant #{tid}."
+                                else:
+                                    result = "Campaign returned no ID."
+                            except Exception as e:
+                                result = f"Campaign failed: {e}"
+                    elif name == "create_accounting_entry_for_tenant":
+                        tid = int(inp["tenant_id"])
+                        entry_date = inp.get("date") or datetime.now(timezone.utc).date().isoformat()
+                        row = await db.fetchrow("INSERT INTO accounting_entries (tenant_id,type,category,amount,description,date) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id", tid, inp["type"], inp["category"], float(inp["amount"]), inp["description"], entry_date)
+                        action_type = action_type or "accounting_entry"
+                        result = f"Added {inp['type']} entry for tenant #{tid}: ${float(inp['amount']):.2f}"
+                    elif name == "get_accounting_summary_for_tenant":
+                        tid = int(inp["tenant_id"])
+                        totals = await db.fetch("SELECT type, SUM(amount) AS total FROM accounting_entries WHERE tenant_id=$1 GROUP BY type", tid)
+                        income = next((float(r["total"]) for r in totals if r["type"] == "income"), 0.0)
+                        expense = next((float(r["total"]) for r in totals if r["type"] == "expense"), 0.0)
+                        result = f"Tenant #{tid} — income: ${income:,.2f} | expense: ${expense:,.2f} | net: ${income-expense:,.2f}"
+                    elif name == "update_phone_agent_for_tenant":
+                        tid = int(inp["tenant_id"])
+                        agent = await db.fetchrow("SELECT id FROM phone_agents WHERE tenant_id=$1", tid)
+                        if agent:
+                            sets, vals = [], [tid]
+                            for field in ("greeting", "special_instructions", "is_active"):
+                                if field in inp:
+                                    vals.append(inp[field]); sets.append(f"{field}=${len(vals)}")
+                            if sets:
+                                await db.execute(f"UPDATE phone_agents SET {', '.join(sets)}, updated_at=NOW() WHERE tenant_id=$1", *vals)
+                                action_type = action_type or "phone_agent_updated"
+                                result = f"Updated phone agent for tenant #{tid}."
+                        else:
+                            result = f"No phone agent for tenant #{tid}."
+
+                    tool_results.append({"type": "tool_result", "tool_use_id": tu_id, "content": result})
+
+                messages.append({"role": "assistant", "content": resp["content"]})
+                messages.append({"role": "user", "content": tool_results})
+
+        return "Task completed.", action_type
+
+    except Exception as e:
+        log.error("Admin task executor error: %s", e)
+        return f"Error: {e}", None
+
+
+@router.get("/admin")
+async def list_admin_tasks(current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    await init_task_tables(db)
+    tasks = await db.fetch(
+        "SELECT * FROM ai_scheduled_tasks WHERE tenant_id=0 ORDER BY created_at DESC"
+    )
+    result = []
+    for t in tasks:
+        td = dict(t)
+        last_run = await db.fetchrow(
+            "SELECT status, result_summary, started_at, action_type FROM ai_task_runs WHERE task_id=$1 ORDER BY started_at DESC LIMIT 1",
+            td["id"],
+        )
+        td["last_run"] = dict(last_run) if last_run else None
+        result.append(td)
+    return result
+
+
+@router.post("/admin")
+async def create_admin_task(body: CreateTaskBody, current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    await init_task_tables(db)
+    uid = current_user["id"]
+    now = datetime.now(timezone.utc)
+    next_run_at = None
+    if body.schedule_type == "cron" and body.cron_expression:
+        next_run_at = _next_cron_run(body.cron_expression, now)
+    elif body.schedule_type == "once" and body.run_at:
+        try:
+            next_run_at = datetime.fromisoformat(body.run_at.replace("Z", "+00:00"))
+            if next_run_at.tzinfo is None:
+                next_run_at = next_run_at.replace(tzinfo=timezone.utc)
+        except Exception:
+            raise HTTPException(400, "Invalid run_at datetime")
+
+    row = await db.fetchrow(
+        """INSERT INTO ai_scheduled_tasks
+           (tenant_id, created_by, label, prompt, schedule_type, cron_expression, run_at, timezone, next_run_at)
+           VALUES (0,$1,$2,$3,$4,$5,$6,$7,$8) RETURNING *""",
+        uid, body.label, body.prompt, body.schedule_type,
+        body.cron_expression, next_run_at, body.timezone, next_run_at,
+    )
+    return dict(row)
+
+
+@router.delete("/admin/{task_id}")
+async def delete_admin_task(task_id: int, current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    row = await db.fetchrow(
+        "DELETE FROM ai_scheduled_tasks WHERE id=$1 AND tenant_id=0 RETURNING id", task_id
+    )
+    if not row:
+        raise HTTPException(404, "Admin task not found")
+    return {"deleted": task_id}
+
+
+@router.patch("/admin/{task_id}/toggle")
+async def toggle_admin_task(task_id: int, current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    row = await db.fetchrow(
+        "UPDATE ai_scheduled_tasks SET is_active = NOT is_active WHERE id=$1 AND tenant_id=0 RETURNING id, is_active",
+        task_id,
+    )
+    if not row:
+        raise HTTPException(404, "Admin task not found")
+    return {"id": row["id"], "is_active": row["is_active"]}
+
+
+@router.get("/admin/{task_id}/runs")
+async def get_admin_task_runs(task_id: int, current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    task = await db.fetchrow(
+        "SELECT id FROM ai_scheduled_tasks WHERE id=$1 AND tenant_id=0", task_id
+    )
+    if not task:
+        raise HTTPException(404, "Admin task not found")
+    runs = await db.fetch(
+        "SELECT * FROM ai_task_runs WHERE task_id=$1 ORDER BY started_at DESC LIMIT 20",
+        task_id,
+    )
+    return [dict(r) for r in runs]
+
+
+@router.post("/admin/{task_id}/run-now")
+async def run_admin_task_now(task_id: int, current_user=Depends(_require_admin_role), db=Depends(get_db)):
+    task = await db.fetchrow(
+        "SELECT * FROM ai_scheduled_tasks WHERE id=$1 AND tenant_id=0", task_id
+    )
+    if not task:
+        raise HTTPException(404, "Admin task not found")
+
+    run_row = await db.fetchrow(
+        "INSERT INTO ai_task_runs (task_id,tenant_id) VALUES ($1,0) RETURNING id", task_id
+    )
+    run_id = run_row["id"]
+
+    try:
+        task_dict = dict(task)
+        summary, action_type = await _execute_admin_task_prompt(
+            task_dict["prompt"], task_dict["label"], db
+        )
+        await db.execute(
+            "UPDATE ai_task_runs SET status='success', completed_at=NOW(), result_summary=$1, action_type=$2 WHERE id=$3",
+            summary[:1000], action_type, run_id,
+        )
+        await db.execute("UPDATE ai_scheduled_tasks SET last_run_at=NOW() WHERE id=$1", task_id)
+        return {"status": "success", "summary": summary, "action_type": action_type}
+    except Exception as e:
+        await db.execute(
+            "UPDATE ai_task_runs SET status='failed', completed_at=NOW(), result_summary=$1 WHERE id=$2",
+            str(e)[:500], run_id,
+        )
+        raise HTTPException(500, str(e))

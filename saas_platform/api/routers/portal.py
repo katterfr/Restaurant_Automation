@@ -425,6 +425,60 @@ _TOOLS = [
             "required": ["label", "prompt", "schedule_type"],
         },
     },
+    {
+        "name": "get_accounting_summary",
+        "description": "View the restaurant's accounting summary — total income, total expenses, net profit, and a monthly breakdown. Use when the owner asks about revenue, profit, expenses, or financial health.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "months": {"type": "integer", "description": "Number of past months to include (default 3)"},
+            },
+        },
+    },
+    {
+        "name": "search_accounting_entries",
+        "description": "List recent accounting entries — income and expense transactions. Use when the owner asks to see transactions, recent entries, or a spending breakdown.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type":     {"type": "string", "enum": ["income", "expense"], "description": "Filter by type"},
+                "category": {"type": "string", "description": "Filter by category"},
+                "limit":    {"type": "integer", "description": "Max entries to return (default 10)"},
+            },
+        },
+    },
+    {
+        "name": "get_phone_status",
+        "description": "Check the current status of the AI phone agent — whether it's active, the phone number, recent calls, and total call count.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "update_phone_agent",
+        "description": "Update the AI phone agent's greeting message or special handling instructions. Use when the owner wants to change what the phone agent says or how it behaves.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "greeting":             {"type": "string", "description": "The opening greeting the phone agent speaks"},
+                "special_instructions": {"type": "string", "description": "Extra instructions for handling calls (e.g. 'Always mention the lunch special')"},
+                "is_active":            {"type": "boolean", "description": "true to activate, false to deactivate"},
+            },
+        },
+    },
+    {
+        "name": "get_ad_campaigns",
+        "description": "View existing ad campaigns and their current status. Use when the owner asks what ads are running, what campaigns exist, or how ads are performing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "description": "Filter by status: active, paused, draft"},
+            },
+        },
+    },
+    {
+        "name": "get_business_listing",
+        "description": "View the restaurant's current Google Maps and Apple Maps listing status, including address, hours, and connection status.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 def _fmt_messages(messages: list[ChatMsg]) -> list[dict]:
@@ -620,6 +674,12 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
 - **create_social_post** — ACTUALLY PUBLISH a post to Meta/Instagram, TikTok, or YouTube right now
 - **create_ad_campaign** — ACTUALLY LAUNCH a paid ad campaign on Meta, Google, TikTok, Snapchat, or Pinterest
 - **create_accounting_entry** — ADD an income or expense entry to the restaurant's accounting ledger
+- **get_accounting_summary** — VIEW total income, expenses, net profit, and monthly breakdown
+- **search_accounting_entries** — LIST recent transactions by type or category
+- **get_phone_status** — CHECK phone agent status, number, and recent calls
+- **update_phone_agent** — CHANGE greeting, instructions, or activate/deactivate the phone agent
+- **get_ad_campaigns** — VIEW existing ad campaigns and their status
+- **get_business_listing** — CHECK Google Maps & Apple Maps listing connection status
 - **schedule_task** — SCHEDULE any of the above to happen AUTOMATICALLY on a recurring or one-time schedule, even when you are not logged in
 
 ## How to Handle Requests
@@ -629,6 +689,11 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
 - "Show me today's orders" → call search_orders
 - "Mark order #42 as completed" → call update_order_status
 - "Record today's revenue as income" → call create_accounting_entry
+- "How much did we make this month?" → call get_accounting_summary
+- "Show me recent expenses" → call search_accounting_entries (type=expense)
+- "Is the phone agent on?" → call get_phone_status
+- "Change my phone greeting to [X]" → call update_phone_agent
+- "What ads are running?" → call get_ad_campaigns
 - "Post about specials every morning at 9am" → call schedule_task (schedule_type=cron, cron_expression='0 9 * * *')
 - "Send a weekly Instagram update every Monday" → call schedule_task (cron='0 9 * * 1')
 - "Run a lunch ad every weekday at 11am" → call schedule_task (cron='0 11 * * 1-5')
@@ -945,6 +1010,123 @@ When you detect feedback, start your reply with the EXACT token `[FEEDBACK]` on 
                             result = f"Order #{row['id']} updated to {row['status']}."
                         else:
                             result = f"Order #{order_id} not found or doesn't belong to this restaurant."
+
+                    # ── Accounting: summary ────────────────────────────────────
+                    elif name == "get_accounting_summary":
+                        months = int(inp.get("months", 3))
+                        totals = await db.fetch(
+                            "SELECT type, SUM(amount) AS total FROM accounting_entries WHERE tenant_id=$1 GROUP BY type",
+                            tid,
+                        )
+                        income = next((float(r["total"]) for r in totals if r["type"] == "income"), 0.0)
+                        expense = next((float(r["total"]) for r in totals if r["type"] == "expense"), 0.0)
+                        monthly = await db.fetch(
+                            """SELECT DATE_TRUNC('month', date::date) AS month, type, SUM(amount) AS total
+                               FROM accounting_entries WHERE tenant_id=$1 AND date >= (CURRENT_DATE - ($2 || ' months')::interval)::text
+                               GROUP BY 1,2 ORDER BY 1 DESC""",
+                            tid, str(months),
+                        )
+                        month_map: dict = {}
+                        for r in monthly:
+                            k = r["month"].strftime("%b %Y")
+                            if k not in month_map:
+                                month_map[k] = {"income": 0.0, "expense": 0.0}
+                            month_map[k][r["type"]] = float(r["total"])
+                        month_lines = "\n".join(f"  {m}: income ${v['income']:,.2f}  expense ${v['expense']:,.2f}  net ${v['income']-v['expense']:,.2f}" for m, v in month_map.items())
+                        result = f"Accounting Summary:\n  All-time income: ${income:,.2f}\n  All-time expenses: ${expense:,.2f}\n  Net profit: ${income-expense:,.2f}\nMonthly:\n{month_lines or '  No data'}"
+                        action_result = {"type": "accounting_summary", "income": income, "expense": expense, "net": income - expense}
+
+                    # ── Accounting: list entries ───────────────────────────────
+                    elif name == "search_accounting_entries":
+                        entry_type = inp.get("type")
+                        category = inp.get("category")
+                        limit = min(int(inp.get("limit", 10)), 30)
+                        q = "SELECT id,type,category,amount,description,date FROM accounting_entries WHERE tenant_id=$1"
+                        args2: list = [tid]
+                        if entry_type:
+                            args2.append(entry_type); q += f" AND type=${len(args2)}"
+                        if category:
+                            args2.append(f"%{category}%"); q += f" AND LOWER(category) LIKE LOWER(${len(args2)})"
+                        args2.append(limit); q += f" ORDER BY date DESC, id DESC LIMIT ${len(args2)}"
+                        rows = await db.fetch(q, *args2)
+                        if rows:
+                            lines = [f"  {r['date']} [{r['type']}] {r['category']}: ${float(r['amount']):.2f} — {r['description']}" for r in rows]
+                            result = f"{len(rows)} entries:\n" + "\n".join(lines)
+                        else:
+                            result = "No accounting entries found."
+                        action_result = {"type": "accounting_entries", "entries": [dict(r) for r in rows]}
+
+                    # ── Phone: status ──────────────────────────────────────────
+                    elif name == "get_phone_status":
+                        agent = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tid)
+                        recent_calls = await db.fetch(
+                            "SELECT caller_number, duration_secs, summary, created_at FROM phone_calls WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 5",
+                            tid,
+                        )
+                        if not agent:
+                            result = "Phone agent not yet configured. Go to the Phone Agent page to set it up."
+                        else:
+                            call_lines = "\n".join(f"  {r['caller_number'] or '?'} — {r['duration_secs']}s — {(r['summary'] or 'no summary')[:80]}" for r in recent_calls) or "  (none yet)"
+                            result = (
+                                f"Phone Agent:\n"
+                                f"  Status: {'ACTIVE' if agent['is_active'] else 'inactive'}\n"
+                                f"  Number: {agent.get('phone_number') or 'not assigned'}\n"
+                                f"  Total calls: {agent.get('total_calls', 0)}\n"
+                                f"  Greeting: {(agent.get('greeting') or '')[:100]}\nRecent calls:\n{call_lines}"
+                            )
+                        action_result = {"type": "phone_status", "active": agent["is_active"] if agent else False}
+
+                    # ── Phone: update ──────────────────────────────────────────
+                    elif name == "update_phone_agent":
+                        agent = await db.fetchrow("SELECT id FROM phone_agents WHERE tenant_id=$1", tid)
+                        sets, vals = [], [tid]
+                        for field in ("greeting", "special_instructions", "is_active"):
+                            if field in inp:
+                                vals.append(inp[field]); sets.append(f"{field}=${len(vals)}")
+                        if sets:
+                            if agent:
+                                await db.execute(f"UPDATE phone_agents SET {', '.join(sets)}, updated_at=NOW() WHERE tenant_id=$1", *vals)
+                            else:
+                                await db.execute(
+                                    "INSERT INTO phone_agents (tenant_id, greeting, special_instructions, is_active) VALUES ($1, $2, $3, $4)",
+                                    tid, inp.get("greeting", "Thank you for calling! How can I help you today?"),
+                                    inp.get("special_instructions", ""), bool(inp.get("is_active", False)),
+                                )
+                            activated = inp.get("is_active")
+                            action_result = {"type": "phone_updated", "is_active": activated}
+                            if activated is True:
+                                result = "Phone agent activated and updated."
+                            elif activated is False:
+                                result = "Phone agent deactivated."
+                            else:
+                                result = "Phone agent settings updated."
+                        else:
+                            result = "No changes provided."
+
+                    # ── Ad campaigns: list ─────────────────────────────────────
+                    elif name == "get_ad_campaigns":
+                        status_f = inp.get("status")
+                        rows = await db.fetch(
+                            "SELECT id,platform,status,headline,budget_daily,created_at FROM ad_campaigns WHERE tenant_id=$1 AND ($2::text IS NULL OR status=$2) ORDER BY created_at DESC LIMIT 20",
+                            tid, status_f,
+                        )
+                        if rows:
+                            lines = [f"  #{r['id']} [{r['platform']}] {r['headline']} — {r['status']} — ${float(r['budget_daily'] or 0):.0f}/day" for r in rows]
+                            result = f"{len(rows)} campaigns:\n" + "\n".join(lines)
+                        else:
+                            result = "No ad campaigns found."
+                        action_result = {"type": "ad_campaigns", "campaigns": [dict(r) for r in rows]}
+
+                    # ── Business listing ───────────────────────────────────────
+                    elif name == "get_business_listing":
+                        google = await db.fetchrow("SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform='listings_google'", tid)
+                        apple  = await db.fetchrow("SELECT * FROM platform_connections WHERE tenant_id=$1 AND platform='listings_apple'", tid)
+                        google_feature = await db.fetchrow("SELECT enabled FROM tenant_features WHERE tenant_id=$1 AND feature='listings_google'", tid)
+                        apple_feature  = await db.fetchrow("SELECT enabled FROM tenant_features WHERE tenant_id=$1 AND feature='listings_apple'", tid)
+                        g_status = "connected" if google else ("not connected — go to Business page to connect" if google_feature and google_feature["enabled"] else "not on your plan")
+                        a_status = "connected" if apple  else ("not connected — go to Business page to connect" if apple_feature  and apple_feature["enabled"]  else "not on your plan")
+                        result = f"Business Listings:\n  Google Maps: {g_status}\n  Apple Maps:  {a_status}"
+                        action_result = {"type": "business_listing", "google": bool(google), "apple": bool(apple)}
 
                     # ── Schedule task ──────────────────────────────────────────
                     elif name == "schedule_task":

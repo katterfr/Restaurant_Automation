@@ -759,6 +759,20 @@ export const api = {
     toggle: (id: number) => request<{ id: number; is_active: boolean }>(`/tasks/${id}/toggle`, { method: 'PATCH' }),
     runNow: (id: number) => request<{ status: string; summary: string; action_type: string | null }>(`/tasks/${id}/run-now`, { method: 'POST' }),
     runs: (id: number) => request<ScheduledTaskRun[]>(`/tasks/${id}/runs`),
+    // Admin-level platform tasks (tenant_id = 0)
+    adminList: () => request<ScheduledTask[]>('/tasks/admin'),
+    adminCreate: (body: {
+      label: string
+      prompt: string
+      schedule_type: 'cron' | 'once'
+      cron_expression?: string
+      run_at?: string
+      timezone?: string
+    }) => request<ScheduledTask>('/tasks/admin', { method: 'POST', body: JSON.stringify(body) }),
+    adminDelete: (id: number) => request<void>(`/tasks/admin/${id}`, { method: 'DELETE' }),
+    adminToggle: (id: number) => request<{ id: number; is_active: boolean }>(`/tasks/admin/${id}/toggle`, { method: 'PATCH' }),
+    adminRunNow: (id: number) => request<{ status: string; summary: string; action_type: string | null }>(`/tasks/admin/${id}/run-now`, { method: 'POST' }),
+    adminRuns: (id: number) => request<ScheduledTaskRun[]>(`/tasks/admin/${id}/runs`),
   },
 }
 

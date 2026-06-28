@@ -151,26 +151,80 @@ function Markdown({ text }: { text: string }) {
 // ── Action badge ──────────────────────────────────────────────────────────────
 
 const ACTION_LABELS: Record<string, string> = {
-  tenant_created:    '✓ Tenant created',
-  tenant_updated:    '✓ Tenant updated',
-  tenant_deleted:    '⚠ Tenant deleted',
-  feature_toggled:   '✓ Feature updated',
-  features_synced:   '✓ Features synced',
-  owner_created:     '✓ Owner account created',
-  menu_item_added:   '✓ Menu item added',
-  menu_item_updated: '✓ Menu item updated',
-  menu_item_deleted: '✓ Menu item deleted',
-  menu_item_toggled: '✓ Menu item toggled',
-  analytics:         '✓ Analytics retrieved',
-  tenant_list:       '✓ Tenants listed',
-  tenant_details:    '✓ Tenant details loaded',
-  orders:            '✓ Orders loaded',
+  tenant_created:        '✓ Tenant created',
+  tenant_updated:        '✓ Tenant updated',
+  tenant_deleted:        '⚠ Tenant deleted',
+  feature_toggled:       '✓ Feature updated',
+  features_synced:       '✓ Features synced',
+  owner_created:         '✓ Owner account created',
+  menu_item_added:       '✓ Menu item added',
+  menu_item_updated:     '✓ Menu item updated',
+  menu_item_deleted:     '✓ Menu item deleted',
+  menu_item_toggled:     '✓ Menu item toggled',
+  analytics:             '✓ Analytics retrieved',
+  tenant_list:           '✓ Tenants listed',
+  tenant_details:        '✓ Tenant details loaded',
+  orders:                '✓ Orders loaded',
+  ad_campaign:           '✓ Ad campaign launched',
+  ad_campaigns_list:     '✓ Campaigns loaded',
+  accounting_entry:      '✓ Accounting entry recorded',
+  accounting_summary:    '✓ Accounting summary loaded',
+  phone_agent_status:    '✓ Phone agent status loaded',
+  phone_agent_updated:   '✓ Phone agent updated',
+  suggestion_created:    '✓ Suggestion recorded',
+  suggestions_list:      '✓ Suggestions loaded',
 }
 
 const DANGER = new Set(['tenant_deleted', 'menu_item_deleted'])
 
 function ActionBadge({ r }: { r: Record<string, unknown> }) {
   const type = r.type as string
+
+  // Rich badge for social post
+  if (type === 'social_post') {
+    const results = (r.results ?? {}) as Record<string, { status: string }>
+    const ok = Object.entries(results).filter(([, v]) => v.status === 'published').map(([p]) => p)
+    const failed = Object.entries(results).filter(([, v]) => v.status !== 'published').map(([p]) => p)
+    return (
+      <div className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2.5 py-1.5 space-y-0.5">
+        <div className="font-semibold">Social post published</div>
+        {ok.length > 0 && <div>Posted: {ok.join(', ')}</div>}
+        {failed.length > 0 && <div className="text-red-400">Failed: {failed.join(', ')}</div>}
+      </div>
+    )
+  }
+
+  // Rich badge for scheduled task
+  if (type === 'scheduled_task') {
+    return (
+      <div className="text-xs text-sky-400 bg-sky-500/10 border border-sky-500/20 rounded-lg px-2.5 py-1.5 space-y-0.5">
+        <div className="font-semibold">Automation scheduled</div>
+        {Boolean(r.label) && <div>{String(r.label)}</div>}
+        {Boolean(r.cron_expression) && <div className="font-mono text-sky-300">{String(r.cron_expression)}</div>}
+        {Boolean(r.next_run_at) && <div>Next: {new Date(String(r.next_run_at)).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
+      </div>
+    )
+  }
+
+  // Rich badge for accounting entry
+  if (type === 'accounting_entry') {
+    return (
+      <div className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-2.5 py-1.5 space-y-0.5">
+        <div className="font-semibold">Accounting entry recorded</div>
+        {Boolean(r.tenant_id) && <div>Tenant #{String(r.tenant_id)}</div>}
+      </div>
+    )
+  }
+
+  // Rich badge for phone agent update
+  if (type === 'phone_agent_updated') {
+    return (
+      <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1.5">
+        Phone agent updated{Boolean(r.tenant_id) ? ` — Tenant #${String(r.tenant_id)}` : ''}
+      </div>
+    )
+  }
+
   const label = ACTION_LABELS[type] ?? '✓ Action completed'
   const danger = DANGER.has(type)
   return (
@@ -199,10 +253,12 @@ function BotAvatar({ size = 8 }: { size?: number }) {
 const SUGGESTIONS = [
   { label: 'Show platform analytics' },
   { label: 'List all tenants' },
-  { label: 'Create a new restaurant' },
-  { label: 'Toggle a feature for a tenant' },
-  { label: 'Show recent orders for a tenant' },
-  { label: 'Change a tenant\'s plan' },
+  { label: 'Post to social media for a restaurant' },
+  { label: 'View accounting for a tenant' },
+  { label: 'Check phone agent status for a tenant' },
+  { label: 'Schedule a recurring automation task' },
+  { label: 'Launch an ad campaign for a restaurant' },
+  { label: 'Activate phone agent for a tenant' },
 ]
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -236,7 +292,7 @@ export default function AdminChatFullPage() {
     setMsgs([{
       id: 'init',
       role: 'assistant',
-      content: "Hi! I'm your admin AI with **full platform access**. I can:\n\n- Manage tenants — create, update, delete, list\n- Toggle features and sync plans\n- View analytics and MRR\n- Create owner accounts\n- Manage menus for any restaurant\n- View orders across all tenants\n- Navigate you to any admin page\n\nYou can also **paste or drop images** — I'll analyze food photos, read physical menus, extract receipts, or review screenshots and act on them.\n\nWhat do you need?",
+      content: "Hi! I'm your admin AI with **full platform access**. I can:\n\n- **Tenant management** — create, update, delete, list restaurants, toggle features, sync plans\n- **Marketing** — publish social posts and launch ad campaigns for any restaurant\n- **Accounting** — view P&L, record income/expense entries for any tenant\n- **Phone Agent** — activate, deactivate, or update the AI phone agent for any restaurant\n- **Analytics** — platform MRR, orders, feedback, and growth trends\n- **Automations** — schedule any of the above to run automatically on a cron or one-time schedule\n\nDrop or paste **images** — I'll analyze food photos, read menus, extract receipts, and act on them.\n\nWhat do you need?",
       ts: new Date(),
     }])
   }, [])
@@ -439,7 +495,7 @@ export default function AdminChatFullPage() {
             <div>
               <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wider">Quick commands</p>
               <div className="grid grid-cols-2 gap-2">
-                {SUGGESTIONS.map(s => (
+                {SUGGESTIONS.slice(0, 8).map(s => (
                   <button
                     key={s.label}
                     onClick={() => send(s.label)}
