@@ -10,6 +10,10 @@ async def get_db():
         yield conn
 
 
+async def get_db_pool() -> asyncpg.Pool:
+    return _pool
+
+
 async def init_db():
     global _pool
     database_url = os.getenv("DATABASE_URL", "postgresql://localhost/saas")

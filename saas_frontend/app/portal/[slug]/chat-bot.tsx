@@ -338,6 +338,30 @@ export default function ChatBot({ accent, userName, userRole }: { accent: string
                         ✓ Campaign launched on {String(m.action_result.platform)}
                       </div>
                     )}
+                    {m.action_result?.type === 'accounting_entry' && (
+                      <div className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-2.5 py-1.5">
+                        ✓ {String(m.action_result.entry_type)} recorded — ${Number(m.action_result.amount).toFixed(2)}
+                      </div>
+                    )}
+                    {m.action_result?.type === 'order_updated' && (
+                      <div className="text-xs text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2.5 py-1.5">
+                        ✓ Order #{String(m.action_result.order_id)} → {String(m.action_result.status)}
+                      </div>
+                    )}
+                    {m.action_result?.type === 'scheduled_task' && (
+                      <div className="text-xs text-sky-400 bg-sky-500/10 border border-sky-500/20 rounded-lg px-2.5 py-1.5 space-y-0.5">
+                        <div className="font-semibold">Automation scheduled</div>
+                        <div className="text-sky-300/80">{String(m.action_result.label)}</div>
+                        {m.action_result.cron_expression && (
+                          <div className="font-mono text-sky-300/60">{String(m.action_result.cron_expression)}</div>
+                        )}
+                        {m.action_result.next_run_at && (
+                          <div className="text-sky-300/60">
+                            Next: {new Date(String(m.action_result.next_run_at)).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {m.action_result?.type === 'platforms' && (
                       <div className="text-xs text-slate-400 bg-slate-700/40 border border-slate-600/30 rounded-lg px-2.5 py-1.5">
                         Connected: {(m.action_result.platforms as string[]).join(', ') || 'none'}

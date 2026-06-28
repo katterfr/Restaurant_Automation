@@ -382,6 +382,49 @@ _TOOLS = [
             "required": ["platform", "headline", "body", "budget_daily"],
         },
     },
+    {
+        "name": "create_accounting_entry",
+        "description": "Add an income or expense entry to the restaurant's accounting ledger. Use when the owner asks to record revenue, sales, an expense, or any financial transaction.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type":        {"type": "string", "enum": ["income", "expense"], "description": "Entry type"},
+                "category":    {"type": "string", "description": "e.g. Sales, Labor, Food & Ingredients, Rent, Marketing, Other Expense"},
+                "amount":      {"type": "number", "description": "Amount in USD"},
+                "description": {"type": "string", "description": "Brief description of the transaction"},
+                "date":        {"type": "string", "description": "ISO date YYYY-MM-DD — defaults to today if omitted"},
+            },
+            "required": ["type", "category", "amount", "description"],
+        },
+    },
+    {
+        "name": "update_order_status",
+        "description": "Change the status of a specific order. Use when the owner asks to fulfill, complete, cancel, or process an order.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "integer", "description": "The numeric order ID"},
+                "status":   {"type": "string", "enum": ["pending", "completed", "cancelled"]},
+            },
+            "required": ["order_id", "status"],
+        },
+    },
+    {
+        "name": "schedule_task",
+        "description": "Schedule a recurring or one-time automation task to run automatically at a set time — without the owner needing to be present. Use when the owner asks to automate something on a schedule. Examples: 'post about daily specials every morning', 'run a lunch ad every weekday at 11am', 'send weekly revenue summary every Monday'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label":           {"type": "string", "description": "Short human-readable task name (e.g. 'Daily Instagram special post')"},
+                "prompt":          {"type": "string", "description": "The exact instruction to execute at run time, written as a command (e.g. 'Post about today\\'s specials to Instagram with a compelling caption.')"},
+                "schedule_type":   {"type": "string", "enum": ["cron", "once"], "description": "'cron' for recurring, 'once' for one-time"},
+                "cron_expression": {"type": "string", "description": "5-field cron: '0 9 * * *'=daily 9am, '0 9 * * 1'=Mondays 9am, '0 11 * * 1-5'=weekdays 11am, '0 */6 * * *'=every 6 hours"},
+                "run_at":          {"type": "string", "description": "ISO datetime for one-time tasks: '2024-12-25T09:00:00'"},
+                "timezone":        {"type": "string", "description": "Owner's timezone e.g. 'America/New_York', 'America/Chicago', 'America/Los_Angeles'"},
+            },
+            "required": ["label", "prompt", "schedule_type"],
+        },
+    },
 ]
 
 def _fmt_messages(messages: list[ChatMsg]) -> list[dict]:
@@ -572,15 +615,23 @@ you are not just an advisor, you are an executor. When the owner asks you to do 
 - **add_menu_item** — add new items to the menu
 - **toggle_menu_item** — enable/disable a menu item by name
 - **search_orders** — fetch recent orders
+- **update_order_status** — mark an order as completed, cancelled, or pending
 - **get_connected_platforms** — check which social/ad platforms are connected
 - **create_social_post** — ACTUALLY PUBLISH a post to Meta/Instagram, TikTok, or YouTube right now
 - **create_ad_campaign** — ACTUALLY LAUNCH a paid ad campaign on Meta, Google, TikTok, Snapchat, or Pinterest
+- **create_accounting_entry** — ADD an income or expense entry to the restaurant's accounting ledger
+- **schedule_task** — SCHEDULE any of the above to happen AUTOMATICALLY on a recurring or one-time schedule, even when you are not logged in
 
 ## How to Handle Requests
 - "Post [X] to Instagram" → call get_connected_platforms, then create_social_post with a compelling caption you write
 - "Run an ad for [X]" → call get_connected_platforms, then create_ad_campaign with ad copy you write
 - "Add [item] to my menu" → call add_menu_item directly
 - "Show me today's orders" → call search_orders
+- "Mark order #42 as completed" → call update_order_status
+- "Record today's revenue as income" → call create_accounting_entry
+- "Post about specials every morning at 9am" → call schedule_task (schedule_type=cron, cron_expression='0 9 * * *')
+- "Send a weekly Instagram update every Monday" → call schedule_task (cron='0 9 * * 1')
+- "Run a lunch ad every weekday at 11am" → call schedule_task (cron='0 11 * * 1-5')
 
 ## Feedback Detection
 If the user's message contains any of the following, it is platform feedback:
@@ -862,6 +913,84 @@ When you detect feedback, start your reply with the EXACT token `[FEEDBACK]` on 
                             except Exception as e:
                                 log.error("Chat ad campaign failed [%s]: %s", platform, e)
                                 result = f"Campaign launch failed on {platform}: {str(e)[:300]}"
+
+                    # ── Accounting entry ───────────────────────────────────────
+                    elif name == "create_accounting_entry":
+                        entry_type = inp.get("type", "expense")
+                        category = inp.get("category", "Other")
+                        amount = float(inp.get("amount", 0))
+                        description = inp.get("description", "")
+                        entry_date = inp.get("date") or datetime.now(timezone.utc).date().isoformat()
+                        try:
+                            row = await db.fetchrow(
+                                "INSERT INTO accounting_entries (tenant_id,type,category,amount,description,date) "
+                                "VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
+                                tid, entry_type, category, amount, description, entry_date,
+                            )
+                            action_result = {"type": "accounting_entry", "id": row["id"], "amount": amount, "entry_type": entry_type}
+                            result = f"Recorded {entry_type}: {category} ${amount:.2f} — {description}"
+                        except Exception as e:
+                            result = f"Accounting entry failed: {e}"
+
+                    # ── Order status update ────────────────────────────────────
+                    elif name == "update_order_status":
+                        order_id = inp.get("order_id")
+                        new_status = inp.get("status", "completed")
+                        row = await db.fetchrow(
+                            "UPDATE tenant_orders SET status=$1 WHERE id=$2 AND tenant_id=$3 RETURNING id,status",
+                            new_status, order_id, tid,
+                        )
+                        if row:
+                            action_result = {"type": "order_updated", "order_id": row["id"], "status": row["status"]}
+                            result = f"Order #{row['id']} updated to {row['status']}."
+                        else:
+                            result = f"Order #{order_id} not found or doesn't belong to this restaurant."
+
+                    # ── Schedule task ──────────────────────────────────────────
+                    elif name == "schedule_task":
+                        try:
+                            from api.routers.tasks import init_task_tables, _next_cron_run
+                            await init_task_tables(db)
+                            user_dict2 = dict(current_user)
+                            uid = user_dict2.get("id")
+                            label = inp.get("label", "Scheduled Task")
+                            prompt_text = inp.get("prompt", "")
+                            sched_type = inp.get("schedule_type", "cron")
+                            cron_expr = inp.get("cron_expression")
+                            run_at_str = inp.get("run_at")
+                            tz = inp.get("timezone", "America/New_York")
+
+                            now_dt = datetime.now(timezone.utc)
+                            next_run = None
+                            if sched_type == "cron" and cron_expr:
+                                next_run = _next_cron_run(cron_expr, now_dt)
+                            elif sched_type == "once" and run_at_str:
+                                next_run = datetime.fromisoformat(run_at_str.replace("Z", "+00:00"))
+                                if next_run.tzinfo is None:
+                                    next_run = next_run.replace(tzinfo=timezone.utc)
+
+                            task_row = await db.fetchrow(
+                                """INSERT INTO ai_scheduled_tasks
+                                   (tenant_id,created_by,label,prompt,schedule_type,cron_expression,run_at,timezone,next_run_at)
+                                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id""",
+                                tid, uid, label, prompt_text, sched_type,
+                                cron_expr, next_run, tz, next_run,
+                            )
+                            action_result = {
+                                "type": "scheduled_task",
+                                "task_id": task_row["id"],
+                                "label": label,
+                                "schedule_type": sched_type,
+                                "cron_expression": cron_expr,
+                                "next_run_at": next_run.isoformat() if next_run else None,
+                            }
+                            if next_run:
+                                result = f"Scheduled '{label}' — next run: {next_run.strftime('%b %d at %I:%M %p UTC')}. Task ID: {task_row['id']}."
+                            else:
+                                result = f"Scheduled '{label}' (Task ID: {task_row['id']}). Set a cron expression or run_at to activate it."
+                        except Exception as e:
+                            log.error("schedule_task tool failed: %s", e)
+                            result = f"Failed to schedule task: {e}"
 
                     tool_results.append({"type": "tool_result", "tool_use_id": tu_id, "content": result})
 

@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     doordash_signing_secret: Optional[str] = None
     ubereats_client_id: Optional[str] = None
     ubereats_client_secret: Optional[str] = None
+    # Cron secret — protects /tasks/run-due endpoint
+    cron_secret: Optional[str] = None
 
 
 settings = Settings()

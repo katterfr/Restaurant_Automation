@@ -98,6 +98,7 @@ const NAV_PRIMARY: NavItem[] = [
   { label: 'Orders',    href: 'orders',    feature: null,   roles: ['owner','admin','manager'] },
   { label: 'Menu',      href: 'menu',      feature: null,   roles: ['owner','admin','manager'] },
   { label: 'Staff',     href: 'staff',     feature: null },
+  { label: 'Automations', href: 'tasks',   feature: null,   roles: ['owner','admin','manager'] },
   { label: 'Goals',     href: 'goals',     feature: null },
   { label: 'Messages',  href: 'messages',  feature: null },
 ]

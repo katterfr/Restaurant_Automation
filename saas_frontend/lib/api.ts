@@ -745,6 +745,48 @@ export const api = {
   webauthn: {
     status: () => request<{ enrolled: boolean; credential_count: number }>('/auth/webauthn/status'),
   },
+  tasks: {
+    list: () => request<ScheduledTask[]>('/tasks'),
+    create: (body: {
+      label: string
+      prompt: string
+      schedule_type: 'cron' | 'once'
+      cron_expression?: string
+      run_at?: string
+      timezone?: string
+    }) => request<ScheduledTask>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
+    delete: (id: number) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    toggle: (id: number) => request<{ id: number; is_active: boolean }>(`/tasks/${id}/toggle`, { method: 'PATCH' }),
+    runNow: (id: number) => request<{ status: string; summary: string; action_type: string | null }>(`/tasks/${id}/run-now`, { method: 'POST' }),
+    runs: (id: number) => request<ScheduledTaskRun[]>(`/tasks/${id}/runs`),
+  },
+}
+
+export interface ScheduledTask {
+  id: number
+  tenant_id: number
+  label: string
+  prompt: string
+  schedule_type: 'cron' | 'once'
+  cron_expression: string | null
+  run_at: string | null
+  timezone: string
+  is_active: boolean
+  last_run_at: string | null
+  next_run_at: string | null
+  created_at: string
+  last_run?: ScheduledTaskRun | null
+}
+
+export interface ScheduledTaskRun {
+  id: number
+  task_id: number
+  tenant_id: number
+  started_at: string
+  completed_at: string | null
+  status: 'running' | 'success' | 'failed'
+  result_summary: string | null
+  action_type: string | null
 }
 
 export interface Testimonial {
