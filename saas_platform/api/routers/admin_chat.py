@@ -927,3 +927,194 @@ async def reject_feedback(feedback_id: int, current_user=Depends(_require_admin)
     if not row:
         raise HTTPException(404, "Feedback not found")
     return dict(row)
+
+
+# ─── Admin Accounting ─────────────────────────────────────────────────────────
+
+@router.get("/accounting")
+async def admin_accounting_overview(current_user=Depends(_require_admin), db=Depends(get_db)):
+    """Accounting summary for all tenants."""
+    tenants = await db.fetch(
+        "SELECT id, name, slug, plan FROM tenants WHERE status='active' ORDER BY name"
+    )
+    result = []
+    for t in tenants:
+        tid = t["id"]
+        totals = await db.fetch(
+            "SELECT type, SUM(amount) AS total FROM accounting_entries WHERE tenant_id=$1 GROUP BY type",
+            tid,
+        )
+        income  = next((float(r["total"]) for r in totals if r["type"] == "income"),  0.0)
+        expense = next((float(r["total"]) for r in totals if r["type"] == "expense"), 0.0)
+        result.append({
+            "tenant_id":   tid,
+            "tenant_name": t["name"],
+            "slug":        t["slug"],
+            "plan":        t["plan"],
+            "income":      income,
+            "expense":     expense,
+            "net":         income - expense,
+        })
+    return result
+
+
+@router.get("/accounting/{tenant_id}/entries")
+async def admin_tenant_entries(
+    tenant_id: int,
+    type: Optional[str] = None,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    """List accounting entries for a specific tenant."""
+    tenant = await db.fetchrow("SELECT name FROM tenants WHERE id=$1", tenant_id)
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    q = "SELECT * FROM accounting_entries WHERE tenant_id=$1"
+    args: list = [tenant_id]
+    if type:
+        args.append(type); q += f" AND type=${len(args)}"
+    q += " ORDER BY date DESC, id DESC LIMIT 100"
+    rows = await db.fetch(q, *args)
+    return [dict(r) for r in rows]
+
+
+class AdminAccountingEntryBody(BaseModel):
+    type: str
+    category: str
+    amount: float
+    description: str
+    date: Optional[str] = None
+
+
+@router.post("/accounting/{tenant_id}/entries", status_code=201)
+async def admin_create_entry(
+    tenant_id: int,
+    body: AdminAccountingEntryBody,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    """Add an accounting entry for any tenant."""
+    tenant = await db.fetchrow("SELECT name FROM tenants WHERE id=$1", tenant_id)
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    entry_date = body.date or datetime.now(timezone.utc).date().isoformat()
+    row = await db.fetchrow(
+        "INSERT INTO accounting_entries (tenant_id,type,category,amount,description,date,source) "
+        "VALUES ($1,$2,$3,$4,$5,$6,'admin') RETURNING *",
+        tenant_id, body.type, body.category, body.amount, body.description, entry_date,
+    )
+    return dict(row)
+
+
+@router.delete("/accounting/entries/{entry_id}", status_code=204)
+async def admin_delete_entry(
+    entry_id: int,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    """Delete any accounting entry by ID."""
+    await db.execute("DELETE FROM accounting_entries WHERE id=$1", entry_id)
+
+
+# ─── Admin Phone Agents ───────────────────────────────────────────────────────
+
+@router.get("/phone-agents")
+async def admin_phone_agents(current_user=Depends(_require_admin), db=Depends(get_db)):
+    """List all phone agents across all tenants."""
+    rows = await db.fetch(
+        """SELECT pa.*, t.name AS tenant_name, t.slug, t.plan
+           FROM phone_agents pa
+           JOIN tenants t ON t.id = pa.tenant_id
+           ORDER BY t.name"""
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Recent call count (last 30 days)
+        calls = await db.fetchval(
+            "SELECT COUNT(*) FROM phone_calls WHERE tenant_id=$1 AND created_at >= NOW() - INTERVAL '30 days'",
+            r["tenant_id"],
+        )
+        d["calls_last_30d"] = calls
+        result.append(d)
+    return result
+
+
+@router.get("/phone-agents/tenants")
+async def admin_phone_agent_tenants(current_user=Depends(_require_admin), db=Depends(get_db)):
+    """List all tenants with phone_agent feature enabled, with or without an agent configured."""
+    rows = await db.fetch(
+        """SELECT t.id, t.name, t.slug, t.plan,
+                  pa.id AS agent_id, pa.is_active, pa.phone_number,
+                  pa.greeting, pa.special_instructions, pa.total_calls, pa.last_call_at
+           FROM tenants t
+           JOIN tenant_features tf ON tf.tenant_id = t.id AND tf.feature='phone_agent' AND tf.enabled=TRUE
+           LEFT JOIN phone_agents pa ON pa.tenant_id = t.id
+           WHERE t.status='active'
+           ORDER BY t.name"""
+    )
+    return [dict(r) for r in rows]
+
+
+class AdminPhoneAgentBody(BaseModel):
+    greeting: Optional[str] = None
+    special_instructions: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@router.patch("/phone-agents/{tenant_id}")
+async def admin_update_phone_agent(
+    tenant_id: int,
+    body: AdminPhoneAgentBody,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    """Update or activate/deactivate a tenant's phone agent."""
+    tenant = await db.fetchrow("SELECT name FROM tenants WHERE id=$1", tenant_id)
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+
+    agent = await db.fetchrow("SELECT id FROM phone_agents WHERE tenant_id=$1", tenant_id)
+    sets: list[str] = []
+    vals: list = [tenant_id]
+
+    for field in ("greeting", "special_instructions", "is_active"):
+        val = getattr(body, field)
+        if val is not None:
+            vals.append(val)
+            sets.append(f"{field}=${len(vals)}")
+
+    if not sets:
+        raise HTTPException(400, "No fields to update")
+
+    if agent:
+        await db.execute(
+            f"UPDATE phone_agents SET {', '.join(sets)}, updated_at=NOW() WHERE tenant_id=$1",
+            *vals,
+        )
+    else:
+        await db.execute(
+            "INSERT INTO phone_agents (tenant_id, greeting, special_instructions, is_active) VALUES ($1,$2,$3,$4)",
+            tenant_id,
+            body.greeting or "Thank you for calling! How can I help you today?",
+            body.special_instructions or "",
+            bool(body.is_active),
+        )
+
+    updated = await db.fetchrow("SELECT * FROM phone_agents WHERE tenant_id=$1", tenant_id)
+    return dict(updated)
+
+
+@router.get("/phone-agents/{tenant_id}/calls")
+async def admin_phone_agent_calls(
+    tenant_id: int,
+    current_user=Depends(_require_admin),
+    db=Depends(get_db),
+):
+    """Get recent calls for a tenant's phone agent."""
+    rows = await db.fetch(
+        "SELECT id, caller_number, duration_secs, summary, order_created, created_at "
+        "FROM phone_calls WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 50",
+        tenant_id,
+    )
+    return [dict(r) for r in rows]

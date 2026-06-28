@@ -649,6 +649,21 @@ export const api = {
     chat: (messages: Array<{ role: string; content: string; image?: string }>) =>
       request<{ reply: string; navigate: string | null; action_result: Record<string, unknown> | null }>('/admin/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
   },
+  adminAccounting: {
+    overview: () => request<AdminTenantAccounting[]>('/admin/accounting'),
+    entries: (tenantId: number, type?: string) =>
+      request<AccountingEntry[]>(`/admin/accounting/${tenantId}/entries${type ? `?type=${type}` : ''}`),
+    create: (tenantId: number, body: { type: string; category: string; amount: number; description: string; date?: string }) =>
+      request<AccountingEntry>(`/admin/accounting/${tenantId}/entries`, { method: 'POST', body: JSON.stringify(body) }),
+    deleteEntry: (entryId: number) =>
+      request<void>(`/admin/accounting/entries/${entryId}`, { method: 'DELETE' }),
+  },
+  adminPhoneAgents: {
+    list: () => request<AdminPhoneAgent[]>('/admin/phone-agents/tenants'),
+    update: (tenantId: number, body: { greeting?: string; special_instructions?: string; is_active?: boolean }) =>
+      request<AdminPhoneAgent>(`/admin/phone-agents/${tenantId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    calls: (tenantId: number) => request<PhoneCall[]>(`/admin/phone-agents/${tenantId}/calls`),
+  },
   adminFeatures: {
     get: (tenantId: number) => request<Record<string, boolean>>(`/features/${tenantId}`),
     toggle: (tenantId: number, feature: string) =>
@@ -801,6 +816,32 @@ export interface ScheduledTaskRun {
   status: 'running' | 'success' | 'failed'
   result_summary: string | null
   action_type: string | null
+}
+
+export interface AdminTenantAccounting {
+  tenant_id: number
+  tenant_name: string
+  slug: string
+  plan: string
+  income: number
+  expense: number
+  net: number
+}
+
+export interface AdminPhoneAgent {
+  id: number | null
+  tenant_id: number
+  tenant_name: string
+  slug: string
+  plan: string
+  agent_id: number | null
+  is_active: boolean | null
+  phone_number: string | null
+  greeting: string | null
+  special_instructions: string | null
+  total_calls: number | null
+  last_call_at: string | null
+  calls_last_30d?: number
 }
 
 export interface Testimonial {

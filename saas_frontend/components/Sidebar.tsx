@@ -6,7 +6,8 @@ import { clearToken } from '@/lib/auth'
 const nav = [
   { label: 'Dashboard',    href: '/dashboard',    icon: '▦' },
   { label: 'Feedback',     href: '/feedback',     icon: '★' },
-  { label: 'Phone Agent',  href: '/phone-agent',  icon: '☎' },
+  { label: 'Phone Agents', href: '/phone-agents', icon: '☎' },
+  { label: 'Accounting',   href: '/accounting',   icon: '$' },
   { label: 'AI Assistant', href: '/chat',         icon: '✦' },
   { label: 'Automations',  href: '/automations',  icon: '⏱' },
   { label: 'Settings',     href: '/settings',     icon: '⚙' },
