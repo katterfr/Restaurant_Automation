@@ -13,7 +13,7 @@ const SOCIAL_PLATFORMS = [
 function PlatformIcon({ k, size = 10 }: { k: string; size?: number }) {
   const s = `w-${size} h-${size} rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`
   if (k === 'meta')           return <div className={`${s} bg-blue-600`}>f</div>
-  if (k === 'tiktok_content') return <div className={`${s} bg-gray-900`}>TT</div>
+  if (k === 'tiktok_content') return <div className={`${s} bg-gray-900 border border-gray-300`}>TT</div>
   if (k === 'youtube')        return <div className={`${s} bg-red-600`}>▶</div>
   return <div className={`${s} bg-gray-400`}>?</div>
 }
@@ -36,6 +36,14 @@ const LABEL: Record<string, string> = {
   youtube: 'YouTube',
 }
 
+interface MetaSetupInfo {
+  configured: boolean
+  callback_url: string
+  required_scopes: string[]
+  requirements: string[]
+  instagram_setup_url: string
+}
+
 export default function SocialPage() {
   const params      = useParams<{ slug: string }>()
   const searchParams = useSearchParams()
@@ -44,16 +52,24 @@ export default function SocialPage() {
   const [posts,       setPosts]       = useState<SocialPost[]>([])
   const [status,      setStatus]      = useState<Record<string, PlatformStatus>>({})
   const [metaInfo,    setMetaInfo]    = useState<MetaAccountInfo | null>(null)
+  const [metaSetup,   setMetaSetup]   = useState<MetaSetupInfo | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState('')
   const [connecting,  setConnecting]  = useState<string | null>(null)
+  const [showMetaGuide, setShowMetaGuide] = useState(false)
+  const [copiedUrl, setCopiedUrl]     = useState(false)
 
   const load = useCallback(async () => {
     try {
-      const [p, s] = await Promise.all([api.social.posts(), api.ads.status().catch(() => ({}))])
+      const [p, s, setup] = await Promise.all([
+        api.social.posts().catch(() => [] as SocialPost[]),
+        api.ads.status().catch(() => ({})),
+        api.ads.metaSetup().catch(() => null),
+      ])
       setPosts(p)
       const st = s as Record<string, PlatformStatus>
       setStatus(st)
+      setMetaSetup(setup)
       if (st.meta?.connected) {
         api.ads.metaAccountInfo().then(setMetaInfo).catch(() => {})
       }
@@ -66,18 +82,27 @@ export default function SocialPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Refresh after OAuth redirect back
   useEffect(() => {
-    if (searchParams?.get('connected')) load()
+    const connected = searchParams?.get('connected')
+    if (connected) load()
   }, [searchParams, load])
 
   async function connect(platform: string) {
+    if (platform === 'meta' && !metaSetup?.configured) {
+      setShowMetaGuide(true)
+      return
+    }
     setConnecting(platform)
     try {
       const { oauth_url } = await api.ads.connectUrl(platform, 'social')
       window.location.href = oauth_url
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Connect failed')
+      const msg = e instanceof Error ? e.message : 'Connect failed'
+      if (msg.toLowerCase().includes('not yet configured')) {
+        setShowMetaGuide(true)
+      } else {
+        alert(msg)
+      }
       setConnecting(null)
     }
   }
@@ -85,6 +110,7 @@ export default function SocialPage() {
   async function disconnect(platform: string) {
     if (!confirm(`Disconnect ${LABEL[platform] ?? platform}?`)) return
     await api.ads.disconnect(platform)
+    setMetaInfo(null)
     await load()
   }
 
@@ -93,6 +119,16 @@ export default function SocialPage() {
     await api.social.delete(id)
     await load()
   }
+
+  function copyCallbackUrl() {
+    if (metaSetup?.callback_url) {
+      navigator.clipboard.writeText(metaSetup.callback_url)
+      setCopiedUrl(true)
+      setTimeout(() => setCopiedUrl(false), 2000)
+    }
+  }
+
+  const connectedPlatform = searchParams?.get('connected')
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -109,6 +145,104 @@ export default function SocialPage() {
         </Link>
       </div>
 
+      {/* Success toast */}
+      {connectedPlatform && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-green-600 text-lg">✓</span>
+          <p className="text-sm text-green-700 font-medium">
+            {LABEL[connectedPlatform] ?? connectedPlatform} connected successfully!
+          </p>
+        </div>
+      )}
+
+      {/* Meta Setup Guide Modal */}
+      {showMetaGuide && metaSetup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg">f</div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Connect Facebook & Instagram</h2>
+                  <p className="text-xs text-gray-400">Setup required before owners can connect</p>
+                </div>
+              </div>
+              <button onClick={() => setShowMetaGuide(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+
+            {!metaSetup.configured ? (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-amber-800 mb-1">⚠ Meta App credentials not configured</p>
+                  <p className="text-sm text-amber-700">Add <code className="bg-amber-100 px-1 rounded">META_APP_ID</code> and <code className="bg-amber-100 px-1 rounded">META_APP_SECRET</code> to your Railway environment variables.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">Setup steps:</p>
+                  <ol className="space-y-2 text-sm text-gray-600 list-none">
+                    {[
+                      ['1', 'Go to developers.facebook.com/apps → select your app'],
+                      ['2', 'App Settings → Basic → copy App ID and App Secret'],
+                      ['3', 'Add META_APP_ID and META_APP_SECRET to Railway env vars'],
+                      ['4', 'Facebook Login → Settings → add this URL to Valid OAuth Redirect URIs:'],
+                      ['5', 'Set App to Live mode so restaurant owners can log in'],
+                    ].map(([n, text]) => (
+                      <li key={n} className="flex gap-2">
+                        <span className="w-5 h-5 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{n}</span>
+                        <span>{text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">What restaurant owners need:</p>
+                  <ul className="space-y-2">
+                    {metaSetup.requirements.map((req, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <span className="text-green-500 mt-0.5">✓</span>
+                        {req}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800">Instagram requires a Business or Creator account</p>
+                  <p className="text-xs text-amber-700">If owners have a personal Instagram, they need to convert it to a Business account first, then link it to their Facebook Page.</p>
+                  <a href={metaSetup.instagram_setup_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">Learn how to link Instagram to Facebook Page →</a>
+                </div>
+              </>
+            )}
+
+            {/* Callback URL — always show */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1">
+              <p className="text-xs font-semibold text-gray-600">OAuth Redirect URI (add this in Meta Developer Console):</p>
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-gray-800 bg-white border border-gray-200 rounded-lg px-2 py-1.5 flex-1 truncate">
+                  {metaSetup.callback_url}
+                </code>
+                <button onClick={copyCallbackUrl} className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg shrink-0 transition-colors">
+                  {copiedUrl ? '✓ Copied' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400">Facebook Login → Settings → Valid OAuth Redirect URIs</p>
+            </div>
+
+            {metaSetup.configured && (
+              <button
+                onClick={() => { setShowMetaGuide(false); connect('meta') }}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Continue to Connect with Facebook
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Connected Accounts */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connected Accounts</p>
@@ -116,6 +250,7 @@ export default function SocialPage() {
           {SOCIAL_PLATFORMS.map(p => {
             const s = status[p.key]
             const isConnected = !!s?.connected
+            const isConfigured = s?.configured !== false // undefined = assume configured
             return (
               <div key={p.key} className="bg-white border border-gray-200 rounded-2xl px-5 py-4">
                 <div className="flex items-center justify-between gap-4">
@@ -127,7 +262,12 @@ export default function SocialPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    {isConnected && <span className="text-xs bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-medium">Connected</span>}
+                    {isConnected && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full font-medium">Connected</span>
+                    )}
+                    {!isConnected && !isConfigured && (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full font-medium">Setup pending</span>
+                    )}
                     {isConnected ? (
                       <button
                         onClick={() => disconnect(p.key)}
@@ -141,13 +281,16 @@ export default function SocialPage() {
                         disabled={connecting === p.key}
                         className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                       >
-                        {connecting === p.key && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        {connecting === p.key && (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        )}
                         {connecting === p.key ? 'Redirecting…' : 'Connect'}
                       </button>
                     )}
                   </div>
                 </div>
-                {/* Show Facebook page + Instagram account when Meta is connected */}
+
+                {/* Meta: show linked FB page + IG account once connected */}
                 {p.key === 'meta' && isConnected && metaInfo && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
@@ -159,7 +302,7 @@ export default function SocialPage() {
                         <p className="text-sm font-medium text-gray-900">{metaInfo.page_name || metaInfo.page_id}</p>
                       </div>
                     </div>
-                    {metaInfo.ig_username && (
+                    {metaInfo.ig_username ? (
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center">
                           <span className="text-white text-[9px] font-bold">IG</span>
@@ -169,10 +312,28 @@ export default function SocialPage() {
                           <p className="text-sm font-medium text-gray-900">@{metaInfo.ig_username}</p>
                         </div>
                       </div>
+                    ) : (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <span className="text-amber-600 text-sm">⚠</span>
+                        <div>
+                          <p className="text-xs font-medium text-amber-800">No Instagram Business account found</p>
+                          <p className="text-[11px] text-amber-600">Facebook posting works — to also post to Instagram, link an Instagram Business account to your Facebook Page.</p>
+                        </div>
+                        <button onClick={() => setShowMetaGuide(true)} className="text-xs text-blue-600 hover:underline ml-1 shrink-0">How?</button>
+                      </div>
                     )}
-                    {!metaInfo.ig_id && (
-                      <p className="text-xs text-amber-600 self-center">No Instagram Business account linked to this page — connect one in Facebook Page Settings.</p>
-                    )}
+                  </div>
+                )}
+
+                {/* Meta: show setup hint when not connected */}
+                {p.key === 'meta' && !isConnected && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <p className="text-xs text-gray-400">
+                      Connects your Facebook Page + Instagram Business account.
+                    </p>
+                    <button onClick={() => setShowMetaGuide(true)} className="text-xs text-blue-500 hover:underline shrink-0">
+                      Setup guide
+                    </button>
                   </div>
                 )}
               </div>
@@ -191,7 +352,7 @@ export default function SocialPage() {
         {!loading && !error && posts.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
             <p className="text-gray-500 font-medium">No posts yet</p>
-            <p className="text-gray-400 text-sm mt-1">Create your first post and publish to all platforms at once.</p>
+            <p className="text-gray-400 text-sm mt-1">Connect a platform above, then create your first post.</p>
             <Link href={`/portal/${slug}/social/new`} className="inline-block mt-4 text-green-600 hover:underline text-sm font-medium">
               Create a post →
             </Link>
@@ -202,6 +363,8 @@ export default function SocialPage() {
           <div className="space-y-3">
             {posts.map(post => {
               const platforms = parsePlatforms(post.platforms)
+              let results: Record<string, { status: string; error?: string }> = {}
+              try { results = JSON.parse(post.platform_results || '{}') } catch { /* */ }
               return (
                 <div key={post.id} className="bg-white rounded-xl border border-gray-200 p-4">
                   <div className="flex items-start justify-between gap-4">
@@ -218,6 +381,14 @@ export default function SocialPage() {
                           </div>
                         ))}
                       </div>
+                      {/* Per-platform error messages */}
+                      {Object.entries(results).map(([pid, r]) =>
+                        r.status === 'failed' ? (
+                          <p key={pid} className="text-xs text-red-500 mt-1 bg-red-50 rounded px-2 py-1">
+                            {LABEL[pid] ?? pid}: {r.error ?? 'failed'}
+                          </p>
+                        ) : null
+                      )}
                     </div>
                     <div className="text-right shrink-0 space-y-1.5">
                       <span className={statusBadge(post.status)}>{post.status}</span>

@@ -532,6 +532,7 @@ export const api = {
     }),
     cancel: (id: number) => request<void>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
     connectUrl: (platform: string, source: 'ads' | 'social' = 'ads') => request<{ oauth_url: string }>(`/ads/connect/${platform}/url?source=${source}`),
+    metaSetup: () => request<{ configured: boolean; callback_url: string; required_scopes: string[]; requirements: string[]; instagram_setup_url: string; meta_app_review_url: string }>('/ads/meta-setup'),
     metaAccountInfo: () => request<MetaAccountInfo>('/ads/connect/meta/account-info'),
     saveCredentials: (platform: string, data: { access_token: string; account_id: string; page_id?: string }) =>
       request<{ ok: boolean; platform: string }>(`/ads/credentials/${platform}`, { method: 'POST', body: JSON.stringify(data) }),

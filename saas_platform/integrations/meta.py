@@ -5,28 +5,39 @@ import httpx
 GRAPH = "https://graph.facebook.com/v19.0"
 OAUTH = "https://www.facebook.com/v19.0/dialog/oauth"
 
-# Combined scopes covering ads + page posts + Instagram
-_SCOPES = ",".join([
+# Social scopes — for connecting Facebook Pages + Instagram for posting.
+# These require App Review but NOT business_management/ads_management.
+_SOCIAL_SCOPES = ",".join([
+    "pages_show_list",
     "pages_manage_posts",
     "pages_read_engagement",
-    "pages_show_list",
     "instagram_basic",
     "instagram_content_publish",
+])
+
+# Ads scopes — for running paid campaigns. Requires Advanced Access from Meta.
+_ADS_SCOPES = ",".join([
+    "pages_show_list",
+    "pages_manage_posts",
     "business_management",
     "ads_management",
     "ads_read",
 ])
+
+# Legacy combined (kept for backward compatibility)
+_SCOPES = _ADS_SCOPES
 
 
 def is_configured() -> bool:
     return bool(os.getenv("META_APP_ID") and os.getenv("META_APP_SECRET"))
 
 
-def oauth_start_url(redirect_uri: str, state: str) -> str:
+def oauth_start_url(redirect_uri: str, state: str, source: str = "ads") -> str:
+    scopes = _SOCIAL_SCOPES if source == "social" else _ADS_SCOPES
     return (
         f"{OAUTH}?client_id={os.getenv('META_APP_ID')}"
         f"&redirect_uri={redirect_uri}"
-        f"&scope={_SCOPES}"
+        f"&scope={scopes}"
         f"&state={state}&response_type=code"
     )
 

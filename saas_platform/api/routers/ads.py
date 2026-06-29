@@ -63,6 +63,31 @@ def _callback_uri(platform: str) -> str:
     return f"{settings.saas_api_url}/ads/connect/{platform}/callback"
 
 
+# ─── Meta setup diagnostics (no auth required — used by onboarding UI) ──────────
+
+@router.get("/meta-setup")
+async def meta_setup_info():
+    """Return the exact callback URL and configured status for the Meta app setup guide."""
+    return {
+        "configured": meta_api.is_configured(),
+        "callback_url": f"{settings.saas_api_url}/ads/connect/meta/callback",
+        "required_scopes": [
+            "pages_show_list",
+            "pages_manage_posts",
+            "pages_read_engagement",
+            "instagram_basic",
+            "instagram_content_publish",
+        ],
+        "requirements": [
+            "A Facebook Page for your restaurant (you must be Page Admin)",
+            "An Instagram Business or Creator account linked to that Facebook Page",
+            "The CarefulServer Meta App must be in Live mode",
+        ],
+        "instagram_setup_url": "https://www.facebook.com/help/1148909871880797",
+        "meta_app_review_url": "https://developers.facebook.com/docs/app-review",
+    }
+
+
 # ─── Platform status ──────────────────────────────────────────────────────────
 
 @router.get("/status")
@@ -153,6 +178,9 @@ async def get_connect_url(
     mod = PLATFORMS[platform]
     if not mod.is_configured():
         raise HTTPException(400, f"{platform.title()} credentials not yet configured. Add the API keys in Railway.")
+    # Pass source to Meta so it requests only the needed scopes (social vs ads)
+    if platform == "meta":
+        return {"oauth_url": mod.oauth_start_url(_callback_uri(platform), state, source=source)}
     return {"oauth_url": mod.oauth_start_url(_callback_uri(platform), state)}
 
 

@@ -104,6 +104,8 @@ async def get_connect_url(
     mod = AD_PLATFORMS[platform]
     if not mod.is_configured():
         raise HTTPException(400, f"{platform.title()} credentials not yet configured — add API keys in Railway")
+    if platform == "meta":
+        return {"oauth_url": mod.oauth_start_url(_callback_uri(platform), state, source=source)}
     return {"oauth_url": mod.oauth_start_url(_callback_uri(platform), state)}
 
 
