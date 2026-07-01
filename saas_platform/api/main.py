@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
@@ -62,16 +61,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Redirect all HTTP requests to HTTPS
-app.add_middleware(HTTPSRedirectMiddleware)
-
-# Restrict CORS to the configured frontend origin with explicit methods/headers
+# Railway terminates SSL at its load balancer — HTTPSRedirectMiddleware must NOT be
+# used here because FastAPI always receives http:// internally, causing infinite redirects.
+# HTTPS enforcement is handled by Cloudflare (frontend) and Railway's TLS termination (API).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router)

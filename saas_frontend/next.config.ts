@@ -1,14 +1,10 @@
 import type { NextConfig } from "next";
 
+// HTTPS redirect is handled by Cloudflare at the edge — do NOT add it here.
+// Adding it here causes an infinite redirect loop because Workers always receives
+// requests over HTTP internally, even though the browser connected over HTTPS.
 const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
-  redirects: async () => [
-    {
-      source: '/:path*',
-      destination: 'https://:host/:path*',
-      permanent: true,
-    },
-  ],
   headers: async () => [
     {
       source: '/:path*',
