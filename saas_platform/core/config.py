@@ -76,5 +76,13 @@ class Settings(BaseSettings):
     # Cron secret — protects /tasks/run-due endpoint
     cron_secret: Optional[str] = None
 
+    # Application-level encryption key (Fernet).
+    # Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Store the result in the ENCRYPTION_KEY environment variable.
+    # Required in production — sensitive fields (tokens, API keys, PII) are
+    # encrypted with this key before being written to PostgreSQL.
+    encryption_key: Optional[str] = None
+
 
 settings = Settings()
