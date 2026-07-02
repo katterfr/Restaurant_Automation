@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
+from core.encryption import is_encryption_configured
 from db.database import init_db, close_db, get_db_pool
 from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback, staff, webauthn, admin_marketing
 from api.routers import tasks as tasks_router
@@ -41,6 +42,21 @@ async def _task_scheduler_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("Starting %s", settings.app_name)
+
+    # Warn loudly when ENCRYPTION_KEY is absent so operators know that
+    # sensitive fields (tokens, API keys, PII) are stored unencrypted.
+    # The application still starts to avoid breaking existing deployments,
+    # but this should be treated as a critical misconfiguration in production.
+    if is_encryption_configured():
+        log.info("Application-level field encryption: ENABLED")
+    else:
+        log.warning(
+            "ENCRYPTION_KEY is not set — sensitive database fields will NOT be "
+            "encrypted at rest. Generate a key with: "
+            "python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\""
+        )
+
     await init_db()
     log.info("Database ready")
     scheduler_task = asyncio.create_task(_task_scheduler_loop())
