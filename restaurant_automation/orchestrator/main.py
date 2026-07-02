@@ -34,6 +34,22 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     log.info("🚀 Starting %s Automation Platform", settings.restaurant_name)
 
+    # ── Encryption key validation ────────────────────────────────────────────
+    # Warn loudly if ENCRYPTION_KEY is absent so operators know that sensitive
+    # fields (PII, credentials, API keys) will NOT be encrypted at rest.
+    # The service still starts to avoid hard failures in dev/staging, but
+    # production deployments should always set this variable.
+    from core.encryption import is_encryption_available
+    if is_encryption_available():
+        log.info("🔐 Encryption key loaded — sensitive-field encryption is ACTIVE")
+    else:
+        log.warning(
+            "⚠️  ENCRYPTION_KEY is not set — sensitive-field encryption is DISABLED. "
+            "Generate a key with: "
+            "python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\""
+        )
+
     # Initialize databases
     from inventory.inventory_db import init_db
     from accounting.ledger import init_ledger
@@ -80,7 +96,12 @@ app.include_router(accounting_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "restaurant": settings.restaurant_name}
+    from core.encryption import is_encryption_available
+    return {
+        "status": "ok",
+        "restaurant": settings.restaurant_name,
+        "encryption": "enabled" if is_encryption_available() else "disabled",
+    }
 
 
 @app.get("/config")

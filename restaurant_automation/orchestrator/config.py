@@ -70,6 +70,18 @@ class Settings(BaseSettings):
     saas_tenant_id: Optional[int] = None      # The tenant ID this restaurant maps to
     saas_api_key: Optional[str] = None        # API_ADMIN_SECRET from saas_platform
 
+    # ── Encryption ───────────────────────────────────────────────────────
+    # Fernet symmetric key used to encrypt sensitive fields (PII, credentials,
+    # API keys, tokens) before they are written to the database.
+    #
+    # Generate a key:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    #
+    # Set the output as the ENCRYPTION_KEY environment variable / secret.
+    # Fields that must be encrypted: passwords, API keys, tokens, email
+    # addresses, phone numbers, delivery addresses, and any other PII.
+    encryption_key: Optional[str] = None
+
     # ── Derived ─────────────────────────────────────────────────────────
     @property
     def tz(self) -> zoneinfo.ZoneInfo:
