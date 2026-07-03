@@ -9,15 +9,11 @@ function fmtDate(s: string) {
 }
 
 const SOCIAL_PLATFORMS = [
-  { id: 'meta',          label: 'Facebook & Instagram', icon: 'f', color: 'bg-blue-600' },
-  { id: 'tiktok_content',label: 'TikTok',              icon: '♪', color: 'bg-black' },
-  { id: 'youtube',       label: 'YouTube',              icon: '▶', color: 'bg-red-600' },
+  { id: 'youtube', label: 'YouTube', icon: '▶', color: 'bg-red-600' },
 ]
 
 const AD_PLATFORMS = [
-  { id: 'meta',      label: 'Meta',      icon: 'f', color: 'bg-blue-600' },
   { id: 'google',    label: 'Google',    icon: 'G', color: 'bg-red-500' },
-  { id: 'tiktok',    label: 'TikTok',    icon: '♪', color: 'bg-black' },
   { id: 'snapchat',  label: 'Snapchat',  icon: 'S', color: 'bg-yellow-400' },
   { id: 'pinterest', label: 'Pinterest', icon: 'P', color: 'bg-red-600' },
 ]

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.config import settings
+from core.encryption import decrypt_data
 from integrations import vapi as vapi_api
 from integrations import twilio_sms, sms_ai
 import stripe
@@ -20,6 +21,19 @@ def _require_owner(current_user=Depends(get_current_user)):
     return current_user
 
 
+async def _get_tenant_vapi_key(tenant_id: int, db) -> str:
+    row = await db.fetchrow(
+        "SELECT api_key FROM tenant_api_keys WHERE tenant_id=$1 AND service='vapi'",
+        tenant_id,
+    )
+    if not row:
+        raise HTTPException(
+            503,
+            "VAPI API key not configured. Go to Settings → API Keys and add your VAPI token to use the AI Phone Agent.",
+        )
+    return decrypt_data(row["api_key"])
+
+
 # ─── GET status ───────────────────────────────────────────────────────────────
 
 @router.get("/status")
@@ -29,8 +43,11 @@ async def get_phone_status(current_user=Depends(_require_owner), db=Depends(get_
     calls = await db.fetch(
         "SELECT * FROM phone_calls WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 20", tid
     )
+    has_key = await db.fetchval(
+        "SELECT COUNT(*) FROM tenant_api_keys WHERE tenant_id=$1 AND service='vapi'", tid,
+    )
     return {
-        "configured": vapi_api.is_configured(),
+        "configured": bool(has_key),
         "agent": dict(row) if row else None,
         "recent_calls": [dict(c) for c in calls],
     }
@@ -46,10 +63,8 @@ class ActivateBody(BaseModel):
 
 @router.post("/activate")
 async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require_owner), db=Depends(get_db)):
-    if not vapi_api.is_configured():
-        raise HTTPException(503, "VAPI_API_KEY not configured — add it in Railway environment variables")
-
     tid = current_user["tenant_id"]
+    vapi_key = await _get_tenant_vapi_key(tid, db)
     if not tid:
         raise HTTPException(403, "No restaurant linked to this account. Please log in via the owner portal.")
 
@@ -78,7 +93,7 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
     if existing and existing["vapi_assistant_id"]:
         # Try to update existing assistant; recreate if it no longer exists in VAPI
         try:
-            await vapi_api.update_assistant(existing["vapi_assistant_id"], system_prompt, body.greeting, webhook_url=webhook_url)
+            await vapi_api.update_assistant(existing["vapi_assistant_id"], system_prompt, body.greeting, webhook_url=webhook_url, api_key=vapi_key)
             assistant_id = existing["vapi_assistant_id"]
             phone_number_id = existing["vapi_phone_number_id"]
             phone_number = body.existing_number or existing["phone_number"]
@@ -93,7 +108,7 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
         try:
             sms_tool_url = f"{settings.saas_api_url}/phone/tool/switch-to-sms/{tid}" if twilio_sms.is_configured() else ""
             assistant = await vapi_api.create_assistant(
-                assistant_name, system_prompt, body.greeting, webhook_url, sms_tool_url=sms_tool_url
+                assistant_name, system_prompt, body.greeting, webhook_url, sms_tool_url=sms_tool_url, api_key=vapi_key,
             )
             assistant_id = assistant["id"]
         except Exception as e:
@@ -106,14 +121,14 @@ async def activate_phone_agent(body: ActivateBody, current_user=Depends(_require
 
         if existing_vapi_number_id:
             try:
-                await vapi_api.relink_phone_number(existing_vapi_number_id, assistant_id)
+                await vapi_api.relink_phone_number(existing_vapi_number_id, assistant_id, api_key=vapi_key)
                 phone_number_id = existing_vapi_number_id
             except Exception as e:
                 log.warning("Failed to re-link VAPI phone number, will provision new: %s", e)
 
         if not phone_number_id and not body.existing_number:
             try:
-                num = await vapi_api.provision_phone_number(assistant_id)
+                num = await vapi_api.provision_phone_number(assistant_id, api_key=vapi_key)
                 phone_number_id = num.get("id")
                 phone_number = num.get("number")
             except Exception as e:
@@ -164,12 +179,11 @@ async def set_phone_number(body: SetNumberBody, current_user=Depends(_require_ow
         return dict(row)
 
     if body.provision_new:
-        if not vapi_api.is_configured():
-            raise HTTPException(503, "VAPI_API_KEY not configured")
         if not agent["vapi_assistant_id"]:
             raise HTTPException(400, "VAPI assistant not ready — please re-activate the agent")
+        vapi_key = await _get_tenant_vapi_key(tid, db)
         try:
-            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"], area_code=body.area_code or "")
+            num = await vapi_api.provision_phone_number(agent["vapi_assistant_id"], area_code=body.area_code or "", api_key=vapi_key)
         except Exception as e:
             raise HTTPException(502, f"VAPI number provisioning failed: {e}")
         row = await db.fetchrow(
@@ -203,9 +217,10 @@ async def sync_menu_to_agent(current_user=Depends(_require_owner), db=Depends(ge
         sms_number=settings.twilio_sms_number or "",
     )
 
+    vapi_key = await _get_tenant_vapi_key(tid, db)
     try:
         await vapi_api.update_assistant(
-            agent["vapi_assistant_id"], system_prompt, agent["greeting"]
+            agent["vapi_assistant_id"], system_prompt, agent["greeting"], api_key=vapi_key,
         )
     except Exception as e:
         raise HTTPException(502, f"Failed to sync: {e}")
@@ -335,12 +350,16 @@ async def update_config(body: ConfigBody, current_user=Depends(_require_owner), 
     # Push greeting update to VAPI if agent exists
     if agent["vapi_assistant_id"]:
         try:
+            vapi_key_row = await db.fetchrow(
+                "SELECT api_key FROM tenant_api_keys WHERE tenant_id=$1 AND service='vapi'", tid,
+            )
+            vapi_key = decrypt_data(vapi_key_row["api_key"]) if vapi_key_row else None
             tenant = await db.fetchrow("SELECT * FROM tenants WHERE id=$1", tid)
             menu_rows = await db.fetch(
                 "SELECT name, category, price, description, available FROM menu_items WHERE tenant_id=$1", tid
             )
             sp = vapi_api.build_system_prompt(tenant["name"], [dict(r) for r in menu_rows], instructions)
-            await vapi_api.update_assistant(agent["vapi_assistant_id"], sp, greeting)
+            await vapi_api.update_assistant(agent["vapi_assistant_id"], sp, greeting, api_key=vapi_key)
         except Exception as e:
             log.warning("Failed to push config to VAPI: %s", e)
 
@@ -597,10 +616,15 @@ async def sms_webhook(
         reply_text = sms_ai.clean_reply(reply_text)
         if agent and agent["vapi_assistant_id"]:
             try:
+                vapi_key_row = await db.fetchrow(
+                    "SELECT api_key FROM tenant_api_keys WHERE tenant_id=$1 AND service='vapi'", tenant_id,
+                )
+                outbound_key = decrypt_data(vapi_key_row["api_key"]) if vapi_key_row else None
                 await vapi_api.initiate_outbound_call(
                     from_number,
                     agent["vapi_assistant_id"],
                     context_message="Hi! You requested a callback to continue your order. I'm ready to take it now!",
+                    api_key=outbound_key,
                 )
             except Exception as e:
                 log.warning("Outbound call failed: %s", e)

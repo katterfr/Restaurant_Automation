@@ -47,7 +47,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 401) {
     sessionStorage.removeItem('token')
     localStorage.removeItem('token')
-    window.location.href = '/login'
+    // Redirect to the login page that matches the current portal, not always the admin login
+    const path = window.location.pathname
+    const portalMatch = path.match(/^\/portal\/([^/]+)/)
+    if (portalMatch) {
+      window.location.href = `/portal/${portalMatch[1]}/login`
+    } else if (path.startsWith('/app/')) {
+      window.location.href = '/app/login'
+    } else {
+      window.location.href = '/login'
+    }
     throw new Error('Session expired — please sign in again')
   }
   const data = await res.json().catch(() => ({ detail: res.statusText }))
@@ -820,6 +829,16 @@ export const api = {
     adminToggle: (id: number) => request<{ id: number; is_active: boolean }>(`/tasks/admin/${id}/toggle`, { method: 'PATCH' }),
     adminRunNow: (id: number) => request<{ status: string; summary: string; action_type: string | null }>(`/tasks/admin/${id}/run-now`, { method: 'POST' }),
     adminRuns: (id: number) => request<ScheduledTaskRun[]>(`/tasks/admin/${id}/runs`),
+  },
+  tenantKeys: {
+    list: () => request<{ service: string; label: string; masked: string; updated_at: string }[]>('/settings/api-keys'),
+    save: (service: string, api_key: string) =>
+      request<{ ok: boolean; service: string; masked: string }>(`/settings/api-keys/${service}`, {
+        method: 'POST',
+        body: JSON.stringify({ api_key }),
+      }),
+    delete: (service: string) =>
+      request<{ ok: boolean }>(`/settings/api-keys/${service}`, { method: 'DELETE' }),
   },
 }
 

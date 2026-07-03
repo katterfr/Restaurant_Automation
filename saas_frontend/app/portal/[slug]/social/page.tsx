@@ -5,16 +5,12 @@ import Link from 'next/link'
 import { api, SocialPost, PlatformStatus, MetaAccountInfo } from '@/lib/api'
 
 const SOCIAL_PLATFORMS = [
-  { key: 'meta',           label: 'Facebook & Instagram', sub: 'Posts, Reels & Stories', color: 'bg-blue-600' },
-  { key: 'tiktok_content', label: 'TikTok',               sub: 'Photos & Videos',         color: 'bg-gray-900' },
-  { key: 'youtube',        label: 'YouTube',               sub: 'Videos',                  color: 'bg-red-600' },
+  { key: 'youtube', label: 'YouTube', sub: 'Videos', color: 'bg-red-600' },
 ]
 
 function PlatformIcon({ k, size = 10 }: { k: string; size?: number }) {
   const s = `w-${size} h-${size} rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`
-  if (k === 'meta')           return <div className={`${s} bg-blue-600`}>f</div>
-  if (k === 'tiktok_content') return <div className={`${s} bg-gray-900 border border-gray-300`}>TT</div>
-  if (k === 'youtube')        return <div className={`${s} bg-red-600`}>▶</div>
+  if (k === 'youtube') return <div className={`${s} bg-red-600`}>▶</div>
   return <div className={`${s} bg-gray-400`}>?</div>
 }
 
@@ -31,8 +27,6 @@ function parsePlatforms(raw: string): string[] {
 }
 
 const LABEL: Record<string, string> = {
-  meta: 'Facebook/Instagram',
-  tiktok_content: 'TikTok',
   youtube: 'YouTube',
 }
 

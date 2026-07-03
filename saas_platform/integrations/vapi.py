@@ -4,13 +4,17 @@ from core.config import settings
 VAPI_API = "https://api.vapi.ai"
 
 
-def is_configured() -> bool:
-    return bool(settings.vapi_api_key)
+def _resolve_key(api_key: str | None = None) -> str:
+    return api_key or settings.vapi_api_key or ""
 
 
-def _headers() -> dict:
+def is_configured(api_key: str | None = None) -> bool:
+    return bool(_resolve_key(api_key))
+
+
+def _headers(api_key: str | None = None) -> dict:
     return {
-        "Authorization": f"Bearer {settings.vapi_api_key}",
+        "Authorization": f"Bearer {_resolve_key(api_key)}",
         "Content-Type": "application/json",
     }
 
@@ -67,7 +71,7 @@ RULES:
 """
 
 
-async def create_assistant(name: str, system_prompt: str, first_message: str, webhook_url: str, sms_tool_url: str = "") -> dict:
+async def create_assistant(name: str, system_prompt: str, first_message: str, webhook_url: str, sms_tool_url: str = "", api_key: str | None = None) -> dict:
     tools = []
     if sms_tool_url:
         tools.append({
@@ -136,14 +140,14 @@ async def create_assistant(name: str, system_prompt: str, first_message: str, we
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{VAPI_API}/assistant",
-            headers=_headers(),
+            headers=_headers(api_key),
             json=payload,
         )
         resp.raise_for_status()
         return resp.json()
 
 
-async def update_assistant(assistant_id: str, system_prompt: str, first_message: str, webhook_url: str = "") -> dict:
+async def update_assistant(assistant_id: str, system_prompt: str, first_message: str, webhook_url: str = "", api_key: str | None = None) -> dict:
     payload: dict = {
         "firstMessage": first_message,
         "model": {
@@ -158,25 +162,25 @@ async def update_assistant(assistant_id: str, system_prompt: str, first_message:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.patch(
             f"{VAPI_API}/assistant/{assistant_id}",
-            headers=_headers(),
+            headers=_headers(api_key),
             json=payload,
         )
         resp.raise_for_status()
         return resp.json()
 
 
-async def relink_phone_number(phone_number_id: str, assistant_id: str) -> dict:
+async def relink_phone_number(phone_number_id: str, assistant_id: str, api_key: str | None = None) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.patch(
             f"{VAPI_API}/phone-number/{phone_number_id}",
-            headers=_headers(),
+            headers=_headers(api_key),
             json={"assistantId": assistant_id},
         )
         resp.raise_for_status()
         return resp.json()
 
 
-async def provision_phone_number(assistant_id: str, area_code: str = "") -> dict:
+async def provision_phone_number(assistant_id: str, area_code: str = "", api_key: str | None = None) -> dict:
     payload: dict = {
         "provider": "vapi",
         "assistantId": assistant_id,
@@ -185,7 +189,7 @@ async def provision_phone_number(assistant_id: str, area_code: str = "") -> dict
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{VAPI_API}/phone-number",
-            headers=_headers(),
+            headers=_headers(api_key),
             json=payload,
         )
         if not resp.is_success:
@@ -198,7 +202,7 @@ async def provision_phone_number(assistant_id: str, area_code: str = "") -> dict
         return resp.json()
 
 
-async def initiate_outbound_call(phone_number: str, assistant_id: str, context_message: str = "") -> dict:
+async def initiate_outbound_call(phone_number: str, assistant_id: str, context_message: str = "", api_key: str | None = None) -> dict:
     """Start an outbound call to a customer — used when they text CALL ME during an SMS session."""
     async with httpx.AsyncClient(timeout=30) as client:
         overrides: dict = {}
@@ -206,7 +210,7 @@ async def initiate_outbound_call(phone_number: str, assistant_id: str, context_m
             overrides["firstMessage"] = context_message
         resp = await client.post(
             f"{VAPI_API}/call/phone",
-            headers=_headers(),
+            headers=_headers(api_key),
             json={
                 "assistantId": assistant_id,
                 "customer": {"number": phone_number},
@@ -217,11 +221,11 @@ async def initiate_outbound_call(phone_number: str, assistant_id: str, context_m
         return resp.json()
 
 
-async def list_calls(assistant_id: str, limit: int = 25) -> list:
+async def list_calls(assistant_id: str, limit: int = 25, api_key: str | None = None) -> list:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{VAPI_API}/call",
-            headers=_headers(),
+            headers=_headers(api_key),
             params={"assistantId": assistant_id, "limit": limit, "sortOrder": "desc"},
         )
         resp.raise_for_status()

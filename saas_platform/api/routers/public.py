@@ -15,11 +15,12 @@ from core.security import hash_password
 # Features automatically enabled per plan on signup (cumulative)
 _GROWTH_FEATURES = [
     "menu_management",
-    "ads_meta", "ads_google", "ads_youtube", "ads_tiktok", "ads_snapchat", "ads_pinterest",
-    "social_meta", "social_youtube", "social_tiktok",
+    "ads_google", "ads_youtube", "ads_snapchat", "ads_pinterest",
+    "social_youtube",
     "delivery", "listings_google", "listings_apple", "ai_creative",
+    "staff_tools", "automations", "goals", "messaging",
 ]
-_PRO_FEATURES = _GROWTH_FEATURES + ["phone_agent", "accounting", "staff_tools"]
+_PRO_FEATURES = _GROWTH_FEATURES + ["phone_agent", "accounting"]
 
 PLAN_FEATURES: dict[str, list[str]] = {
     "starter":    ["menu_management"],

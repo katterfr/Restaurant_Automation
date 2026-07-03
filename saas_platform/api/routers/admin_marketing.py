@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.config import settings
+from core.encryption import decrypt_data
 from integrations import meta as meta_api
 from integrations import google_ads as google_api
 from integrations import tiktok as tiktok_api
@@ -143,11 +144,11 @@ class AdminPostCreate(BaseModel):
 
 
 def _parse_meta_conn(conn) -> tuple[str, str, str]:
-    raw = conn.get("refresh_token") or ""
+    raw = decrypt_data(conn.get("refresh_token") or "")
     parts = raw.split(":", 2)
     if len(parts) == 3:
         return parts[0], parts[1], parts[2]
-    return conn.get("ad_account_id", ""), conn.get("access_token", ""), ""
+    return conn.get("ad_account_id", ""), decrypt_data(conn.get("access_token", "")), ""
 
 
 @router.post("/social/posts", status_code=201)
@@ -198,13 +199,13 @@ async def create_social_post(
 
             elif platform == "tiktok_content":
                 pid = await tiktok_api.create_post(
-                    conn["access_token"], conn["ad_account_id"] or "",
+                    decrypt_data(conn["access_token"]), conn["ad_account_id"] or "",
                     body.content, image_url=body.image_url, video_url=body.video_url,
                 )
 
             elif platform == "youtube":
                 pid = await youtube_api.create_post(
-                    conn["access_token"], conn["ad_account_id"] or "",
+                    decrypt_data(conn["access_token"]), conn["ad_account_id"] or "",
                     body.content, body.video_url or body.image_url,
                 )
 
@@ -292,7 +293,7 @@ async def create_campaigns(
 
         try:
             campaign_id = await mod.create_campaign(
-                access_token=conn["access_token"],
+                access_token=decrypt_data(conn["access_token"]),
                 ad_account_id=conn["ad_account_id"] or "",
                 headline=body.headline,
                 body=body.body,

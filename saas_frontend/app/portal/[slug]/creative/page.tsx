@@ -441,14 +441,27 @@ export default function CreativePage() {
     return (
       <div className="max-w-lg">
         <h1 className="text-xl font-bold text-gray-900 mb-6">AI Creative Studio</h1>
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-          <p className="text-sm font-semibold text-amber-800">Replicate API token required</p>
-          <p className="text-sm text-amber-700 mt-1">
-            Add <span className="font-mono bg-white px-1 rounded">REPLICATE_API_TOKEN</span> to your Railway environment variables to enable AI image and video generation.
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+          <p className="text-sm font-semibold text-amber-800">Replicate API key required</p>
+          <p className="text-sm text-amber-700">
+            To use AI Creative, add your Replicate API token in Settings. You are billed directly by Replicate — CarefulServer does not mark up usage costs.
           </p>
-          <p className="text-xs text-amber-600 mt-3">
-            Get your token at <strong>replicate.com</strong> → Account Settings → API Tokens.
-          </p>
+          <div className="flex items-center gap-3 pt-1">
+            <a
+              href={`/portal/${slug}/settings`}
+              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors"
+            >
+              Settings → API Keys
+            </a>
+            <a
+              href="https://replicate.com/account/api-tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-amber-700 hover:underline"
+            >
+              Get a Replicate key →
+            </a>
+          </div>
         </div>
       </div>
     )

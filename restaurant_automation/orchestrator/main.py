@@ -8,7 +8,6 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from orchestrator.config import settings
 from orchestrator.bus import bus, Events
@@ -77,14 +76,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(HTTPSRedirectMiddleware)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://*.railway.app"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Mount routers ────────────────────────────────────────────────────────────

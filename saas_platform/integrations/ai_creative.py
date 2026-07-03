@@ -18,13 +18,17 @@ def _token() -> str:
     return settings.replicate_api_token or settings.replicate_api_key or ""
 
 
-def is_configured() -> bool:
-    return bool(_token())
+def _resolve_token(api_token: str | None = None) -> str:
+    return api_token or _token()
 
 
-def _headers() -> dict:
+def is_configured(api_token: str | None = None) -> bool:
+    return bool(_resolve_token(api_token))
+
+
+def _headers(api_token: str | None = None) -> dict:
     return {
-        "Authorization": f"Token {_token()}",
+        "Authorization": f"Token {_resolve_token(api_token)}",
         "Content-Type": "application/json",
         "Prefer": "wait",  # synchronous mode for fast models
     }
@@ -53,12 +57,12 @@ def enhance_video_prompt(user_prompt: str, restaurant_name: str) -> str:
 
 # ── Image generation ─────────────────────────────────────────────────────────
 
-async def generate_image(prompt: str, aspect_ratio: str = "1:1") -> dict:
+async def generate_image(prompt: str, aspect_ratio: str = "1:1", api_token: str | None = None) -> dict:
     """Returns {"url": "...", "width": n, "height": n}"""
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             f"{REPLICATE_BASE}/models/{IMAGE_MODEL}/predictions",
-            headers=_headers(),
+            headers=_headers(api_token),
             json={
                 "input": {
                     "prompt": prompt,
@@ -83,7 +87,7 @@ async def generate_image(prompt: str, aspect_ratio: str = "1:1") -> dict:
     if not prediction_id:
         raise Exception("No prediction ID returned from Replicate")
 
-    return await _poll_prediction(prediction_id, is_video=False)
+    return await _poll_prediction(prediction_id, is_video=False, api_token=api_token)
 
 
 # ── Video generation ──────────────────────────────────────────────────────────
@@ -93,9 +97,10 @@ async def submit_video(
     image_url: str | None = None,
     duration: int = 5,
     aspect_ratio: str = "16:9",
+    api_token: str | None = None,
 ) -> dict:
     """Submit video job. Returns {"request_id", "status_url"}"""
-    headers = _headers()
+    headers = _headers(api_token)
     headers.pop("Prefer", None)  # video generation is always async
 
     if image_url:
@@ -138,11 +143,11 @@ async def submit_video(
     }
 
 
-async def poll_video_status(status_url: str) -> dict:
+async def poll_video_status(status_url: str, api_token: str | None = None) -> dict:
     """Returns {"status": "COMPLETED"|"FAILED"|"IN_PROGRESS", "video_url": str|None}"""
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(status_url, headers={
-            "Authorization": f"Token {_token()}",
+            "Authorization": f"Token {_resolve_token(api_token)}",
         })
         resp.raise_for_status()
         data = resp.json()
@@ -166,9 +171,9 @@ async def poll_video_status(status_url: str) -> dict:
 
 # ── Internal polling helper ───────────────────────────────────────────────────
 
-async def _poll_prediction(prediction_id: str, is_video: bool, max_wait: int = 120) -> dict:
+async def _poll_prediction(prediction_id: str, is_video: bool, max_wait: int = 120, api_token: str | None = None) -> dict:
     url = f"{REPLICATE_BASE}/predictions/{prediction_id}"
-    headers = {"Authorization": f"Token {_token()}"}
+    headers = {"Authorization": f"Token {_resolve_token(api_token)}"}
     deadline = asyncio.get_event_loop().time() + max_wait
 
     async with httpx.AsyncClient(timeout=30) as client:

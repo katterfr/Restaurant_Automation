@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from core.config import settings
 from core.encryption import is_encryption_configured
 from db.database import init_db, close_db, get_db_pool
-from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback, staff, webauthn, admin_marketing
+from api.routers import auth, tenants, billing, menu, orders, portal, ads, features, social, accounting, delivery, business, phone, creative, public, admin_chat, feedback, staff, webauthn, admin_marketing, tenant_keys, demo_chat
 from api.routers import tasks as tasks_router
 
 logging.basicConfig(
@@ -107,6 +107,8 @@ app.include_router(admin_marketing.router)
 app.include_router(feedback.router)
 app.include_router(staff.router)
 app.include_router(webauthn.router)
+app.include_router(tenant_keys.router)
+app.include_router(demo_chat.router)
 app.include_router(tasks_router.router)
 
 _UPLOAD_DIR = Path("/tmp/uploads")

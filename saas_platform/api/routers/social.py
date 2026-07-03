@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.config import settings
+from core.encryption import decrypt_data
 from integrations import meta as meta_api
 from integrations import tiktok as tiktok_api
 from integrations import youtube as youtube_api
@@ -152,7 +153,7 @@ async def create_post(body: PostCreate, current_user=Depends(_require_owner), db
 
             elif platform == "tiktok_content":
                 pid = await tiktok_api.create_post(
-                    conn["access_token"],
+                    decrypt_data(conn["access_token"]),
                     conn["ad_account_id"] or "",
                     body.content,
                     image_url=body.image_url,
@@ -161,7 +162,7 @@ async def create_post(body: PostCreate, current_user=Depends(_require_owner), db
 
             elif platform == "youtube":
                 pid = await youtube_api.create_post(
-                    conn["access_token"],
+                    decrypt_data(conn["access_token"]),
                     conn["ad_account_id"] or "",
                     body.content,
                     body.video_url or body.image_url,
@@ -187,11 +188,11 @@ async def create_post(body: PostCreate, current_user=Depends(_require_owner), db
 
 def _parse_meta_conn(conn) -> tuple[str, str, str]:
     """Extract page_id, page_token, ig_id from stored refresh_token field."""
-    raw = conn.get("refresh_token") or ""
+    raw = decrypt_data(conn.get("refresh_token") or "")
     parts = raw.split(":", 2)
     if len(parts) == 3:
         return parts[0], parts[1], parts[2]
-    return conn.get("ad_account_id", ""), conn.get("access_token", ""), ""
+    return conn.get("ad_account_id", ""), decrypt_data(conn.get("access_token", "")), ""
 
 
 @router.delete("/posts/{post_id}", status_code=204)

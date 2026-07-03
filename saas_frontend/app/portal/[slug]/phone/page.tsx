@@ -261,7 +261,7 @@ function SetupCard({ onActivated, accent }: { onActivated: (a: PhoneAgent) => vo
         <button onClick={activate} disabled={loading} className="w-full text-white py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: accent }}>
           {loading ? 'Activating…' : 'Activate Agent'}
         </button>
-        <p className="text-xs text-gray-400 text-center">Requires <span className="font-mono bg-gray-100 px-1 rounded">VAPI_API_KEY</span> in Railway. Add <span className="font-mono bg-gray-100 px-1 rounded">TWILIO_*</span> + <span className="font-mono bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</span> to enable SMS.</p>
+        <p className="text-xs text-gray-400 text-center">SMS ordering requires Twilio integration — contact support to enable.</p>
       </div>
     </div>
   )
@@ -726,7 +726,7 @@ function AgentActive({ agent, calls, smsSessions, accent, onRefresh }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PhonePage() {
-  useParams<{ slug: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
   const customization = useCustomization()
@@ -765,13 +765,26 @@ export default function PhonePage() {
     return (
       <div className="max-w-xl">
         <h1 className="text-xl font-bold text-gray-900 mb-6">AI Voice + Text Agent</h1>
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
           <p className="text-sm font-semibold text-amber-800">VAPI API key required</p>
-          <p className="text-sm text-amber-700 mt-1">Add <span className="font-mono bg-white px-1 rounded">VAPI_API_KEY</span> to Railway environment variables to enable the agent.</p>
-          <div className="mt-3 space-y-1 text-xs text-amber-600">
-            <p>• <span className="font-mono">VAPI_API_KEY</span> — Required for voice calls (vapi.ai)</p>
-            <p>• <span className="font-mono">TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_SMS_NUMBER</span> — Required for SMS ordering</p>
-            <p>• <span className="font-mono">ANTHROPIC_API_KEY</span> — Required for SMS AI conversation</p>
+          <p className="text-sm text-amber-700">
+            To use the AI Phone Agent, add your VAPI API key in Settings. You are billed directly by VAPI — CarefulServer does not mark up usage costs.
+          </p>
+          <div className="flex items-center gap-3 pt-1">
+            <a
+              href={`/portal/${slug}/settings`}
+              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors"
+            >
+              Settings → API Keys
+            </a>
+            <a
+              href="https://vapi.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-amber-700 hover:underline"
+            >
+              Get a VAPI key →
+            </a>
           </div>
         </div>
       </div>

@@ -5,9 +5,7 @@ import Link from 'next/link'
 import { api, AdCampaign, PlatformStatus } from '@/lib/api'
 
 const PLATFORM_META = {
-  meta:      { label: 'Meta',      icon: 'f',  color: 'bg-blue-600',    desc: 'Facebook + Instagram Ads',  loginLabel: 'Continue with Facebook' },
   google:    { label: 'Google',    icon: 'G',  color: 'bg-red-500',     desc: 'Search, Display & YouTube', loginLabel: 'Continue with Google' },
-  tiktok:    { label: 'TikTok',    icon: '▶',  color: 'bg-neutral-900', desc: 'In-Feed Video Ads',          loginLabel: 'Continue with TikTok' },
   snapchat:  { label: 'Snapchat',  icon: 'S',  color: 'bg-yellow-400',  desc: 'Story & Snap Ads',           loginLabel: 'Continue with Snapchat' },
   pinterest: { label: 'Pinterest', icon: 'P',  color: 'bg-red-600',     desc: 'Promoted Pins',              loginLabel: 'Continue with Pinterest' },
 }

@@ -5,9 +5,7 @@ import Link from 'next/link'
 import { api, PlatformStatus } from '@/lib/api'
 
 const PLATFORMS = [
-  { key: 'meta',           label: 'Facebook & Instagram', types: ['feed', 'reel', 'story'] },
-  { key: 'tiktok_content', label: 'TikTok',               types: ['feed'] },
-  { key: 'youtube',        label: 'YouTube',               types: ['feed'] },
+  { key: 'youtube', label: 'YouTube', types: ['feed'] },
 ]
 
 const TYPE_LABELS: Record<string, string> = {

@@ -14,16 +14,22 @@ import uuid
 from pathlib import Path
 from fastapi import APIRouter, Form, Request, Response
 from twilio.twiml.voice_response import VoiceResponse, Gather
-from twilio.request_validator import RequestValidator
 
 from orchestrator.config import settings
 from orchestrator.bus import bus, Events
-from phone_agent.hours import is_open, after_hours_message
+from phone_agent.hours import after_hours_message
 from phone_agent.conversation import ConversationManager
 from phone_agent.order_parser import parse_order
 
 router = APIRouter(prefix="/phone", tags=["phone"])
 log = logging.getLogger(__name__)
+
+
+def _public_base_url(request: Request) -> str:
+    """Build the public-facing base URL, respecting Railway's TLS termination proxy headers."""
+    proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    return f"{proto}://{host}"
 
 # In-memory session store {call_sid: ConversationManager}
 # Replace with Redis for multi-instance deployments
@@ -75,11 +81,6 @@ async def incoming_call(
     """Entry point for every inbound call."""
     log.info("INCOMING CALL | SID=%s | from=%s", CallSid, From)
 
-    if not is_open():
-        log.info("Restaurant closed — playing after-hours message")
-        return Response(content=_twiml_say(after_hours_message()),
-                        media_type="application/xml")
-
     # Start a new conversation session
     menu = _load_menu()
     _sessions[CallSid] = ConversationManager(call_sid=CallSid, menu=menu)
@@ -92,7 +93,7 @@ async def incoming_call(
         "I will walk you through a sample order right now. What would you like to try?"
     )
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _public_base_url(request)
     return Response(
         content=_twiml_gather(greeting, CallSid, f"{base_url}/phone/gather"),
         media_type="application/xml",
@@ -110,7 +111,7 @@ async def gather_speech(
     log.info("SPEECH | SID=%s | confidence=%.2f | text=%r",
              CallSid, Confidence, SpeechResult)
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _public_base_url(request)
     session = _sessions.get(CallSid)
 
     if not session:

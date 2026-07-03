@@ -25,7 +25,10 @@ ALL_FEATURES: dict[str, str] = {
     "delivery":        "Delivery Integrations",
     "phone_agent":     "AI Phone Order Agent",
     "ai_creative":     "AI Ad Creative (Images & Videos)",
-    "staff_tools":     "Staff Tools (Clock-In, Focus Mode, Goals, Encrypted Chat)",
+    "staff_tools":     "Staff Management",
+    "automations":     "Automations & Task Scheduling",
+    "goals":           "Goals & Performance Tracking",
+    "messaging":       "Team Messaging & Chat",
 }
 
 

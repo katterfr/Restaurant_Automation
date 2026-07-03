@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from db.database import get_db
 from api.routers.auth import get_current_user
 from core.config import settings
+from core.encryption import encrypt_data, decrypt_data
 from integrations import meta as meta_api
 from integrations import google_ads as google_api
 from integrations import tiktok as tiktok_api
@@ -99,7 +100,7 @@ async def platform_status(current_user=Depends(_require_owner), db=Depends(get_d
     connected = {r["platform"]: dict(r) for r in rows}
 
     def _meta_details(conn: dict) -> dict:
-        raw = conn.get("refresh_token") or ""
+        raw = decrypt_data(conn.get("refresh_token") or "")
         parts = raw.split(":", 2)
         if len(parts) == 3:
             return {"page_id": parts[0], "ig_connected": bool(parts[2])}
@@ -128,7 +129,7 @@ async def meta_account_info(current_user=Depends(_require_owner), db=Depends(get
     )
     if not conn:
         raise HTTPException(404, "Meta not connected")
-    raw = (conn["refresh_token"] or "").split(":", 2)
+    raw = decrypt_data(conn["refresh_token"] or "").split(":", 2)
     if len(raw) < 2:
         raise HTTPException(400, "Re-connect Meta to refresh account info")
     page_id, page_token = raw[0], raw[1]
@@ -200,8 +201,8 @@ async def oauth_callback(
             token_data = await tiktok_api.content_exchange_code(code, _callback_uri(platform))
         except Exception as e:
             raise HTTPException(400, f"TikTok content OAuth failed: {e}")
-        access_token = token_data.get("access_token", "")
-        refresh_token = token_data.get("refresh_token", "")
+        access_token = encrypt_data(token_data.get("access_token", ""))
+        refresh_token = encrypt_data(token_data.get("refresh_token", ""))
         open_id = token_data.get("open_id", "")
         await db.execute(
             """INSERT INTO platform_connections (tenant_id, platform, access_token, refresh_token, ad_account_id)
@@ -286,7 +287,7 @@ async def oauth_callback(
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (tenant_id, platform)
            DO UPDATE SET access_token=$3, refresh_token=$4, ad_account_id=$5, connected_at=NOW()""",
-        tenant_id, platform, access_token, refresh_token, ad_account_id,
+        tenant_id, platform, encrypt_data(access_token), encrypt_data(refresh_token), ad_account_id,
     )
 
     if tenant_id == 0:
@@ -378,7 +379,7 @@ async def save_platform_credentials(
                page_id       = EXCLUDED.page_id,
                connected_at  = NOW()""",
         current_user["tenant_id"], platform,
-        body.access_token.strip(), body.account_id.strip(),
+        encrypt_data(body.access_token.strip()), body.account_id.strip(),
         (body.page_id or "").strip(),
     )
     return {"ok": True, "platform": platform}
@@ -473,14 +474,15 @@ async def create_campaigns(body: CampaignCreate, current_user=Depends(_require_o
         campaign_data["page_id"] = conn.get("page_id") or ""
 
         try:
+            _token = decrypt_data(conn["access_token"])
             if platform == "meta":
-                platform_id = await meta_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
+                platform_id = await meta_api.deploy_campaign(_token, conn["ad_account_id"], campaign_data)
             elif platform == "google":
-                platform_id = await google_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
+                platform_id = await google_api.deploy_campaign(_token, conn["ad_account_id"], campaign_data)
             elif platform == "youtube":
-                platform_id = await youtube_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
+                platform_id = await youtube_api.deploy_campaign(_token, conn["ad_account_id"], campaign_data)
             else:
-                platform_id = await tiktok_api.deploy_campaign(conn["access_token"], conn["ad_account_id"], campaign_data)
+                platform_id = await tiktok_api.deploy_campaign(_token, conn["ad_account_id"], campaign_data)
 
             await db.execute(
                 "UPDATE ad_campaigns SET status='active', platform_campaign_id=$1 WHERE id=$2",

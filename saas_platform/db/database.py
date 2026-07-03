@@ -409,6 +409,17 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_api_keys (
+                tenant_id  INTEGER NOT NULL,
+                service    TEXT NOT NULL,
+                api_key    TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (tenant_id, service)
+            )
+        """)
+
         admin_email = os.getenv("ADMIN_EMAIL", "admin@restaurant.com")
         admin_password = os.getenv("ADMIN_PASSWORD", "admin1234")
         existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", admin_email)

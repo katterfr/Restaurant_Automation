@@ -22,6 +22,7 @@ export function saveToken(token: string) {
 
 export function clearToken() {
   sessionStorage.removeItem('token')
+  localStorage.removeItem('token')
 }
 
 export function getToken(): string | null {

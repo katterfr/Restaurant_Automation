@@ -94,13 +94,13 @@ function ChangePasswordModal({ accent, slug, onClose }: { accent: string; slug: 
 type NavItem = { label: string; href: string; feature: null | string | string[]; roles?: string[] }
 
 const NAV_PRIMARY: NavItem[] = [
-  { label: 'Dashboard', href: 'dashboard', feature: null },
-  { label: 'Orders',    href: 'orders',    feature: null,   roles: ['owner','admin','manager'] },
-  { label: 'Menu',      href: 'menu',      feature: null,   roles: ['owner','admin','manager'] },
-  { label: 'Staff',     href: 'staff',     feature: null },
-  { label: 'Automations', href: 'tasks',   feature: null,   roles: ['owner','admin','manager'] },
-  { label: 'Goals',     href: 'goals',     feature: null },
-  { label: 'Messages',  href: 'messages',  feature: null },
+  { label: 'Dashboard',   href: 'dashboard', feature: null },
+  { label: 'Orders',      href: 'orders',    feature: null,          roles: ['owner','admin','manager'] },
+  { label: 'Menu',        href: 'menu',      feature: null,          roles: ['owner','admin','manager'] },
+  { label: 'Staff',       href: 'staff',     feature: 'staff_tools' },
+  { label: 'Automations', href: 'tasks',     feature: 'automations', roles: ['owner','admin','manager'] },
+  { label: 'Goals',       href: 'goals',     feature: 'goals' },
+  { label: 'Messages',    href: 'messages',  feature: 'messaging' },
 ]
 
 const NAV_MARKETING: NavItem[] = [
@@ -477,6 +477,15 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                     >
                       Change Password
                     </button>
+                    {isOwnerAdmin && (
+                      <Link
+                        href={`/portal/${slug}/settings`}
+                        onClick={closeAllDropdowns}
+                        className={`block px-4 py-2 text-sm transition-colors ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        Settings & API Keys
+                      </Link>
+                    )}
                     <div className={`border-t mt-1 pt-1 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
                       <button
                         onClick={() => { closeAllDropdowns(); logout() }}
@@ -546,6 +555,13 @@ export default function SlugPortalLayout({ children }: { children: React.ReactNo
                 >
                   Change Password
                 </button>
+                {isOwnerAdmin && (
+                  <Link href={`/portal/${slug}/settings`} onClick={() => setMobileOpen(false)}
+                    className={`block px-3 py-2 rounded-lg text-sm ${dark ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    Settings & API Keys
+                  </Link>
+                )}
                 <button onClick={() => { logout(); setMobileOpen(false) }}
                   className={`block w-full text-left px-3 py-2 rounded-lg text-sm ${dark ? 'text-red-400 hover:bg-slate-700' : 'text-red-500 hover:bg-red-50'}`}
                 >
